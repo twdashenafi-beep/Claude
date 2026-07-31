@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>GitHub World Monitor</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-elev: #161b22;
+    --bg-elev-2: #1c2230;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-dim: #8b949e;
+    --accent: #58a6ff;
+    --accent-2: #3fb950;
+    --danger: #f85149;
+    --warn: #d29922;
+    --radius: 12px;
+    --shadow: 0 8px 24px rgba(0,0,0,.4);
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f6f8fa;
+      --bg-elev: #ffffff;
+      --bg-elev-2: #f0f3f6;
+      --border: #d0d7de;
+      --text: #1f2328;
+      --text-dim: #656d76;
+      --accent: #0969da;
+      --accent-2: #1a7f37;
+      --danger: #cf222e;
+      --warn: #9a6700;
+      --shadow: 0 8px 24px rgba(140,149,159,.2);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  header.app {
+    position: sticky; top: 0; z-index: 10;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+  }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 0 20px; }
+  .topbar { display: flex; align-items: center; gap: 14px; padding: 16px 0; flex-wrap: wrap; }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; }
+  .logo svg { width: 26px; height: 26px; fill: var(--text); }
+  .pulse { width: 9px; height: 9px; border-radius: 50%; background: var(--accent-2);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-2) 70%, transparent);
+    animation: pulse 2s infinite; }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-2) 60%, transparent); }
+    70% { box-shadow: 0 0 0 8px transparent; }
+    100% { box-shadow: 0 0 0 0 transparent; }
+  }
+  .spacer { flex: 1; }
+  .rate { font-size: 12px; color: var(--text-dim); white-space: nowrap; }
+  .rate b { color: var(--text); }
+
+  main { padding: 24px 0 64px; }
+  .grid { display: grid; gap: 20px; grid-template-columns: repeat(12, 1fr); }
+  .col-8 { grid-column: span 8; }
+  .col-4 { grid-column: span 4; }
+  .col-12 { grid-column: span 12; }
+  @media (max-width: 900px) {
+    .col-8, .col-4, .col-12 { grid-column: span 12; }
+  }
+
+  .card {
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .card-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 18px; border-bottom: 1px solid var(--border);
+    font-weight: 600;
+  }
+  .card-head .sub { font-weight: 400; color: var(--text-dim); font-size: 13px; }
+  .card-body { padding: 6px 0; }
+  .card-body.pad { padding: 18px; }
+
+  /* Stat tiles */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  @media (max-width: 700px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+  .stat {
+    background: var(--bg-elev); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px 18px;
+  }
+  .stat .label { font-size: 12px; color: var(--text-dim); text-transform: uppercase; letter-spacing: .04em; }
+  .stat .val { font-size: 26px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .stat .val small { font-size: 13px; font-weight: 500; color: var(--text-dim); }
+
+  /* Controls */
+  .controls { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  input[type=text], select {
+    background: var(--bg-elev-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 12px; font-size: 14px; font-family: inherit;
+  }
+  input[type=text] { min-width: 200px; }
+  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  button {
+    background: var(--accent); color: #fff; border: none;
+    border-radius: 8px; padding: 8px 14px; font-size: 14px; font-weight: 600;
+    cursor: pointer; font-family: inherit;
+  }
+  button.ghost { background: var(--bg-elev-2); color: var(--text); border: 1px solid var(--border); }
+  button:hover { filter: brightness(1.08); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+
+  /* Repo list */
+  ul.list { list-style: none; margin: 0; padding: 0; }
+  ul.list li { padding: 14px 18px; border-bottom: 1px solid var(--border); }
+  ul.list li:last-child { border-bottom: none; }
+  .repo-top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .repo-name { font-weight: 600; font-size: 15px; }
+  .repo-rank { color: var(--text-dim); font-variant-numeric: tabular-nums; font-size: 13px; min-width: 26px; }
+  .repo-desc { color: var(--text-dim); font-size: 13px; margin: 4px 0 8px; }
+  .repo-meta { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--text-dim); }
+  .repo-meta span { display: inline-flex; align-items: center; gap: 5px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+
+  .lang-bar { height: 8px; border-radius: 4px; background: var(--bg-elev-2); overflow: hidden; display: flex; margin-top: 10px; }
+  .lang-bar > i { height: 100%; display: block; }
+  .lang-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; font-size: 12px; color: var(--text-dim); }
+
+  .muted { color: var(--text-dim); }
+  .center { text-align: center; }
+  .pad { padding: 18px; }
+  .err { color: var(--danger); font-size: 13px; }
+  .loading { color: var(--text-dim); font-size: 14px; padding: 24px 18px; text-align: center; }
+  .spinner {
+    width: 18px; height: 18px; border: 2px solid var(--border);
+    border-top-color: var(--accent); border-radius: 50%;
+    display: inline-block; vertical-align: -3px; margin-right: 8px;
+    animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .tag { display: inline-block; padding: 1px 8px; border-radius: 20px; font-size: 11px;
+    background: var(--bg-elev-2); border: 1px solid var(--border); color: var(--text-dim); }
+
+  /* User panel */
+  .user-head { display: flex; gap: 14px; align-items: center; }
+  .avatar { width: 56px; height: 56px; border-radius: 50%; border: 1px solid var(--border); }
+  .user-head .name { font-weight: 700; font-size: 17px; }
+  .user-head .login { color: var(--text-dim); font-size: 13px; }
+  .kv { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 16px; text-align: center; }
+  .kv div { background: var(--bg-elev-2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 6px; }
+  .kv .n { font-weight: 700; font-size: 18px; font-variant-numeric: tabular-nums; }
+  .kv .l { font-size: 11px; color: var(--text-dim); text-transform: uppercase; }
+
+  footer.app { color: var(--text-dim); font-size: 12px; padding: 24px 0 40px; text-align: center; }
+</style>
+</head>
+<body>
+<header class="app">
+  <div class="wrap topbar">
+    <div class="logo">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z"/></svg>
+      GitHub World Monitor
+    </div>
+    <span class="pulse" title="Live"></span>
+    <div class="spacer"></div>
+    <div class="rate" id="rate">API: <b id="rate-val">…</b></div>
+    <button class="ghost" id="refresh">↻ Refresh</button>
+  </div>
+</header>
+
+<main class="wrap">
+  <!-- Global stats -->
+  <div class="stats" id="stats" style="margin-bottom:20px">
+    <div class="stat"><div class="label">Trending stars (24h)</div><div class="val" id="s-stars">—</div></div>
+    <div class="stat"><div class="label">Top language</div><div class="val" id="s-lang">—</div></div>
+    <div class="stat"><div class="label">New this week</div><div class="val" id="s-new">—</div></div>
+    <div class="stat"><div class="label">Last synced</div><div class="val" id="s-sync">—</div></div>
+  </div>
+
+  <div class="grid">
+    <!-- Trending -->
+    <section class="col-8 card">
+      <div class="card-head">
+        🔥 Trending repositories
+        <span class="sub" id="trend-sub">most-starred, created in the last 7 days</span>
+        <div class="spacer" style="flex:1"></div>
+        <select id="trend-window" class="ghost" style="padding:4px 8px">
+          <option value="7">7 days</option>
+          <option value="30">30 days</option>
+          <option value="1">24 hours</option>
+        </select>
+      </div>
+      <div class="card-body"><ul class="list" id="trending"></ul></div>
+    </section>
+
+    <!-- Right column -->
+    <div class="col-4" style="display:flex; flex-direction:column; gap:20px">
+      <!-- Language mix -->
+      <section class="card">
+        <div class="card-head">🌐 Language mix <span class="sub">of trending</span></div>
+        <div class="card-body pad" id="langmix"><div class="loading"><span class="spinner"></span>loading…</div></div>
+      </section>
+
+      <!-- User lookup -->
+      <section class="card">
+        <div class="card-head">👤 User / Org monitor</div>
+        <div class="card-body pad">
+          <div class="controls">
+            <input type="text" id="user-input" placeholder="e.g. torvalds, anthropics" value="anthropics" />
+            <button id="user-go">Go</button>
+          </div>
+          <div id="user-out" style="margin-top:14px"></div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Watchlist -->
+    <section class="col-12 card">
+      <div class="card-head">
+        📌 Repository watchlist
+        <div class="spacer" style="flex:1"></div>
+        <div class="controls">
+          <input type="text" id="watch-input" placeholder="owner/repo" />
+          <button id="watch-add">+ Watch</button>
+        </div>
+      </div>
+      <div class="card-body"><ul class="list" id="watchlist"></ul></div>
+    </section>
+  </div>
+</main>
+
+<footer class="app wrap">
+  Live data from the public GitHub REST API · Unauthenticated requests are rate-limited to 60/hour ·
+  Built as a self-contained single-file dashboard.
+</footer>
+
+<script>
+(function () {
+  "use strict";
+  const API = "https://api.github.com";
+  const LANG_COLORS = {
+    JavaScript:"#f1e05a", TypeScript:"#3178c6", Python:"#3572A5", Go:"#00ADD8",
+    Rust:"#dea584", Java:"#b07219", "C++":"#f34b7d", C:"#555555", "C#":"#178600",
+    Ruby:"#701516", PHP:"#4F5D95", Swift:"#F05138", Kotlin:"#A97BFF", Dart:"#00B4AB",
+    Shell:"#89e051", HTML:"#e34c26", CSS:"#563d7c", Vue:"#41b883", Jupyter:"#DA5B0B",
+    "Jupyter Notebook":"#DA5B0B", Scala:"#c22d40", Elixir:"#6e4a7e", Haskell:"#5e5086",
+    Lua:"#000080", Zig:"#ec915c", Nix:"#7e7eff", other:"#8b949e", null:"#8b949e"
+  };
+  const lc = (l) => LANG_COLORS[l] || LANG_COLORS.other;
+
+  const $ = (id) => document.getElementById(id);
+  const fmt = (n) => {
+    if (n == null) return "—";
+    if (n >= 1e6) return (n/1e6).toFixed(1).replace(/\.0$/,"") + "M";
+    if (n >= 1e3) return (n/1e3).toFixed(1).replace(/\.0$/,"") + "k";
+    return String(n);
+  };
+  const ago = (iso) => {
+    if (!iso) return "";
+    const s = (Date.now() - new Date(iso).getTime())/1000;
+    if (s < 60) return "just now";
+    const m = s/60; if (m < 60) return Math.floor(m)+"m ago";
+    const h = m/60; if (h < 24) return Math.floor(h)+"h ago";
+    const d = h/24; if (d < 30) return Math.floor(d)+"d ago";
+    const mo = d/30; if (mo < 12) return Math.floor(mo)+"mo ago";
+    return Math.floor(mo/12)+"y ago";
+  };
+  const esc = (s) => (s||"").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  const isoDaysAgo = (d) => new Date(Date.now() - d*86400000).toISOString().slice(0,10);
+
+  async function gh(path) {
+    const res = await fetch(API + path, { headers: { "Accept": "application/vnd.github+json" } });
+    const rem = res.headers.get("x-ratelimit-remaining");
+    const lim = res.headers.get("x-ratelimit-limit");
+    if (rem != null) {
+      $("rate-val").textContent = rem + "/" + (lim||"60");
+      $("rate-val").style.color = (+rem <= 5) ? "var(--danger)" : "var(--text)";
+    }
+    if (!res.ok) {
+      let msg = res.status + " " + res.statusText;
+      try { const j = await res.json(); if (j.message) msg = j.message; } catch(e){}
+      if (res.status === 403 && /rate limit/i.test(msg)) msg = "Rate limit reached (60/hr for anonymous). Try again later.";
+      throw new Error(msg);
+    }
+    return res.json();
+  }
+
+  // ---- Trending ----
+  async function loadTrending(days) {
+    const el = $("trending");
+    el.innerHTML = '<li class="loading"><span class="spinner"></span>Fetching trending repositories…</li>';
+    try {
+      const q = encodeURIComponent(`created:>=${isoDaysAgo(days)} stars:>1`);
+      const data = await gh(`/search/repositories?q=${q}&sort=stars&order=desc&per_page=15`);
+      const items = data.items || [];
+      renderTrending(items);
+      updateStats(items, data.total_count);
+      renderLangMix(items);
+    } catch (e) {
+      el.innerHTML = `<li class="pad err">⚠ ${esc(e.message)}</li>`;
+      $("langmix").innerHTML = `<div class="err">—</div>`;
+    }
+  }
+
+  function renderTrending(items) {
+    const el = $("trending");
+    if (!items.length) { el.innerHTML = '<li class="pad muted">No repositories found for this window.</li>'; return; }
+    el.innerHTML = items.map((r, i) => `
+      <li>
+        <div class="repo-top">
+          <span class="repo-rank">#${i+1}</span>
+          <a class="repo-name" href="${r.html_url}" target="_blank" rel="noopener">${esc(r.full_name)}</a>
+          ${r.archived ? '<span class="tag">archived</span>' : ''}
+        </div>
+        ${r.description ? `<div class="repo-desc">${esc(r.description)}</div>` : ''}
+        <div class="repo-meta">
+          ${r.language ? `<span><i class="dot" style="background:${lc(r.language)}"></i>${esc(r.language)}</span>` : ''}
+          <span>★ ${fmt(r.stargazers_count)}</span>
+          <span>⑂ ${fmt(r.forks_count)}</span>
+          <span>◍ ${fmt(r.open_issues_count)} issues</span>
+          <span>⟳ ${ago(r.pushed_at)}</span>
+        </div>
+      </li>`).join("");
+  }
+
+  function updateStats(items, total) {
+    const stars = items.reduce((a,r)=>a+r.stargazers_count,0);
+    $("s-stars").innerHTML = fmt(stars) + ' <small>top 15</small>';
+    const langs = {};
+    items.forEach(r => { if (r.language) langs[r.language] = (langs[r.language]||0)+1; });
+    const top = Object.entries(langs).sort((a,b)=>b[1]-a[1])[0];
+    $("s-lang").innerHTML = top ? esc(top[0]) : "—";
+    $("s-new").innerHTML = fmt(total) + ' <small>repos</small>';
+    const d = new Date();
+    $("s-sync").innerHTML = d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  }
+
+  function renderLangMix(items) {
+    const langs = {};
+    items.forEach(r => { const l = r.language || "Other"; langs[l] = (langs[l]||0)+1; });
+    const entries = Object.entries(langs).sort((a,b)=>b[1]-a[1]);
+    const total = items.length || 1;
+    if (!entries.length) { $("langmix").innerHTML = '<div class="muted">No language data.</div>'; return; }
+    const bar = entries.map(([l,c]) => `<i style="width:${(c/total*100).toFixed(1)}%;background:${lc(l)}" title="${esc(l)}: ${c}"></i>`).join("");
+    const legend = entries.map(([l,c]) =>
+      `<span><i class="dot" style="background:${lc(l)}"></i>${esc(l)} · ${Math.round(c/total*100)}%</span>`).join("");
+    $("langmix").innerHTML = `<div class="lang-bar">${bar}</div><div class="lang-legend">${legend}</div>`;
+  }
+
+  // ---- User / Org ----
+  async function loadUser(name) {
+    name = (name||"").trim().replace(/^@/,"");
+    if (!name) return;
+    const out = $("user-out");
+    out.innerHTML = '<div class="loading"><span class="spinner"></span>loading…</div>';
+    try {
+      const u = await gh(`/users/${encodeURIComponent(name)}`);
+      out.innerHTML = `
+        <div class="user-head">
+          <img class="avatar" src="${u.avatar_url}&s=112" alt="" loading="lazy" />
+          <div>
+            <div class="name">${esc(u.name || u.login)}</div>
+            <div class="login"><a href="${u.html_url}" target="_blank" rel="noopener">@${esc(u.login)}</a>
+              · ${u.type}${u.location ? " · " + esc(u.location) : ""}</div>
+          </div>
+        </div>
+        ${u.bio ? `<div class="repo-desc" style="margin-top:12px">${esc(u.bio)}</div>` : ''}
+        <div class="kv">
+          <div><div class="n">${fmt(u.public_repos)}</div><div class="l">Repos</div></div>
+          <div><div class="n">${fmt(u.followers)}</div><div class="l">Followers</div></div>
+          <div><div class="n">${fmt(u.following)}</div><div class="l">Following</div></div>
+        </div>`;
+    } catch (e) {
+      out.innerHTML = `<div class="err">⚠ ${esc(e.message)}</div>`;
+    }
+  }
+
+  // ---- Watchlist ----
+  const WKEY = "gwm-watchlist";
+  const loadWatch = () => { try { return JSON.parse(localStorage.getItem(WKEY)) || []; } catch(e){ return []; } };
+  const saveWatch = (a) => { try { localStorage.setItem(WKEY, JSON.stringify(a)); } catch(e){} };
+  let watched = loadWatch();
+  if (!watched.length) watched = ["torvalds/linux", "facebook/react", "anthropics/anthropic-sdk-python"];
+
+  async function renderWatchlist() {
+    const el = $("watchlist");
+    if (!watched.length) { el.innerHTML = '<li class="pad muted">Add a repo above to start watching.</li>'; return; }
+    el.innerHTML = watched.map(fn =>
+      `<li data-fn="${esc(fn)}"><div class="loading" style="text-align:left;padding:4px 0"><span class="spinner"></span>${esc(fn)}</div></li>`).join("");
+    for (const fn of watched) {
+      const li = el.querySelector(`li[data-fn="${CSS.escape(fn)}"]`);
+      try {
+        const r = await gh(`/repos/${fn}`);
+        li.innerHTML = `
+          <div class="repo-top">
+            <a class="repo-name" href="${r.html_url}" target="_blank" rel="noopener">${esc(r.full_name)}</a>
+            ${r.language ? `<span class="tag"><i class="dot" style="background:${lc(r.language)}"></i> ${esc(r.language)}</span>` : ''}
+            <div class="spacer" style="flex:1"></div>
+            <button class="ghost rm" data-fn="${esc(fn)}" style="padding:2px 8px;font-size:12px">Remove</button>
+          </div>
+          ${r.description ? `<div class="repo-desc">${esc(r.description)}</div>` : ''}
+          <div class="repo-meta">
+            <span>★ ${fmt(r.stargazers_count)}</span>
+            <span>⑂ ${fmt(r.forks_count)}</span>
+            <span>◍ ${fmt(r.open_issues_count)} open issues</span>
+            <span>⟳ pushed ${ago(r.pushed_at)}</span>
+            <span>⌥ default: ${esc(r.default_branch)}</span>
+          </div>`;
+      } catch (e) {
+        li.innerHTML = `<div class="repo-top"><span class="repo-name">${esc(fn)}</span>
+          <div class="spacer" style="flex:1"></div>
+          <button class="ghost rm" data-fn="${esc(fn)}" style="padding:2px 8px;font-size:12px">Remove</button></div>
+          <div class="err">⚠ ${esc(e.message)}</div>`;
+      }
+    }
+    el.querySelectorAll("button.rm").forEach(b => b.addEventListener("click", () => {
+      watched = watched.filter(x => x !== b.dataset.fn); saveWatch(watched); renderWatchlist();
+    }));
+  }
+
+  // ---- Wire up ----
+  function refreshAll() {
+    loadTrending(+$("trend-window").value);
+    renderWatchlist();
+  }
+  $("refresh").addEventListener("click", refreshAll);
+  $("trend-window").addEventListener("change", () => {
+    const d = +$("trend-window").value;
+    $("trend-sub").textContent = d === 1 ? "most-starred, created in the last 24 hours"
+      : `most-starred, created in the last ${d} days`;
+    loadTrending(d);
+  });
+  $("user-go").addEventListener("click", () => loadUser($("user-input").value));
+  $("user-input").addEventListener("keydown", e => { if (e.key === "Enter") loadUser($("user-input").value); });
+  $("watch-add").addEventListener("click", () => {
+    const v = $("watch-input").value.trim().replace(/^https?:\/\/github\.com\//,"").replace(/\/$/,"");
+    if (/^[\w.-]+\/[\w.-]+$/.test(v) && !watched.includes(v)) {
+      watched.push(v); saveWatch(watched); $("watch-input").value = ""; renderWatchlist();
+    } else if (v) { $("watch-input").focus(); }
+  });
+  $("watch-input").addEventListener("keydown", e => { if (e.key === "Enter") $("watch-add").click(); });
+
+  // ---- Init ----
+  loadTrending(7);
+  loadUser("anthropics");
+  renderWatchlist();
+})();
+</script>
+</body>
+</html>
