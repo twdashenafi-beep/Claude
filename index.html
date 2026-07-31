@@ -12,13 +12,24 @@
     --gold:#d4a017; --oil:#8a94a6; --gas:#38b6d8; --copper:#c8743e;
     --r:12px; --shadow:0 10px 30px rgba(0,0,0,.45);
   }
-  @media (prefers-color-scheme: light){
-    :root{
+  /* Light palette — applied via OS preference OR the viewer's explicit toggle */
+  @media (prefers-color-scheme: light){ :root:not([data-theme="dark"]){
       --bg:#f4f6fa; --panel:#ffffff; --panel-2:#eef2f7; --line:#dbe2ec;
       --text:#111826; --dim:#4a5568; --faint:#8a97a8;
       --accent:#1d6fe0; --good:#1a7f37; --warn:#9a6700; --high:#bc5b1c; --sev:#c8362a;
       --shadow:0 10px 30px rgba(80,100,140,.15);
-    }
+  }}
+  :root[data-theme="light"]{
+      --bg:#f4f6fa; --panel:#ffffff; --panel-2:#eef2f7; --line:#dbe2ec;
+      --text:#111826; --dim:#4a5568; --faint:#8a97a8;
+      --accent:#1d6fe0; --good:#1a7f37; --warn:#9a6700; --high:#bc5b1c; --sev:#c8362a;
+      --shadow:0 10px 30px rgba(80,100,140,.15);
+  }
+  :root[data-theme="dark"]{
+      --bg:#0a0e14; --panel:#111722; --panel-2:#161d2b; --line:#232c3d;
+      --text:#e7edf5; --dim:#93a1b5; --faint:#5f6d82;
+      --accent:#5aa2ff; --good:#3fb950; --warn:#d6a626; --high:#e8833a; --sev:#f0503c;
+      --shadow:0 10px 30px rgba(0,0,0,.45);
   }
   *{box-sizing:border-box}
   html,body{margin:0;padding:0}
