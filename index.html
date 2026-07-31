@@ -3,459 +3,394 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>GitHub World Monitor</title>
+<title>World Monitor — Horn of Africa &amp; Strategic Commodities</title>
 <style>
-  :root {
-    --bg: #0d1117;
-    --bg-elev: #161b22;
-    --bg-elev-2: #1c2230;
-    --border: #30363d;
-    --text: #e6edf3;
-    --text-dim: #8b949e;
-    --accent: #58a6ff;
-    --accent-2: #3fb950;
-    --danger: #f85149;
-    --warn: #d29922;
-    --radius: 12px;
-    --shadow: 0 8px 24px rgba(0,0,0,.4);
+  :root{
+    --bg:#0a0e14; --panel:#111722; --panel-2:#161d2b; --line:#232c3d;
+    --text:#e7edf5; --dim:#93a1b5; --faint:#5f6d82;
+    --accent:#5aa2ff; --good:#3fb950; --warn:#d6a626; --high:#e8833a; --sev:#f0503c;
+    --gold:#d4a017; --oil:#8a94a6; --gas:#38b6d8; --copper:#c8743e;
+    --r:12px; --shadow:0 10px 30px rgba(0,0,0,.45);
   }
-  @media (prefers-color-scheme: light) {
-    :root {
-      --bg: #f6f8fa;
-      --bg-elev: #ffffff;
-      --bg-elev-2: #f0f3f6;
-      --border: #d0d7de;
-      --text: #1f2328;
-      --text-dim: #656d76;
-      --accent: #0969da;
-      --accent-2: #1a7f37;
-      --danger: #cf222e;
-      --warn: #9a6700;
-      --shadow: 0 8px 24px rgba(140,149,159,.2);
+  @media (prefers-color-scheme: light){
+    :root{
+      --bg:#f4f6fa; --panel:#ffffff; --panel-2:#eef2f7; --line:#dbe2ec;
+      --text:#111826; --dim:#4a5568; --faint:#8a97a8;
+      --accent:#1d6fe0; --good:#1a7f37; --warn:#9a6700; --high:#bc5b1c; --sev:#c8362a;
+      --shadow:0 10px 30px rgba(80,100,140,.15);
     }
   }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; }
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
-    line-height: 1.5;
-    -webkit-font-smoothing: antialiased;
-  }
-  a { color: var(--accent); text-decoration: none; }
-  a:hover { text-decoration: underline; }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;
+    line-height:1.5;-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{max-width:1280px;margin:0 auto;padding:0 20px}
 
-  header.app {
-    position: sticky; top: 0; z-index: 10;
-    background: color-mix(in srgb, var(--bg) 88%, transparent);
-    backdrop-filter: blur(10px);
-    border-bottom: 1px solid var(--border);
-  }
-  .wrap { max-width: 1200px; margin: 0 auto; padding: 0 20px; }
-  .topbar { display: flex; align-items: center; gap: 14px; padding: 16px 0; flex-wrap: wrap; }
-  .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; }
-  .logo svg { width: 26px; height: 26px; fill: var(--text); }
-  .pulse { width: 9px; height: 9px; border-radius: 50%; background: var(--accent-2);
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-2) 70%, transparent);
-    animation: pulse 2s infinite; }
-  @keyframes pulse {
-    0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-2) 60%, transparent); }
-    70% { box-shadow: 0 0 0 8px transparent; }
-    100% { box-shadow: 0 0 0 0 transparent; }
-  }
-  .spacer { flex: 1; }
-  .rate { font-size: 12px; color: var(--text-dim); white-space: nowrap; }
-  .rate b { color: var(--text); }
+  header.app{position:sticky;top:0;z-index:20;border-bottom:1px solid var(--line);
+    background:color-mix(in srgb,var(--bg) 86%,transparent);backdrop-filter:blur(12px)}
+  .top{display:flex;align-items:center;gap:14px;padding:14px 0;flex-wrap:wrap}
+  .brand{display:flex;align-items:center;gap:11px}
+  .glyph{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;
+    background:linear-gradient(135deg,#1c3a63,#0e1c30);border:1px solid var(--line);font-size:18px}
+  .brand h1{font-size:17px;margin:0;font-weight:750;letter-spacing:.2px}
+  .brand .sub{font-size:12px;color:var(--dim);margin-top:1px}
+  .spacer{flex:1}
+  .live{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--dim)}
+  .beacon{width:9px;height:9px;border-radius:50%;background:var(--good);
+    box-shadow:0 0 0 0 color-mix(in srgb,var(--good) 70%,transparent);animation:bp 2.4s infinite}
+  @keyframes bp{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--good) 55%,transparent)}70%{box-shadow:0 0 0 9px transparent}100%{box-shadow:0 0 0 0 transparent}}
+  .asof{font-size:12px;color:var(--dim)}
+  .asof b{color:var(--text)}
 
-  main { padding: 24px 0 64px; }
-  .grid { display: grid; gap: 20px; grid-template-columns: repeat(12, 1fr); }
-  .col-8 { grid-column: span 8; }
-  .col-4 { grid-column: span 4; }
-  .col-12 { grid-column: span 12; }
-  @media (max-width: 900px) {
-    .col-8, .col-4, .col-12 { grid-column: span 12; }
-  }
+  .banner{background:color-mix(in srgb,var(--warn) 14%,var(--panel));border:1px solid color-mix(in srgb,var(--warn) 40%,var(--line));
+    color:var(--text);border-radius:10px;padding:9px 14px;font-size:12.5px;margin:16px 0;display:flex;gap:10px;align-items:flex-start}
+  .banner b{color:var(--warn)}
 
-  .card {
-    background: var(--bg-elev);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    overflow: hidden;
-  }
-  .card-head {
-    display: flex; align-items: center; gap: 10px;
-    padding: 14px 18px; border-bottom: 1px solid var(--border);
-    font-weight: 600;
-  }
-  .card-head .sub { font-weight: 400; color: var(--text-dim); font-size: 13px; }
-  .card-body { padding: 6px 0; }
-  .card-body.pad { padding: 18px; }
+  main{padding:6px 0 70px}
+  .section-h{display:flex;align-items:center;gap:10px;margin:26px 0 12px;font-weight:700;font-size:15px}
+  .section-h .ln{flex:1;height:1px;background:var(--line)}
+  .section-h .hint{font-weight:400;color:var(--faint);font-size:12px}
 
-  /* Stat tiles */
-  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
-  @media (max-width: 700px) { .stats { grid-template-columns: repeat(2, 1fr); } }
-  .stat {
-    background: var(--bg-elev); border: 1px solid var(--border);
-    border-radius: var(--radius); padding: 16px 18px;
-  }
-  .stat .label { font-size: 12px; color: var(--text-dim); text-transform: uppercase; letter-spacing: .04em; }
-  .stat .val { font-size: 26px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
-  .stat .val small { font-size: 13px; font-weight: 500; color: var(--text-dim); }
+  /* Commodity strip */
+  .commods{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  @media (max-width:820px){.commods{grid-template-columns:repeat(2,1fr)}}
+  @media (max-width:460px){.commods{grid-template-columns:1fr}}
+  .cmd{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:15px 16px;position:relative;overflow:hidden}
+  .cmd .accentbar{position:absolute;left:0;top:0;bottom:0;width:4px}
+  .cmd .name{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--dim);font-weight:600}
+  .cmd .name .ic{font-size:15px}
+  .cmd .price{font-size:26px;font-weight:750;margin-top:8px}
+  .cmd .unit{font-size:12px;color:var(--faint);font-weight:500}
+  .cmd .chg{font-size:13px;font-weight:650;margin-top:2px}
+  .up{color:var(--good)} .down{color:var(--sev)}
+  .cmd svg.spark{margin-top:10px;display:block;width:100%;height:34px}
+  .cmd .drv{font-size:11.5px;color:var(--faint);margin-top:8px;border-top:1px dashed var(--line);padding-top:8px}
 
-  /* Controls */
-  .controls { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-  input[type=text], select {
-    background: var(--bg-elev-2); color: var(--text);
-    border: 1px solid var(--border); border-radius: 8px;
-    padding: 8px 12px; font-size: 14px; font-family: inherit;
-  }
-  input[type=text] { min-width: 200px; }
-  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
-  button {
-    background: var(--accent); color: #fff; border: none;
-    border-radius: 8px; padding: 8px 14px; font-size: 14px; font-weight: 600;
-    cursor: pointer; font-family: inherit;
-  }
-  button.ghost { background: var(--bg-elev-2); color: var(--text); border: 1px solid var(--border); }
-  button:hover { filter: brightness(1.08); }
-  button:disabled { opacity: .5; cursor: not-allowed; }
+  .grid{display:grid;gap:18px;grid-template-columns:repeat(12,1fr)}
+  .c7{grid-column:span 7}.c5{grid-column:span 5}.c12{grid-column:span 12}.c6{grid-column:span 6}
+  @media (max-width:940px){.c7,.c5,.c6{grid-column:span 12}}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+  .panel-h{display:flex;align-items:center;gap:9px;padding:13px 16px;border-bottom:1px solid var(--line);font-weight:650;font-size:14px}
+  .panel-h .cnt{margin-left:auto;font-weight:400;color:var(--faint);font-size:12px}
+  .panel-b{padding:6px 0}
+  .panel-b.pad{padding:16px}
 
-  /* Repo list */
-  ul.list { list-style: none; margin: 0; padding: 0; }
-  ul.list li { padding: 14px 18px; border-bottom: 1px solid var(--border); }
-  ul.list li:last-child { border-bottom: none; }
-  .repo-top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-  .repo-name { font-weight: 600; font-size: 15px; }
-  .repo-rank { color: var(--text-dim); font-variant-numeric: tabular-nums; font-size: 13px; min-width: 26px; }
-  .repo-desc { color: var(--text-dim); font-size: 13px; margin: 4px 0 8px; }
-  .repo-meta { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--text-dim); }
-  .repo-meta span { display: inline-flex; align-items: center; gap: 5px; }
-  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  /* Country cards */
+  .countries{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--line)}
+  @media (max-width:520px){.countries{grid-template-columns:1fr}}
+  .cty{background:var(--panel);padding:13px 15px}
+  .cty .row{display:flex;align-items:center;gap:8px}
+  .cty .flag{font-size:17px}
+  .cty .nm{font-weight:650;font-size:14px}
+  .cty .risk{margin-left:auto;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
+    padding:2px 8px;border-radius:20px}
+  .cty .issue{font-size:12px;color:var(--dim);margin-top:6px}
+  .r-low{background:color-mix(in srgb,var(--good) 20%,transparent);color:var(--good)}
+  .r-mod{background:color-mix(in srgb,var(--warn) 22%,transparent);color:var(--warn)}
+  .r-high{background:color-mix(in srgb,var(--high) 22%,transparent);color:var(--high)}
+  .r-sev{background:color-mix(in srgb,var(--sev) 22%,transparent);color:var(--sev)}
+  .bar-low{background:var(--good)}.bar-mod{background:var(--warn)}.bar-high{background:var(--high)}.bar-sev{background:var(--sev)}
 
-  .lang-bar { height: 8px; border-radius: 4px; background: var(--bg-elev-2); overflow: hidden; display: flex; margin-top: 10px; }
-  .lang-bar > i { height: 100%; display: block; }
-  .lang-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; font-size: 12px; color: var(--text-dim); }
+  /* Flashpoints */
+  ul.flash{list-style:none;margin:0;padding:0}
+  ul.flash li{padding:13px 16px;border-bottom:1px solid var(--line);display:flex;gap:12px}
+  ul.flash li:last-child{border-bottom:none}
+  .fp-sev{width:4px;border-radius:3px;flex:none}
+  .fp-body{flex:1}
+  .fp-title{font-weight:650;font-size:13.5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .fp-title .loc{font-weight:400;color:var(--faint);font-size:12px}
+  .fp-desc{font-size:12.5px;color:var(--dim);margin-top:4px}
+  .fp-tags{margin-top:7px;display:flex;gap:6px;flex-wrap:wrap}
+  .tag{font-size:10.5px;padding:2px 8px;border-radius:20px;background:var(--panel-2);border:1px solid var(--line);color:var(--dim)}
+  .tag.cmd-tag{border-color:color-mix(in srgb,var(--accent) 40%,var(--line));color:var(--accent)}
 
-  .muted { color: var(--text-dim); }
-  .center { text-align: center; }
-  .pad { padding: 18px; }
-  .err { color: var(--danger); font-size: 13px; }
-  .loading { color: var(--text-dim); font-size: 14px; padding: 24px 18px; text-align: center; }
-  .spinner {
-    width: 18px; height: 18px; border: 2px solid var(--border);
-    border-top-color: var(--accent); border-radius: 50%;
-    display: inline-block; vertical-align: -3px; margin-right: 8px;
-    animation: spin .8s linear infinite;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
+  /* Linkage */
+  .link-item{padding:12px 16px;border-bottom:1px solid var(--line)}
+  .link-item:last-child{border-bottom:none}
+  .link-item .lt{font-weight:650;font-size:13px;display:flex;align-items:center;gap:8px}
+  .link-item .ld{font-size:12.5px;color:var(--dim);margin-top:4px}
+  .chip{font-size:11px;font-weight:600;padding:1px 7px;border-radius:6px}
+  .chip.g{background:color-mix(in srgb,var(--gold) 20%,transparent);color:var(--gold)}
+  .chip.o{background:color-mix(in srgb,var(--oil) 24%,transparent);color:var(--oil)}
+  .chip.n{background:color-mix(in srgb,var(--gas) 20%,transparent);color:var(--gas)}
+  .chip.c{background:color-mix(in srgb,var(--copper) 22%,transparent);color:var(--copper)}
 
-  .tag { display: inline-block; padding: 1px 8px; border-radius: 20px; font-size: 11px;
-    background: var(--bg-elev-2); border: 1px solid var(--border); color: var(--text-dim); }
+  /* Intel feed */
+  ul.feed{list-style:none;margin:0;padding:0}
+  ul.feed li{padding:12px 16px;border-bottom:1px solid var(--line)}
+  ul.feed li:last-child{border-bottom:none}
+  .feed-top{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+  .feed-cat{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:1px 7px;border-radius:5px}
+  .cat-sec{background:color-mix(in srgb,var(--sev) 18%,transparent);color:var(--sev)}
+  .cat-econ{background:color-mix(in srgb,var(--gold) 20%,transparent);color:var(--gold)}
+  .cat-dip{background:color-mix(in srgb,var(--accent) 18%,transparent);color:var(--accent)}
+  .cat-energy{background:color-mix(in srgb,var(--gas) 18%,transparent);color:var(--gas)}
+  .feed-time{margin-left:auto;font-size:11px;color:var(--faint)}
+  .feed-head{font-size:13.5px;font-weight:600;margin-top:3px}
+  .feed-src{font-size:11.5px;color:var(--faint);margin-top:3px}
 
-  /* User panel */
-  .user-head { display: flex; gap: 14px; align-items: center; }
-  .avatar { width: 56px; height: 56px; border-radius: 50%; border: 1px solid var(--border); }
-  .user-head .name { font-weight: 700; font-size: 17px; }
-  .user-head .login { color: var(--text-dim); font-size: 13px; }
-  .kv { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 16px; text-align: center; }
-  .kv div { background: var(--bg-elev-2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 6px; }
-  .kv .n { font-weight: 700; font-size: 18px; font-variant-numeric: tabular-nums; }
-  .kv .l { font-size: 11px; color: var(--text-dim); text-transform: uppercase; }
+  /* Risk gauge */
+  .gauge{display:flex;align-items:center;gap:16px;padding:16px}
+  .gauge .ring{position:relative;width:104px;height:104px;flex:none}
+  .gauge .ring .lbl{position:absolute;inset:0;display:grid;place-items:center;text-align:center}
+  .gauge .ring .lbl .n{font-size:26px;font-weight:800;line-height:1}
+  .gauge .ring .lbl .t{font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em}
+  .gauge .desc{font-size:12.5px;color:var(--dim)}
+  .gauge .desc b{color:var(--text)}
 
-  footer.app { color: var(--text-dim); font-size: 12px; padding: 24px 0 40px; text-align: center; }
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--dim);padding:12px 16px 4px}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .sw{width:11px;height:11px;border-radius:3px;display:inline-block}
+
+  footer.app{color:var(--faint);font-size:12px;padding:26px 0 44px;text-align:center;line-height:1.7}
 </style>
 </head>
 <body>
 <header class="app">
-  <div class="wrap topbar">
-    <div class="logo">
-      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z"/></svg>
-      GitHub World Monitor
+  <div class="wrap top">
+    <div class="brand">
+      <div class="glyph">🌍</div>
+      <div>
+        <h1>World Monitor</h1>
+        <div class="sub">Horn of Africa · Strategic Commodities</div>
+      </div>
     </div>
-    <span class="pulse" title="Live"></span>
     <div class="spacer"></div>
-    <div class="rate" id="rate">API: <b id="rate-val">…</b></div>
-    <button class="ghost" id="refresh">↻ Refresh</button>
+    <span class="live"><span class="beacon"></span>Monitoring</span>
+    <span class="asof">As of <b id="asof">—</b></span>
   </div>
 </header>
 
 <main class="wrap">
-  <!-- Global stats -->
-  <div class="stats" id="stats" style="margin-bottom:20px">
-    <div class="stat"><div class="label">Trending stars (24h)</div><div class="val" id="s-stars">—</div></div>
-    <div class="stat"><div class="label">Top language</div><div class="val" id="s-lang">—</div></div>
-    <div class="stat"><div class="label">New this week</div><div class="val" id="s-new">—</div></div>
-    <div class="stat"><div class="label">Last synced</div><div class="val" id="s-sync">—</div></div>
+  <div class="banner">
+    <span>⚠</span>
+    <div><b>Illustrative snapshot.</b> Market values and feed items below are a curated, dated data layer
+    for demonstration — not a live market or news feed. The geopolitical context reflects well-established,
+    ongoing regional dynamics but should be verified against primary sources before operational use.
+    See the <code>DATA</code> object in the source (or README) for how to wire live APIs.</div>
   </div>
 
+  <!-- COMMODITIES -->
+  <div class="section-h">📈 Strategic commodities <span class="hint">gold · oil &amp; gas · copper</span><span class="ln"></span></div>
+  <div class="commods" id="commods"></div>
+
+  <!-- HORN OF AFRICA -->
+  <div class="section-h">🗺️ Horn of Africa <span class="hint">situational awareness by state</span><span class="ln"></span></div>
   <div class="grid">
-    <!-- Trending -->
-    <section class="col-8 card">
-      <div class="card-head">
-        🔥 Trending repositories
-        <span class="sub" id="trend-sub">most-starred, created in the last 7 days</span>
-        <div class="spacer" style="flex:1"></div>
-        <select id="trend-window" class="ghost" style="padding:4px 8px">
-          <option value="7">7 days</option>
-          <option value="30">30 days</option>
-          <option value="1">24 hours</option>
-        </select>
+    <section class="c7 panel">
+      <div class="panel-h">Country risk board <span class="cnt" id="cty-cnt"></span></div>
+      <div class="panel-b"><div class="countries" id="countries"></div></div>
+      <div class="legend">
+        <span><i class="sw bar-low"></i>Low</span>
+        <span><i class="sw bar-mod"></i>Moderate</span>
+        <span><i class="sw bar-high"></i>High</span>
+        <span><i class="sw bar-sev"></i>Severe</span>
       </div>
-      <div class="card-body"><ul class="list" id="trending"></ul></div>
     </section>
-
-    <!-- Right column -->
-    <div class="col-4" style="display:flex; flex-direction:column; gap:20px">
-      <!-- Language mix -->
-      <section class="card">
-        <div class="card-head">🌐 Language mix <span class="sub">of trending</span></div>
-        <div class="card-body pad" id="langmix"><div class="loading"><span class="spinner"></span>loading…</div></div>
-      </section>
-
-      <!-- User lookup -->
-      <section class="card">
-        <div class="card-head">👤 User / Org monitor</div>
-        <div class="card-body pad">
-          <div class="controls">
-            <input type="text" id="user-input" placeholder="e.g. torvalds, anthropics" value="anthropics" />
-            <button id="user-go">Go</button>
-          </div>
-          <div id="user-out" style="margin-top:14px"></div>
+    <section class="c5 panel">
+      <div class="panel-h">🧭 Regional risk index</div>
+      <div class="gauge">
+        <div class="ring" id="ring">
+          <div class="lbl"><div><div class="n" id="ridx">—</div><div class="t">index</div></div></div>
         </div>
-      </section>
-    </div>
-
-    <!-- Watchlist -->
-    <section class="col-12 card">
-      <div class="card-head">
-        📌 Repository watchlist
-        <div class="spacer" style="flex:1"></div>
-        <div class="controls">
-          <input type="text" id="watch-input" placeholder="owner/repo" />
-          <button id="watch-add">+ Watch</button>
-        </div>
+        <div class="desc" id="ridx-desc"></div>
       </div>
-      <div class="card-body"><ul class="list" id="watchlist"></ul></div>
+      <div class="panel-h" style="border-top:1px solid var(--line)">⚡ Active flashpoints <span class="cnt" id="fp-cnt"></span></div>
+      <div class="panel-b"><ul class="flash" id="flashpoints"></ul></div>
+    </section>
+  </div>
+
+  <!-- LINKAGE -->
+  <div class="section-h">🔗 Commodity ↔ region linkage <span class="hint">how Horn events move these markets</span><span class="ln"></span></div>
+  <div class="grid">
+    <section class="c6 panel">
+      <div class="panel-h">Transmission channels</div>
+      <div class="panel-b" id="linkage"></div>
+    </section>
+    <section class="c6 panel">
+      <div class="panel-h">🛰️ Intel feed <span class="cnt" id="feed-cnt"></span></div>
+      <div class="panel-b"><ul class="feed" id="feed"></ul></div>
     </section>
   </div>
 </main>
 
 <footer class="app wrap">
-  Live data from the public GitHub REST API · Unauthenticated requests are rate-limited to 60/hour ·
-  Built as a self-contained single-file dashboard.
+  World Monitor — a self-contained situational-awareness dashboard.
+  Data layer is curated &amp; editable; no external calls are made.<br/>
+  Horn of Africa: Ethiopia · Eritrea · Djibouti · Somalia · Sudan · South Sudan.
 </footer>
 
 <script>
-(function () {
+(function(){
   "use strict";
-  const API = "https://api.github.com";
-  const LANG_COLORS = {
-    JavaScript:"#f1e05a", TypeScript:"#3178c6", Python:"#3572A5", Go:"#00ADD8",
-    Rust:"#dea584", Java:"#b07219", "C++":"#f34b7d", C:"#555555", "C#":"#178600",
-    Ruby:"#701516", PHP:"#4F5D95", Swift:"#F05138", Kotlin:"#A97BFF", Dart:"#00B4AB",
-    Shell:"#89e051", HTML:"#e34c26", CSS:"#563d7c", Vue:"#41b883", Jupyter:"#DA5B0B",
-    "Jupyter Notebook":"#DA5B0B", Scala:"#c22d40", Elixir:"#6e4a7e", Haskell:"#5e5086",
-    Lua:"#000080", Zig:"#ec915c", Nix:"#7e7eff", other:"#8b949e", null:"#8b949e"
+
+  /* =====================================================================
+     DATA LAYER  —  edit here, or replace each block with a live API fetch.
+     Prices are an ILLUSTRATIVE snapshot; `spark` arrays drive the sparklines
+     (oldest → newest). Geopolitics reflect real, ongoing regional dynamics.
+     ===================================================================== */
+  const DATA = {
+    asOf: "2026-07-31",
+
+    commodities: [
+      { key:"gold",   name:"Gold",         ic:"🥇", unit:"USD / troy oz", price:2412.5, chg:+0.8, color:"var(--gold)",
+        spark:[2295,2310,2288,2340,2361,2355,2378,2390,2401,2412],
+        driver:"Safe-haven bid; Sudan is a major regional gold exporter (much via informal routes)." },
+      { key:"oil",    name:"Brent Crude",  ic:"🛢️", unit:"USD / barrel",  price:83.4,  chg:+1.9, color:"var(--oil)",
+        spark:[79.1,80.2,79.8,81.0,82.2,81.5,82.9,83.0,82.6,83.4],
+        driver:"Bab-el-Mandeb / Red Sea shipping risk carries a persistent security premium." },
+      { key:"gas",    name:"Natural Gas",  ic:"🔥", unit:"USD / MMBtu",   price:3.12,  chg:-1.4, color:"var(--gas)",
+        spark:[3.30,3.24,3.19,3.28,3.15,3.21,3.10,3.17,3.20,3.12],
+        driver:"LNG routing sensitive to Suez–Red Sea diversions around the Cape." },
+      { key:"copper", name:"Copper",       ic:"🟠", unit:"USD / lb",      price:4.38,  chg:+0.5, color:"var(--copper)",
+        spark:[4.18,4.22,4.20,4.29,4.31,4.27,4.33,4.35,4.34,4.38],
+        driver:"Regional exploration rising; logistics hinge on Djibouti & Port Sudan corridors." }
+    ],
+
+    countries: [
+      { flag:"🇪🇹", name:"Ethiopia",    risk:"high", issue:"Tigray recovery fragile; Amhara & Oromia unrest; Red Sea / port-access ambitions (Somaliland MoU) strain ties." },
+      { flag:"🇸🇩", name:"Sudan",       risk:"sev",  issue:"SAF–RSF civil war since Apr 2023; mass displacement; gold revenues fund both sides; Port Sudan critical." },
+      { flag:"🇸🇴", name:"Somalia",     risk:"high", issue:"Al-Shabaab insurgency; federal–state friction; opposes Ethiopia–Somaliland port deal." },
+      { flag:"🇪🇷", name:"Eritrea",     risk:"mod",  issue:"Tense Ethiopia relations post-Pretoria; troop postures near border; closed economy." },
+      { flag:"🇩🇯", name:"Djibouti",    risk:"low",  issue:"Relative stability; hosts foreign military bases; chokepoint logistics hub for the region." },
+      { flag:"🇸🇸", name:"South Sudan", risk:"high", issue:"Peace deal strained; oil-dependent economy; exports pipe north through Sudan to Port Sudan." }
+    ],
+
+    riskIndex: { value:72, band:"Elevated",
+      note:"Driven by the Sudan conflict, Red Sea shipping disruption, and Ethiopia–Somalia friction over port access." },
+
+    flashpoints: [
+      { sev:"sev",  title:"Sudan civil war", loc:"Khartoum · Darfur · Port Sudan",
+        desc:"SAF–RSF fighting persists with severe humanitarian fallout and contested gold-producing areas.",
+        tags:["conflict","displacement","gold"] },
+      { sev:"high", title:"Red Sea / Bab-el-Mandeb shipping risk", loc:"Gulf of Aden",
+        desc:"Attacks on shipping push traffic around the Cape, lifting freight, insurance and oil risk premia.",
+        tags:["maritime","oil","supply-chain"] },
+      { sev:"high", title:"Ethiopia–Somaliland port MoU", loc:"Berbera / Mogadishu",
+        desc:"Ethiopia's sea-access deal with Somaliland inflames relations with Somalia and regional blocs.",
+        tags:["diplomacy","ports"] },
+      { sev:"mod",  title:"GERD & Nile waters", loc:"Blue Nile",
+        desc:"Grand Ethiopian Renaissance Dam filling keeps Egypt–Sudan–Ethiopia water tensions live.",
+        tags:["water","energy"] }
+    ],
+
+    linkage: [
+      { chip:"g", label:"GOLD",   title:"Sudan is a top African gold producer",
+        text:"Wartime output flows through informal and regional channels; instability and safe-haven demand both support prices." },
+      { chip:"o", label:"OIL",    title:"Bab-el-Mandeb is a global oil chokepoint",
+        text:"~10% of seaborne oil transits the strait; Red Sea security risk keeps a premium in Brent and reroutes tankers." },
+      { chip:"n", label:"GAS",    title:"Suez–Red Sea LNG diversions",
+        text:"Qatari LNG to Europe and US cargoes face longer Cape routes when the Red Sea is contested, tightening balances." },
+      { chip:"c", label:"COPPER", title:"Corridor-dependent metals logistics",
+        text:"Regional mining growth relies on Djibouti and Port Sudan corridors; disruption raises delivered costs." }
+    ],
+
+    feed: [
+      { cat:"sec",    catLabel:"Security", time:"2h", head:"Renewed clashes reported around contested Sudanese supply corridor", src:"Regional wire · illustrative" },
+      { cat:"energy", catLabel:"Energy",   time:"5h", head:"Shipping advisories keep Red Sea transits elevated-risk; reroutes continue", src:"Maritime bulletin · illustrative" },
+      { cat:"dip",    catLabel:"Diplomacy",time:"9h", head:"Regional bloc convenes on Ethiopia–Somalia port dispute", src:"Diplomatic desk · illustrative" },
+      { cat:"econ",   catLabel:"Economy",  time:"14h",head:"Gold demand firm as regional instability underpins safe-haven flows", src:"Markets desk · illustrative" },
+      { cat:"sec",    catLabel:"Security", time:"1d", head:"Al-Shabaab activity noted along southern Somali routes", src:"Regional wire · illustrative" }
+    ]
   };
-  const lc = (l) => LANG_COLORS[l] || LANG_COLORS.other;
 
-  const $ = (id) => document.getElementById(id);
-  const fmt = (n) => {
-    if (n == null) return "—";
-    if (n >= 1e6) return (n/1e6).toFixed(1).replace(/\.0$/,"") + "M";
-    if (n >= 1e3) return (n/1e3).toFixed(1).replace(/\.0$/,"") + "k";
-    return String(n);
-  };
-  const ago = (iso) => {
-    if (!iso) return "";
-    const s = (Date.now() - new Date(iso).getTime())/1000;
-    if (s < 60) return "just now";
-    const m = s/60; if (m < 60) return Math.floor(m)+"m ago";
-    const h = m/60; if (h < 24) return Math.floor(h)+"h ago";
-    const d = h/24; if (d < 30) return Math.floor(d)+"d ago";
-    const mo = d/30; if (mo < 12) return Math.floor(mo)+"mo ago";
-    return Math.floor(mo/12)+"y ago";
-  };
-  const esc = (s) => (s||"").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-  const isoDaysAgo = (d) => new Date(Date.now() - d*86400000).toISOString().slice(0,10);
+  /* ===================== render ===================== */
+  const $ = id => document.getElementById(id);
+  const esc = s => (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  const RISK = { low:{c:"low",t:"Low"}, mod:{c:"mod",t:"Moderate"}, high:{c:"high",t:"High"}, sev:{c:"sev",t:"Severe"} };
 
-  async function gh(path) {
-    const res = await fetch(API + path, { headers: { "Accept": "application/vnd.github+json" } });
-    const rem = res.headers.get("x-ratelimit-remaining");
-    const lim = res.headers.get("x-ratelimit-limit");
-    if (rem != null) {
-      $("rate-val").textContent = rem + "/" + (lim||"60");
-      $("rate-val").style.color = (+rem <= 5) ? "var(--danger)" : "var(--text)";
-    }
-    if (!res.ok) {
-      let msg = res.status + " " + res.statusText;
-      try { const j = await res.json(); if (j.message) msg = j.message; } catch(e){}
-      if (res.status === 403 && /rate limit/i.test(msg)) msg = "Rate limit reached (60/hr for anonymous). Try again later.";
-      throw new Error(msg);
-    }
-    return res.json();
+  $("asof").textContent = DATA.asOf;
+
+  // sparkline SVG (oldest→newest)
+  function spark(vals, color, up){
+    const w=180,h=34,p=3;
+    const min=Math.min(...vals),max=Math.max(...vals),rng=(max-min)||1;
+    const pts=vals.map((v,i)=>{
+      const x=p+(i/(vals.length-1))*(w-2*p);
+      const y=h-p-((v-min)/rng)*(h-2*p);
+      return [x,y];
+    });
+    const d=pts.map((pt,i)=>(i?"L":"M")+pt[0].toFixed(1)+" "+pt[1].toFixed(1)).join(" ");
+    const area=d+` L${(w-p).toFixed(1)} ${h-p} L${p} ${h-p} Z`;
+    const stroke=up?"var(--good)":"var(--sev)";
+    const gid="g"+Math.abs(vals[0]*1000|0)+vals.length+(up?1:0);
+    return `<svg class="spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true">
+      <defs><linearGradient id="${gid}" x1="0" x2="0" y1="0" y2="1">
+        <stop offset="0" stop-color="${stroke}" stop-opacity=".28"/>
+        <stop offset="1" stop-color="${stroke}" stop-opacity="0"/></linearGradient></defs>
+      <path d="${area}" fill="url(#${gid})"/>
+      <path d="${d}" fill="none" stroke="${stroke}" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>
+    </svg>`;
   }
 
-  // ---- Trending ----
-  async function loadTrending(days) {
-    const el = $("trending");
-    el.innerHTML = '<li class="loading"><span class="spinner"></span>Fetching trending repositories…</li>';
-    try {
-      const q = encodeURIComponent(`created:>=${isoDaysAgo(days)} stars:>1`);
-      const data = await gh(`/search/repositories?q=${q}&sort=stars&order=desc&per_page=15`);
-      const items = data.items || [];
-      renderTrending(items);
-      updateStats(items, data.total_count);
-      renderLangMix(items);
-    } catch (e) {
-      el.innerHTML = `<li class="pad err">⚠ ${esc(e.message)}</li>`;
-      $("langmix").innerHTML = `<div class="err">—</div>`;
-    }
-  }
+  // commodities
+  $("commods").innerHTML = DATA.commodities.map(c=>{
+    const up=c.chg>=0;
+    return `<div class="cmd">
+      <span class="accentbar" style="background:${c.color}"></span>
+      <div class="name"><span class="ic">${c.ic}</span>${esc(c.name)}</div>
+      <div class="price">${c.price.toLocaleString(undefined,{minimumFractionDigits: c.price<10?2:1, maximumFractionDigits:2})}
+        <span class="unit">${esc(c.unit)}</span></div>
+      <div class="chg ${up?'up':'down'}">${up?'▲':'▼'} ${Math.abs(c.chg).toFixed(1)}% <span style="color:var(--faint);font-weight:400">1d</span></div>
+      ${spark(c.spark,c.color,up)}
+      <div class="drv">${esc(c.driver)}</div>
+    </div>`;
+  }).join("");
 
-  function renderTrending(items) {
-    const el = $("trending");
-    if (!items.length) { el.innerHTML = '<li class="pad muted">No repositories found for this window.</li>'; return; }
-    el.innerHTML = items.map((r, i) => `
-      <li>
-        <div class="repo-top">
-          <span class="repo-rank">#${i+1}</span>
-          <a class="repo-name" href="${r.html_url}" target="_blank" rel="noopener">${esc(r.full_name)}</a>
-          ${r.archived ? '<span class="tag">archived</span>' : ''}
-        </div>
-        ${r.description ? `<div class="repo-desc">${esc(r.description)}</div>` : ''}
-        <div class="repo-meta">
-          ${r.language ? `<span><i class="dot" style="background:${lc(r.language)}"></i>${esc(r.language)}</span>` : ''}
-          <span>★ ${fmt(r.stargazers_count)}</span>
-          <span>⑂ ${fmt(r.forks_count)}</span>
-          <span>◍ ${fmt(r.open_issues_count)} issues</span>
-          <span>⟳ ${ago(r.pushed_at)}</span>
-        </div>
-      </li>`).join("");
-  }
+  // countries
+  $("countries").innerHTML = DATA.countries.map(c=>{
+    const r=RISK[c.risk];
+    return `<div class="cty">
+      <div class="row"><span class="flag">${c.flag}</span><span class="nm">${esc(c.name)}</span>
+        <span class="risk r-${r.c}">${r.t}</span></div>
+      <div class="issue">${esc(c.issue)}</div>
+    </div>`;
+  }).join("");
+  $("cty-cnt").textContent = DATA.countries.length + " states";
 
-  function updateStats(items, total) {
-    const stars = items.reduce((a,r)=>a+r.stargazers_count,0);
-    $("s-stars").innerHTML = fmt(stars) + ' <small>top 15</small>';
-    const langs = {};
-    items.forEach(r => { if (r.language) langs[r.language] = (langs[r.language]||0)+1; });
-    const top = Object.entries(langs).sort((a,b)=>b[1]-a[1])[0];
-    $("s-lang").innerHTML = top ? esc(top[0]) : "—";
-    $("s-new").innerHTML = fmt(total) + ' <small>repos</small>';
-    const d = new Date();
-    $("s-sync").innerHTML = d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-  }
+  // risk gauge (conic ring)
+  (function(){
+    const v=DATA.riskIndex.value;
+    const col = v>=75?"var(--sev)":v>=55?"var(--high)":v>=35?"var(--warn)":"var(--good)";
+    $("ring").style.cssText += `background:conic-gradient(${col} ${v*3.6}deg, var(--panel-2) 0);border-radius:50%;`;
+    const inner=document.createElement("div");
+    inner.style.cssText="position:absolute;inset:9px;border-radius:50%;background:var(--panel);";
+    $("ring").insertBefore(inner,$("ring").firstChild);
+    $("ridx").textContent=v;
+    $("ridx").style.color=col;
+    $("ridx-desc").innerHTML=`<b>${esc(DATA.riskIndex.band)}.</b> ${esc(DATA.riskIndex.note)}`;
+  })();
 
-  function renderLangMix(items) {
-    const langs = {};
-    items.forEach(r => { const l = r.language || "Other"; langs[l] = (langs[l]||0)+1; });
-    const entries = Object.entries(langs).sort((a,b)=>b[1]-a[1]);
-    const total = items.length || 1;
-    if (!entries.length) { $("langmix").innerHTML = '<div class="muted">No language data.</div>'; return; }
-    const bar = entries.map(([l,c]) => `<i style="width:${(c/total*100).toFixed(1)}%;background:${lc(l)}" title="${esc(l)}: ${c}"></i>`).join("");
-    const legend = entries.map(([l,c]) =>
-      `<span><i class="dot" style="background:${lc(l)}"></i>${esc(l)} · ${Math.round(c/total*100)}%</span>`).join("");
-    $("langmix").innerHTML = `<div class="lang-bar">${bar}</div><div class="lang-legend">${legend}</div>`;
-  }
+  // flashpoints
+  $("flashpoints").innerHTML = DATA.flashpoints.map(f=>`
+    <li><div class="fp-sev bar-${f.sev}"></div>
+      <div class="fp-body">
+        <div class="fp-title">${esc(f.title)} <span class="loc">${esc(f.loc)}</span></div>
+        <div class="fp-desc">${esc(f.desc)}</div>
+        <div class="fp-tags">${f.tags.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div>
+      </div></li>`).join("");
+  $("fp-cnt").textContent = DATA.flashpoints.length;
 
-  // ---- User / Org ----
-  async function loadUser(name) {
-    name = (name||"").trim().replace(/^@/,"");
-    if (!name) return;
-    const out = $("user-out");
-    out.innerHTML = '<div class="loading"><span class="spinner"></span>loading…</div>';
-    try {
-      const u = await gh(`/users/${encodeURIComponent(name)}`);
-      out.innerHTML = `
-        <div class="user-head">
-          <img class="avatar" src="${u.avatar_url}&s=112" alt="" loading="lazy" />
-          <div>
-            <div class="name">${esc(u.name || u.login)}</div>
-            <div class="login"><a href="${u.html_url}" target="_blank" rel="noopener">@${esc(u.login)}</a>
-              · ${u.type}${u.location ? " · " + esc(u.location) : ""}</div>
-          </div>
-        </div>
-        ${u.bio ? `<div class="repo-desc" style="margin-top:12px">${esc(u.bio)}</div>` : ''}
-        <div class="kv">
-          <div><div class="n">${fmt(u.public_repos)}</div><div class="l">Repos</div></div>
-          <div><div class="n">${fmt(u.followers)}</div><div class="l">Followers</div></div>
-          <div><div class="n">${fmt(u.following)}</div><div class="l">Following</div></div>
-        </div>`;
-    } catch (e) {
-      out.innerHTML = `<div class="err">⚠ ${esc(e.message)}</div>`;
-    }
-  }
+  // linkage
+  $("linkage").innerHTML = DATA.linkage.map(l=>`
+    <div class="link-item">
+      <div class="lt"><span class="chip ${l.chip}">${esc(l.label)}</span>${esc(l.title)}</div>
+      <div class="ld">${esc(l.text)}</div>
+    </div>`).join("");
 
-  // ---- Watchlist ----
-  const WKEY = "gwm-watchlist";
-  const loadWatch = () => { try { return JSON.parse(localStorage.getItem(WKEY)) || []; } catch(e){ return []; } };
-  const saveWatch = (a) => { try { localStorage.setItem(WKEY, JSON.stringify(a)); } catch(e){} };
-  let watched = loadWatch();
-  if (!watched.length) watched = ["torvalds/linux", "facebook/react", "anthropics/anthropic-sdk-python"];
-
-  async function renderWatchlist() {
-    const el = $("watchlist");
-    if (!watched.length) { el.innerHTML = '<li class="pad muted">Add a repo above to start watching.</li>'; return; }
-    el.innerHTML = watched.map(fn =>
-      `<li data-fn="${esc(fn)}"><div class="loading" style="text-align:left;padding:4px 0"><span class="spinner"></span>${esc(fn)}</div></li>`).join("");
-    for (const fn of watched) {
-      const li = el.querySelector(`li[data-fn="${CSS.escape(fn)}"]`);
-      try {
-        const r = await gh(`/repos/${fn}`);
-        li.innerHTML = `
-          <div class="repo-top">
-            <a class="repo-name" href="${r.html_url}" target="_blank" rel="noopener">${esc(r.full_name)}</a>
-            ${r.language ? `<span class="tag"><i class="dot" style="background:${lc(r.language)}"></i> ${esc(r.language)}</span>` : ''}
-            <div class="spacer" style="flex:1"></div>
-            <button class="ghost rm" data-fn="${esc(fn)}" style="padding:2px 8px;font-size:12px">Remove</button>
-          </div>
-          ${r.description ? `<div class="repo-desc">${esc(r.description)}</div>` : ''}
-          <div class="repo-meta">
-            <span>★ ${fmt(r.stargazers_count)}</span>
-            <span>⑂ ${fmt(r.forks_count)}</span>
-            <span>◍ ${fmt(r.open_issues_count)} open issues</span>
-            <span>⟳ pushed ${ago(r.pushed_at)}</span>
-            <span>⌥ default: ${esc(r.default_branch)}</span>
-          </div>`;
-      } catch (e) {
-        li.innerHTML = `<div class="repo-top"><span class="repo-name">${esc(fn)}</span>
-          <div class="spacer" style="flex:1"></div>
-          <button class="ghost rm" data-fn="${esc(fn)}" style="padding:2px 8px;font-size:12px">Remove</button></div>
-          <div class="err">⚠ ${esc(e.message)}</div>`;
-      }
-    }
-    el.querySelectorAll("button.rm").forEach(b => b.addEventListener("click", () => {
-      watched = watched.filter(x => x !== b.dataset.fn); saveWatch(watched); renderWatchlist();
-    }));
-  }
-
-  // ---- Wire up ----
-  function refreshAll() {
-    loadTrending(+$("trend-window").value);
-    renderWatchlist();
-  }
-  $("refresh").addEventListener("click", refreshAll);
-  $("trend-window").addEventListener("change", () => {
-    const d = +$("trend-window").value;
-    $("trend-sub").textContent = d === 1 ? "most-starred, created in the last 24 hours"
-      : `most-starred, created in the last ${d} days`;
-    loadTrending(d);
-  });
-  $("user-go").addEventListener("click", () => loadUser($("user-input").value));
-  $("user-input").addEventListener("keydown", e => { if (e.key === "Enter") loadUser($("user-input").value); });
-  $("watch-add").addEventListener("click", () => {
-    const v = $("watch-input").value.trim().replace(/^https?:\/\/github\.com\//,"").replace(/\/$/,"");
-    if (/^[\w.-]+\/[\w.-]+$/.test(v) && !watched.includes(v)) {
-      watched.push(v); saveWatch(watched); $("watch-input").value = ""; renderWatchlist();
-    } else if (v) { $("watch-input").focus(); }
-  });
-  $("watch-input").addEventListener("keydown", e => { if (e.key === "Enter") $("watch-add").click(); });
-
-  // ---- Init ----
-  loadTrending(7);
-  loadUser("anthropics");
-  renderWatchlist();
+  // feed
+  $("feed").innerHTML = DATA.feed.map(f=>`
+    <li><div class="feed-top">
+        <span class="feed-cat cat-${f.cat}">${esc(f.catLabel)}</span>
+        <span class="feed-time">${esc(f.time)} ago</span>
+      </div>
+      <div class="feed-head">${esc(f.head)}</div>
+      <div class="feed-src">${esc(f.src)}</div>
+    </li>`).join("");
+  $("feed-cnt").textContent = DATA.feed.length + " items";
 })();
 </script>
 </body>

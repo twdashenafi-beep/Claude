@@ -1,54 +1,72 @@
-# GitHub World Monitor
+# World Monitor — Horn of Africa & Strategic Commodities
 
-An integrated, single-file dashboard for monitoring GitHub in real time. Open
-`index.html` in any browser — no build step, no dependencies, no server.
+A self-contained, single-file **situational-awareness dashboard** in the
+"World Monitor" style: it tracks strategic commodities (**gold, oil & gas,
+copper**) alongside **Horn of Africa geopolitics**, and shows how regional
+events transmit into those markets. Open `index.html` in any browser — no
+build, no dependencies, no server, no external network calls.
 
-![status](https://img.shields.io/badge/build-none%20required-2ea44f)
-![data](https://img.shields.io/badge/data-live%20GitHub%20API-0969da)
+![build](https://img.shields.io/badge/build-none%20required-2ea44f)
+![data](https://img.shields.io/badge/data-editable%20layer-d6a626)
 
-## What it shows
+## Panels
 
-| Panel | Description |
-|-------|-------------|
-| **Global stats** | Aggregate stars, top language, and new-repo counts for the trending window, plus last-synced time. |
-| **🔥 Trending repositories** | The most-starred repos created in the last 24h / 7d / 30d, ranked, with language, stars, forks, issues, and last-push time. |
-| **🌐 Language mix** | Proportional bar + legend of languages across the current trending set. |
-| **👤 User / Org monitor** | Look up any user or organization: avatar, bio, repos, followers, following. |
-| **📌 Repository watchlist** | Pin any `owner/repo` to track stars, forks, open issues, default branch, and push activity. Saved in your browser via `localStorage`. |
+| Panel | What it shows |
+|-------|---------------|
+| **📈 Strategic commodities** | Gold, Brent crude, natural gas, copper — price, 1-day change, sparkline trend, and the key regional driver for each. |
+| **🗺️ Country risk board** | Ethiopia, Sudan, Somalia, Eritrea, Djibouti, South Sudan — a risk rating (Low → Severe) and the defining issue for each state. |
+| **🧭 Regional risk index** | A single composite gauge with a plain-language read on what's driving it. |
+| **⚡ Active flashpoints** | Sudan war, Red Sea / Bab-el-Mandeb shipping, Ethiopia–Somaliland port MoU, GERD / Nile — severity-ranked with tags. |
+| **🔗 Commodity ↔ region linkage** | The transmission channels: how Horn events move gold, oil, gas and copper. |
+| **🛰️ Intel feed** | A category-tagged headline stream (illustrative). |
 
-## Data source
+## ⚠️ About the data
 
-All data comes live from the public [GitHub REST API](https://docs.github.com/rest)
-(`api.github.com`), fetched client-side. No token is required for public data.
+This ships with a **curated, dated data layer**, not a live feed:
 
-> **Rate limits:** unauthenticated requests are capped at **60/hour** per IP.
-> The current remaining budget is shown in the header (`API: 57/60`). If you hit
-> the limit, wait for the window to reset or serve the page with a token-backed
-> proxy.
+- **Market values are illustrative** — a plausible snapshot for demonstration,
+  clearly banner-labeled in the UI. Do **not** treat them as real quotes.
+- **Geopolitical context is real** in the sense that it reflects well-established,
+  ongoing regional dynamics (as of the `asOf` date) — but it is a briefing
+  template, so verify against primary sources before any operational use.
+
+All content lives in one place: the `DATA` object near the top of the `<script>`
+in `index.html`. Edit it to update the snapshot, or swap each block for a live
+`fetch()`.
+
+## Wiring live data (optional)
+
+The `DATA` object is structured so each block maps cleanly to an API:
+
+| Block | Suggested source |
+|-------|------------------|
+| `commodities[].price / .spark` | A commodities/markets API (e.g. metals & energy price feeds). Most require an API key, so proxy the call through a small backend to keep the key server-side and avoid browser CORS/rate-limit issues. |
+| `feed[]` | A news API filtered to the region (query the Horn states + commodities), or an RSS aggregator. |
+| `flashpoints[] / countries[]` | Curated by an analyst, or generated from a conflict-event dataset (e.g. ACLED-style feeds). |
+| `riskIndex` | Computed from the above (weighted country risk + active flashpoint severity). |
+
+Because unauthenticated, browser-side calls to most of these are rate-limited or
+CORS-blocked, the recommended pattern is a **thin proxy**: a tiny serverless
+function holds the keys, calls the upstreams, and returns JSON shaped like the
+`DATA` blocks. The front end stays a single static file.
 
 ## Run it
 
-Just open the file:
-
 ```bash
-# macOS
-open index.html
-# Linux
-xdg-open index.html
-# or serve it
-python3 -m http.server 8000   # then visit http://localhost:8000
+open index.html            # macOS
+xdg-open index.html        # Linux
+python3 -m http.server 8000  # then visit http://localhost:8000
 ```
 
-## Deploy (optional)
+## Deploy
 
-Because it's a single static file, it hosts anywhere — GitHub Pages, Netlify,
-S3, or any static host. For GitHub Pages: enable Pages on this repo pointing at
-the default branch root, and `index.html` is served automatically.
+It's one static file — host it anywhere (GitHub Pages, Netlify, S3). For GitHub
+Pages, enable Pages on this repo pointing at the branch root; `index.html` is
+served automatically.
 
 ## Design notes
 
-- **Zero dependencies** — one HTML file, inline CSS + vanilla JS.
-- **Light & dark** — follows your system theme automatically.
+- **Zero dependencies** — one HTML file, inline CSS + vanilla JS, no external requests.
+- **Light & dark** — follows the system theme.
 - **Responsive** — 12-column grid collapses to a single column on mobile.
-- **Resilient** — every panel degrades gracefully and surfaces API errors
-  (including rate-limit messages) instead of failing silently.
+- **Region scope** — Ethiopia · Eritrea · Djibouti · Somalia · Sudan · South Sudan.
