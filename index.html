@@ -145,6 +145,16 @@
   .legend span{display:inline-flex;align-items:center;gap:6px}
   .sw{width:11px;height:11px;border-radius:3px;display:inline-block}
 
+  /* Map */
+  #map svg{width:100%;height:auto;display:block;max-height:600px;background:transparent}
+  #map .mlabel{font-family:inherit;font-size:15px;font-weight:650;fill:var(--text)}
+  #map .mlabel-bg{fill:var(--panel);opacity:.72}
+  #map .msea{font-family:inherit;font-size:13px;font-weight:700;fill:var(--faint);letter-spacing:2px;opacity:.7}
+  #map .mflash{font-family:inherit;font-size:12.5px;font-weight:650;fill:var(--text)}
+  #map .mflash-bg{fill:var(--panel);opacity:.7}
+  #map .mgrid{stroke:var(--line);stroke-width:.5;opacity:.5}
+  #map .mchoke{font-family:inherit;font-size:12.5px;font-weight:700;fill:var(--accent)}
+
   footer.app{color:var(--faint);font-size:12px;padding:26px 0 44px;text-align:center;line-height:1.7}
 </style>
 </head>
@@ -179,6 +189,20 @@
 
   <!-- HORN OF AFRICA -->
   <div class="section-h">🗺️ Horn of Africa <span class="hint">situational awareness by state</span><span class="ln"></span></div>
+  <section class="panel" style="margin-bottom:18px">
+    <div class="panel-h">🛰️ Situational map <span class="hint" style="font-weight:400;color:var(--faint)">schematic — flashpoints &amp; shipping lane</span>
+      <span class="cnt" id="map-cnt"></span></div>
+    <div class="panel-b" style="padding:0"><div id="map"></div></div>
+    <div class="legend" style="padding:10px 16px 12px">
+      <span><i class="sw" style="background:var(--sev)"></i>Severe</span>
+      <span><i class="sw" style="background:var(--high)"></i>High</span>
+      <span><i class="sw" style="background:var(--warn)"></i>Moderate</span>
+      <span><i class="sw" style="background:var(--good)"></i>Low</span>
+      <span style="margin-left:auto"><i class="sw" style="background:var(--accent);border-radius:50%"></i>State</span>
+      <span><span style="width:16px;border-top:2px dashed var(--gas);display:inline-block"></span>Shipping lane</span>
+      <span>◆ Flashpoint · ⬡ Chokepoint</span>
+    </div>
+  </section>
   <div class="grid">
     <section class="c7 panel">
       <div class="panel-h">Country risk board <span class="cnt" id="cty-cnt"></span></div>
@@ -251,31 +275,49 @@
     ],
 
     countries: [
-      { flag:"🇪🇹", name:"Ethiopia",    risk:"high", issue:"Tigray recovery fragile; Amhara & Oromia unrest; Red Sea / port-access ambitions (Somaliland MoU) strain ties." },
-      { flag:"🇸🇩", name:"Sudan",       risk:"sev",  issue:"SAF–RSF civil war since Apr 2023; mass displacement; gold revenues fund both sides; Port Sudan critical." },
-      { flag:"🇸🇴", name:"Somalia",     risk:"high", issue:"Al-Shabaab insurgency; federal–state friction; opposes Ethiopia–Somaliland port deal." },
-      { flag:"🇪🇷", name:"Eritrea",     risk:"mod",  issue:"Tense Ethiopia relations post-Pretoria; troop postures near border; closed economy." },
-      { flag:"🇩🇯", name:"Djibouti",    risk:"low",  issue:"Relative stability; hosts foreign military bases; chokepoint logistics hub for the region." },
-      { flag:"🇸🇸", name:"South Sudan", risk:"high", issue:"Peace deal strained; oil-dependent economy; exports pipe north through Sudan to Port Sudan." }
+      { flag:"🇪🇹", name:"Ethiopia",    risk:"high", xy:[46,58], issue:"Tigray recovery fragile; Amhara & Oromia unrest; Red Sea / port-access ambitions (Somaliland MoU) strain ties." },
+      { flag:"🇸🇩", name:"Sudan",       risk:"sev",  xy:[14,26], issue:"SAF–RSF civil war since Apr 2023; mass displacement; gold revenues fund both sides; Port Sudan critical." },
+      { flag:"🇸🇴", name:"Somalia",     risk:"high", xy:[72,74], issue:"Al-Shabaab insurgency; federal–state friction; opposes Ethiopia–Somaliland port deal." },
+      { flag:"🇪🇷", name:"Eritrea",     risk:"mod",  xy:[44,26], issue:"Tense Ethiopia relations post-Pretoria; troop postures near border; closed economy." },
+      { flag:"🇩🇯", name:"Djibouti",    risk:"low",  xy:[53,49], issue:"Relative stability; hosts foreign military bases; chokepoint logistics hub for the region." },
+      { flag:"🇸🇸", name:"South Sudan", risk:"high", xy:[16,66], issue:"Peace deal strained; oil-dependent economy; exports pipe north through Sudan to Port Sudan." }
     ],
 
     riskIndex: { value:72, band:"Elevated",
       note:"Driven by the Sudan conflict, Red Sea shipping disruption, and Ethiopia–Somalia friction over port access." },
 
     flashpoints: [
-      { sev:"sev",  title:"Sudan civil war", loc:"Khartoum · Darfur · Port Sudan",
+      { sev:"sev",  title:"Sudan civil war", short:"Sudan war", loc:"Khartoum · Darfur · Port Sudan", xy:[25,36],
         desc:"SAF–RSF fighting persists with severe humanitarian fallout and contested gold-producing areas.",
         tags:["conflict","displacement","gold"] },
-      { sev:"high", title:"Red Sea / Bab-el-Mandeb shipping risk", loc:"Gulf of Aden",
+      { sev:"high", title:"Red Sea / Bab-el-Mandeb shipping risk", short:"Bab-el-Mandeb", loc:"Gulf of Aden", xy:[64,42],
         desc:"Attacks on shipping push traffic around the Cape, lifting freight, insurance and oil risk premia.",
         tags:["maritime","oil","supply-chain"] },
-      { sev:"high", title:"Ethiopia–Somaliland port MoU", loc:"Berbera / Mogadishu",
+      { sev:"high", title:"Ethiopia–Somaliland port MoU", short:"Berbera MoU", loc:"Berbera / Mogadishu", xy:[70,52],
         desc:"Ethiopia's sea-access deal with Somaliland inflames relations with Somalia and regional blocs.",
         tags:["diplomacy","ports"] },
-      { sev:"mod",  title:"GERD & Nile waters", loc:"Blue Nile",
+      { sev:"mod",  title:"GERD & Nile waters", short:"GERD", loc:"Blue Nile", xy:[30,48],
         desc:"Grand Ethiopian Renaissance Dam filling keeps Egypt–Sudan–Ethiopia water tensions live.",
         tags:["water","energy"] }
     ],
+
+    // Schematic map geometry (0..100 space). Land/sea are stylised, not survey-accurate.
+    map: {
+      chokepoint:[64,42],
+      land: [
+        // Africa + Horn landmass
+        "M 0,4 L 30,3 L 40,6 L 48,20 L 58,36 L 63,42 L 78,50 L 92,55 L 84,74 L 70,90 L 60,98 L 0,98 Z",
+        // Arabian Peninsula (across the strait)
+        "M 58,0 L 100,0 L 100,44 L 74,42 L 66,38 L 60,26 L 55,10 Z"
+      ],
+      lane: "M 44,0 L 52,16 L 60,32 L 64,41 L 80,48 L 98,52",
+      seas: [
+        { t:"RED SEA",       x:46, y:14, r:-58 },
+        { t:"GULF OF ADEN",  x:82, y:47, r:-10 },
+        { t:"INDIAN OCEAN",  x:82, y:90, r:0 },
+        { t:"ARABIAN PEN.",  x:84, y:16, r:0 }
+      ]
+    },
 
     linkage: [
       { chip:"g", label:"GOLD",   title:"Sudan is a top African gold producer",
@@ -391,6 +433,79 @@
       <div class="feed-src">${esc(f.src)}</div>
     </li>`).join("");
   $("feed-cnt").textContent = DATA.feed.length + " items";
+
+  /* ===================== situational map ===================== */
+  (function buildMap(){
+    const W=1000, H=600, X=v=>+(v*10).toFixed(1), Y=v=>+(v*6).toFixed(1);
+    const sevColor={sev:"var(--sev)",high:"var(--high)",mod:"var(--warn)",low:"var(--good)"};
+    const projPath = s => s.trim().split(/\s+/).map(tok=>{
+      if(tok.indexOf(",")<0) return tok;                 // command letter
+      const [a,b]=tok.split(",").map(Number); return X(a)+" "+Y(b);
+    }).join(" ");
+
+    // grid
+    let grid="";
+    for(let gx=0;gx<=100;gx+=10) grid+=`<line class="mgrid" x1="${X(gx)}" y1="0" x2="${X(gx)}" y2="${H}"/>`;
+    for(let gy=0;gy<=100;gy+=10) grid+=`<line class="mgrid" x1="0" y1="${Y(gy)}" x2="${W}" y2="${Y(gy)}"/>`;
+
+    // land
+    const land = DATA.map.land.map(p=>
+      `<path d="${projPath(p)}" fill="var(--panel)" stroke="color-mix(in srgb,var(--accent) 34%,var(--line))" stroke-width="1.5" stroke-linejoin="round"/>`
+    ).join("");
+
+    // sea labels
+    const seas = DATA.map.seas.map(s=>
+      `<text class="msea" x="${X(s.x)}" y="${Y(s.y)}" text-anchor="middle" transform="rotate(${s.r||0} ${X(s.x)} ${Y(s.y)})">${esc(s.t)}</text>`
+    ).join("");
+
+    // shipping lane (animated dash)
+    const lane = `<path d="${projPath(DATA.map.lane)}" fill="none" stroke="var(--gas)" stroke-width="2.4"
+      stroke-dasharray="9 8" stroke-linecap="round" opacity=".9">
+      <animate attributeName="stroke-dashoffset" values="34;0" dur="1.4s" repeatCount="indefinite"/></path>`;
+
+    // chokepoint (hexagon)
+    const cp=DATA.map.chokepoint, cx=X(cp[0]), cy=Y(cp[1]);
+    const hex=(cx,cy,r)=>Array.from({length:6},(_,i)=>{
+      const a=Math.PI/6+i*Math.PI/3; return (cx+r*Math.cos(a)).toFixed(1)+","+(cy+r*Math.sin(a)).toFixed(1);
+    }).join(" ");
+    const choke=`<g>
+      <polygon points="${hex(cx,cy,11)}" fill="color-mix(in srgb,var(--accent) 22%,var(--panel))" stroke="var(--accent)" stroke-width="2"/>
+      <circle cx="${cx}" cy="${cy}" r="3" fill="var(--accent)"/>
+      <text class="mchoke" x="${cx}" y="${cy-16}" text-anchor="middle">Bab-el-Mandeb</text></g>`;
+
+    // country nodes
+    const nodes = DATA.countries.map(c=>{
+      const x=X(c.xy[0]), y=Y(c.xy[1]), col=sevColor[c.risk];
+      const right=c.xy[0]>62, tx=right?x-13:x+13, anc=right?"end":"start";
+      const wpx=c.name.length*8.6+12, rx=right?tx-wpx+2:tx-6;
+      return `<g>
+        <rect class="mlabel-bg" x="${rx.toFixed(1)}" y="${y-11}" width="${wpx.toFixed(1)}" height="22" rx="5"/>
+        <circle cx="${x}" cy="${y}" r="7.5" fill="${col}" stroke="var(--panel)" stroke-width="2"/>
+        <text class="mlabel" x="${tx}" y="${y+5}" text-anchor="${anc}">${esc(c.name)}</text></g>`;
+    }).join("");
+
+    // flashpoints (pulsing diamonds)
+    const flash = DATA.flashpoints.map(f=>{
+      const x=X(f.xy[0]), y=Y(f.xy[1]), col=sevColor[f.sev];
+      const d=8, dia=`${x},${y-d} ${x+d},${y} ${x},${y+d} ${x-d},${y}`;
+      const up=f.xy[1]<20, ly=up?y+22:y-14;
+      const wpx=(f.short||f.title).length*7.4+12, lx=x-wpx/2;
+      return `<g>
+        <circle cx="${x}" cy="${y}" r="8" fill="none" stroke="${col}" stroke-width="2" opacity=".7">
+          <animate attributeName="r" values="8;22" dur="2.6s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0.7;0" dur="2.6s" repeatCount="indefinite"/></circle>
+        <polygon points="${dia}" fill="${col}" stroke="var(--panel)" stroke-width="1.5"/>
+        <rect class="mflash-bg" x="${lx.toFixed(1)}" y="${ly-11}" width="${wpx.toFixed(1)}" height="20" rx="5"/>
+        <text class="mflash" x="${x}" y="${ly+4}" text-anchor="middle">${esc(f.short||f.title)}</text></g>`;
+    }).join("");
+
+    $("map").innerHTML =
+      `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Schematic situational map of the Horn of Africa">
+        <rect x="0" y="0" width="${W}" height="${H}" fill="color-mix(in srgb,#2b6cb0 13%,var(--panel-2))"/>
+        ${grid}${land}${seas}${lane}${nodes}${choke}${flash}
+      </svg>`;
+    $("map-cnt").textContent = DATA.flashpoints.length + " flashpoints · " + DATA.countries.length + " states";
+  })();
 })();
 </script>
 </body>
