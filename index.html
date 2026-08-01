@@ -166,6 +166,33 @@
   #map .mgrid{stroke:var(--line);stroke-width:.5;opacity:.5}
   #map .mchoke{font-family:inherit;font-size:12.5px;font-weight:700;fill:var(--accent)}
 
+  /* Status + settings */
+  .beacon.demo{background:var(--warn);animation:none}
+  .beacon.err{background:var(--sev);animation:none}
+  .icon-btn{background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:8px;
+    width:32px;height:32px;font-size:15px;line-height:1;cursor:pointer;display:grid;place-items:center}
+  .icon-btn:hover{filter:brightness(1.1)}
+  .src{font-size:10.5px;color:var(--faint);margin-top:6px}
+  .src a{color:var(--faint)} .src a:hover{color:var(--accent)}
+  .badge{font-size:9.5px;font-weight:800;letter-spacing:.06em;padding:1px 6px;border-radius:5px;text-transform:uppercase}
+  .badge.live{background:color-mix(in srgb,var(--good) 22%,transparent);color:var(--good)}
+  .badge.demo{background:color-mix(in srgb,var(--warn) 22%,transparent);color:var(--warn)}
+  .modal{position:fixed;inset:0;z-index:50;display:grid;place-items:center;
+    background:color-mix(in srgb,#000 55%,transparent);backdrop-filter:blur(3px);padding:20px}
+  .modal[hidden]{display:none}
+  .modal-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);
+    width:100%;max-width:440px;padding:22px}
+  .modal-card h3{margin:0 0 4px;font-size:16px}
+  .modal-card .lead{color:var(--dim);font-size:12.5px;margin:0 0 16px}
+  .field{display:flex;flex-direction:column;gap:5px;margin-bottom:14px}
+  .field > label{font-size:12px;font-weight:650}
+  .field .hint{font-size:11.5px;color:var(--faint)}
+  .modal-card input[type=text]{width:100%}
+  .row-check{display:flex;align-items:center;gap:9px;font-size:13px;margin-bottom:14px}
+  .modal-actions{display:flex;gap:10px;margin-top:6px}
+  .modal-actions button{flex:1}
+  .note{font-size:11px;color:var(--faint);margin-top:14px;border-top:1px solid var(--line);padding-top:12px;line-height:1.5}
+
   footer.app{color:var(--faint);font-size:12px;padding:26px 0 44px;text-align:center;line-height:1.7}
 </style>
 </head>
@@ -180,18 +207,47 @@
       </div>
     </div>
     <div class="spacer"></div>
-    <span class="live"><span class="beacon"></span>Monitoring</span>
-    <span class="asof">As of <b id="asof">—</b></span>
+    <span class="live"><span class="beacon demo" id="beacon"></span><span id="status-t">Demo</span></span>
+    <span class="asof" id="upd">As of <b id="asof">—</b></span>
+    <button class="icon-btn" id="gear" title="Live data settings" aria-label="Live data settings">⚙</button>
   </div>
 </header>
+
+<div class="modal" id="settings" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-label="Live data settings">
+    <h3>Live data settings</h3>
+    <p class="lead">Go live when this page is served (GitHub Pages / localhost). Live calls are blocked inside the sandboxed Artifact preview and fall back to the demo snapshot.</p>
+    <div class="field">
+      <label for="cfg-key">Commodities API key <span class="hint">(API Ninjas)</span></label>
+      <input type="text" id="cfg-key" placeholder="paste key — stored only in this browser" autocomplete="off" spellcheck="false" />
+      <span class="hint">Free key at <a href="https://api-ninjas.com" target="_blank" rel="noopener">api-ninjas.com</a> → enables live gold · oil · gas · copper. Blank = demo snapshot.</span>
+    </div>
+    <label class="row-check"><input type="checkbox" id="cfg-news" /> Live intel feed via GDELT <span class="hint">— keyless, no signup</span></label>
+    <div class="field">
+      <label for="cfg-refresh">Auto-refresh</label>
+      <select id="cfg-refresh">
+        <option value="0">Off</option>
+        <option value="5">Every 5 min</option>
+        <option value="15">Every 15 min</option>
+        <option value="30">Every 30 min</option>
+        <option value="60">Every hour</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button id="cfg-save">Save &amp; refresh</button>
+      <button class="icon-btn" id="cfg-close" style="flex:0 0 auto;width:auto;padding:0 16px">Close</button>
+    </div>
+    <p class="note">Keys and preferences live only in this browser's <code>localStorage</code> — nothing is sent anywhere except directly to the data provider you configure. If a provider blocks browser (CORS) requests, route it through the thin proxy described in the README.</p>
+  </div>
+</div>
 
 <main class="wrap">
   <div class="banner">
     <span>⚠</span>
-    <div><b>Illustrative snapshot.</b> Market values and feed items below are a curated, dated data layer
-    for demonstration — not a live market or news feed. The geopolitical context reflects well-established,
-    ongoing regional dynamics but should be verified against primary sources before operational use.
-    See the <code>DATA</code> object in the source (or README) for how to wire live APIs.</div>
+    <div><b>Demo snapshot — go live in ⚙ settings.</b> By default, market values and the feed show a curated,
+    dated snapshot. Enable the live intel feed (GDELT, keyless) and live commodity prices (paste a free API key)
+    from the settings panel; live calls need the page served (not the Artifact preview). Geopolitical context
+    reflects real, ongoing regional dynamics but should be verified against primary sources before operational use.</div>
   </div>
 
   <!-- COMMODITIES -->
@@ -380,18 +436,23 @@
   }
 
   // commodities
-  $("commods").innerHTML = DATA.commodities.map(c=>{
-    const up=c.chg>=0;
-    return `<div class="cmd">
-      <span class="accentbar" style="background:${c.color}"></span>
-      <div class="name"><span class="ic">${c.ic}</span>${esc(c.name)}</div>
-      <div class="price">${c.price.toLocaleString(undefined,{minimumFractionDigits: c.price<10?2:1, maximumFractionDigits:2})}
-        <span class="unit">${esc(c.unit)}</span></div>
-      <div class="chg ${up?'up':'down'}">${up?'▲':'▼'} ${Math.abs(c.chg).toFixed(1)}% <span style="color:var(--faint);font-weight:400">1d</span></div>
-      ${spark(c.spark,c.color,up)}
-      <div class="drv">${esc(c.driver)}</div>
-    </div>`;
-  }).join("");
+  const fmtPrice = p => p.toLocaleString(undefined,{minimumFractionDigits:p<10?2:1, maximumFractionDigits:2});
+  function renderCommods(list){
+    $("commods").innerHTML = list.map(c=>{
+      const up=c.chg>=0;
+      const badge = c.live ? '<span class="badge live">live</span>' : '<span class="badge demo">demo</span>';
+      return `<div class="cmd">
+        <span class="accentbar" style="background:${c.color}"></span>
+        <div class="name"><span class="ic">${c.ic}</span>${esc(c.name)} ${badge}</div>
+        <div class="price">${fmtPrice(c.price)} <span class="unit">${esc(c.unit)}</span></div>
+        <div class="chg ${up?'up':'down'}">${up?'▲':'▼'} ${Math.abs(c.chg).toFixed(1)}%
+          <span style="color:var(--faint);font-weight:400">${c.live?'since last sync':'1d'}</span></div>
+        ${spark(c.spark,c.color,up)}
+        <div class="drv">${esc(c.driver)}</div>
+        ${c.err?`<div class="src" style="color:var(--sev)">live fetch failed (${esc(c.err)}) — showing snapshot</div>`:''}
+      </div>`;
+    }).join("");
+  }
 
   // countries
   $("countries").innerHTML = DATA.countries.map(c=>{
@@ -435,15 +496,128 @@
     </div>`).join("");
 
   // feed
-  $("feed").innerHTML = DATA.feed.map(f=>`
-    <li><div class="feed-top">
-        <span class="feed-cat cat-${f.cat}">${esc(f.catLabel)}</span>
-        <span class="feed-time">${esc(f.time)} ago</span>
-      </div>
-      <div class="feed-head">${esc(f.head)}</div>
-      <div class="feed-src">${esc(f.src)}</div>
-    </li>`).join("");
-  $("feed-cnt").textContent = DATA.feed.length + " items";
+  function renderFeed(list){
+    $("feed").innerHTML = list.map(f=>`
+      <li><div class="feed-top">
+          <span class="feed-cat cat-${f.cat}">${esc(f.catLabel)}</span>
+          <span class="feed-time">${esc(f.time)}</span>
+        </div>
+        <div class="feed-head">${f.url?`<a href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.head)}</a>`:esc(f.head)}</div>
+        <div class="feed-src">${esc(f.src)}</div>
+      </li>`).join("");
+    $("feed-cnt").textContent = list.length + " items";
+  }
+
+  /* ===================== live data layer ===================== */
+  const CKEY="wm-config", HKEY="wm-hist";
+  const DEFAULT_CFG={ key:"", news:true, refresh:15 };
+  const getCfg=()=>{ try{return Object.assign({},DEFAULT_CFG,JSON.parse(localStorage.getItem(CKEY))||{});}catch(e){return {...DEFAULT_CFG};} };
+  const setCfgLS=c=>{ try{localStorage.setItem(CKEY,JSON.stringify(c));}catch(e){} };
+  const getHist=()=>{ try{return JSON.parse(localStorage.getItem(HKEY))||{};}catch(e){return {};} };
+  const setHist=h=>{ try{localStorage.setItem(HKEY,JSON.stringify(h));}catch(e){} };
+  let CFG=getCfg();
+
+  // -- commodities: API Ninjas (one key covers gold/oil/gas/copper) --
+  const NINJA="https://api.api-ninjas.com/v1/commodityprice?name=";
+  const NINJA_NAME={ gold:"gold", oil:"brent_crude_oil", gas:"natural_gas", copper:"copper" };
+  async function fetchCommodity(key){
+    const r=await fetch(NINJA+NINJA_NAME[key],{ headers:{ "X-Api-Key":CFG.key } });
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    const j=await r.json();
+    const price=Array.isArray(j) ? (j[0]&&j[0].price) : j.price;
+    if(price==null) throw new Error("no price");
+    return +price;
+  }
+  async function loadCommodities(){
+    if(!CFG.key) return DATA.commodities.map(c=>({ ...c, live:false }));
+    const h=getHist();
+    const out=await Promise.all(DATA.commodities.map(async c=>{
+      try{
+        const price=await fetchCommodity(c.key);
+        let arr=Array.isArray(h[c.key])?h[c.key].slice():[];
+        if(!arr.length) arr=[price];
+        if(arr[arr.length-1]!==price) arr.push(price);
+        while(arr.length>12) arr.shift();
+        h[c.key]=arr;
+        const prev=arr.length>1?arr[arr.length-2]:price;
+        const chg=prev?((price-prev)/prev*100):0;
+        return { ...c, price, chg, spark:arr.length>1?arr:[price,price], live:true };
+      }catch(e){ return { ...c, live:false, err:e.message }; }
+    }));
+    setHist(h);
+    return out;
+  }
+
+  // -- news: GDELT DOC 2.0 (keyless) --
+  const GDELT="https://api.gdeltproject.org/api/v2/doc/doc";
+  const NEWS_Q='(Sudan OR Ethiopia OR Somalia OR Eritrea OR Djibouti OR "Horn of Africa" OR "Red Sea" OR "Bab-el-Mandeb")';
+  const gdeltDate=s=>{ const m=/(\d{4})(\d\d)(\d\d)T(\d\d)(\d\d)(\d\d)Z/.exec(s||""); return m?new Date(Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5],+m[6])):null; };
+  const relTime=d=>{ if(!d) return ""; const s=(Date.now()-d.getTime())/1000;
+    if(s<3600) return Math.max(1,Math.floor(s/60))+"m ago";
+    if(s<86400) return Math.floor(s/3600)+"h ago";
+    return Math.floor(s/86400)+"d ago"; };
+  function classify(t){ t=(t||"").toLowerCase();
+    if(/attack|clash|militi|troop|strike|kill|forces|shabaab|\brsf\b|\bsaf\b|war|fight|militar|offensive|drone|coup|rebel/.test(t)) return {cat:"sec",catLabel:"Security"};
+    if(/oil|\bgas\b|lng|ship|energy|barrel|tanker|crude|freight|\bport\b|pipeline|houthi|red sea|strait/.test(t)) return {cat:"energy",catLabel:"Energy"};
+    if(/talks|summit|agreement|\bdeal\b|diplomat|minister|accord|mediat|envoy|negotiat|\bsign|\bvisit|meeting|union/.test(t)) return {cat:"dip",catLabel:"Diplomacy"};
+    if(/gold|trade|econom|market|price|inflation|\bimf\b|debt|currenc|invest|budget|aid/.test(t)) return {cat:"econ",catLabel:"Economy"};
+    return {cat:"dip",catLabel:"Regional"};
+  }
+  const snapFeed=()=>DATA.feed.map(f=>({ ...f, time:f.time+" ago" }));
+  async function loadNews(){
+    if(!CFG.news) return snapFeed();
+    try{
+      const url=`${GDELT}?query=${encodeURIComponent(NEWS_Q)}&mode=artlist&maxrecords=14&format=json&sort=datedesc`;
+      const r=await fetch(url); if(!r.ok) throw new Error("HTTP "+r.status);
+      const j=await r.json();
+      const arts=(j.articles||[]).filter(a=>a&&a.title);
+      if(!arts.length) throw new Error("no articles");
+      return arts.slice(0,10).map(a=>{ const c=classify(a.title);
+        return { cat:c.cat, catLabel:c.catLabel, time:relTime(gdeltDate(a.seendate)), head:a.title, src:a.domain||"", url:a.url }; });
+    }catch(e){ return snapFeed(); }
+  }
+
+  // -- status + refresh --
+  function setStatus(mode){
+    const b=$("beacon"), t=$("status-t"); b.classList.remove("demo","err");
+    if(mode==="loading"){ t.textContent="Updating…"; }
+    else if(mode==="live"){ t.textContent="Live"; }
+    else { b.classList.add("demo"); t.textContent="Demo"; }
+  }
+  function stamp(live){
+    const hh=new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
+    $("upd").innerHTML = live ? `Updated <b>${hh}</b>` : `As of <b>${esc(DATA.asOf)}</b>`;
+  }
+  let timer=null, busy=false;
+  async function refresh(){
+    if(busy) return; busy=true;
+    setStatus((CFG.key||CFG.news)?"loading":"demo");
+    try{
+      const [comm,news]=await Promise.all([loadCommodities(),loadNews()]);
+      renderCommods(comm); renderFeed(news);
+      const live = comm.some(c=>c.live) || (CFG.news && news.some(n=>n.url));
+      setStatus(live?"live":"demo"); stamp(live);
+    } finally { busy=false; }
+  }
+  function schedule(){ if(timer){clearInterval(timer);timer=null;} if(CFG.refresh>0) timer=setInterval(refresh,CFG.refresh*60000); }
+
+  // -- settings modal --
+  const modal=$("settings");
+  function openSettings(){ $("cfg-key").value=CFG.key||""; $("cfg-news").checked=!!CFG.news; $("cfg-refresh").value=String(CFG.refresh); modal.hidden=false; $("cfg-key").focus(); }
+  $("gear").addEventListener("click",openSettings);
+  $("cfg-close").addEventListener("click",()=>modal.hidden=true);
+  modal.addEventListener("click",e=>{ if(e.target===modal) modal.hidden=true; });
+  document.addEventListener("keydown",e=>{ if(e.key==="Escape") modal.hidden=true; });
+  $("cfg-save").addEventListener("click",()=>{
+    CFG={ key:$("cfg-key").value.trim(), news:$("cfg-news").checked, refresh:+$("cfg-refresh").value };
+    setCfgLS(CFG); modal.hidden=true; schedule(); refresh();
+  });
+
+  // -- init: paint snapshot immediately, then go live --
+  renderCommods(DATA.commodities.map(c=>({ ...c, live:false })));
+  renderFeed(snapFeed());
+  schedule();
+  refresh();
 
   /* ===================== situational map ===================== */
   (function buildMap(){

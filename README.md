@@ -34,21 +34,39 @@ All content lives in one place: the `DATA` object near the top of the `<script>`
 in `index.html`. Edit it to update the snapshot, or swap each block for a live
 `fetch()`.
 
-## Wiring live data (optional)
+## Going live
 
-The `DATA` object is structured so each block maps cleanly to an API:
+The dashboard has a built-in live-data layer. Open the **⚙ settings** panel in
+the header:
 
-| Block | Suggested source |
-|-------|------------------|
-| `commodities[].price / .spark` | A commodities/markets API (e.g. metals & energy price feeds). Most require an API key, so proxy the call through a small backend to keep the key server-side and avoid browser CORS/rate-limit issues. |
-| `feed[]` | A news API filtered to the region (query the Horn states + commodities), or an RSS aggregator. |
-| `flashpoints[] / countries[]` | Curated by an analyst, or generated from a conflict-event dataset (e.g. ACLED-style feeds). |
-| `riskIndex` | Computed from the above (weighted country risk + active flashpoint severity). |
+| Feed | Source | Setup |
+|------|--------|-------|
+| **Intel feed** | [GDELT DOC 2.0](https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/) — global news index | **Keyless.** On by default. Queries the Horn states + Red Sea / Bab-el-Mandeb, auto-categorises each headline (security / energy / diplomacy / economy), and links to the source. |
+| **Commodities** | [API Ninjas](https://api-ninjas.com/api/commodityprice) — one key covers gold, oil, gas & copper | Paste a **free API key** in settings. Prices then update live; the 1-day change and sparkline build from a rolling history kept in `localStorage` (so the trend fills in over successive refreshes). |
 
-Because unauthenticated, browser-side calls to most of these are rate-limited or
-CORS-blocked, the recommended pattern is a **thin proxy**: a tiny serverless
-function holds the keys, calls the upstreams, and returns JSON shaped like the
-`DATA` blocks. The front end stays a single static file.
+Set an **auto-refresh** interval (5–60 min) in the same panel. The header shows
+**Live** / **Demo** status and the last-updated time; each commodity tile carries
+a `live` / `demo` badge.
+
+**Two things to know:**
+
+1. **Serve the page** — live `fetch()` calls work from `localhost` or GitHub
+   Pages, but are **blocked inside the sandboxed Artifact preview** (its CSP
+   forbids external requests). Everything degrades gracefully to the labelled
+   snapshot when a call can't be made.
+2. **Keys stay local** — the API key and preferences live only in your browser's
+   `localStorage`; the only network calls are made directly from your browser to
+   the provider you configured.
+
+### If a provider blocks browser (CORS) requests
+
+Some data providers don't send CORS headers, so the browser rejects the
+response. The fix is a **thin proxy**: a tiny serverless function that holds the
+key, calls the upstream server-side, and returns JSON. Point the relevant
+`fetch()` URL (`NINJA` / `GDELT` in the script) at your proxy and the front end
+stays a single static file. The other blocks (`flashpoints`, `countries`,
+`riskIndex`) are analyst-curated in the `DATA` object — edit them directly, or
+generate them from a conflict-event dataset (e.g. ACLED-style feeds).
 
 ## Run it
 
