@@ -36,17 +36,25 @@ in `index.html`. Edit it to update the snapshot, or swap each block for a live
 
 ## Going live
 
-The dashboard has a built-in live-data layer. Open the **⚙ settings** panel in
-the header:
+The dashboard has a built-in live-data layer split across **three independent
+providers** — each drives its own tiles and falls back to the demo snapshot on
+its own. Open the **⚙ settings** panel in the header:
 
-| Feed | Source | Setup |
-|------|--------|-------|
-| **Intel feed** | [GDELT DOC 2.0](https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/) — global news index | **Keyless.** On by default. Queries the Horn states + Red Sea / Bab-el-Mandeb, auto-categorises each headline (security / energy / diplomacy / economy), and links to the source. |
-| **Commodities** | [API Ninjas](https://api-ninjas.com/api/commodityprice) — one key covers gold, oil, gas & copper | Paste a **free API key** in settings. Prices then update live; the 1-day change and sparkline build from a rolling history kept in `localStorage` (so the trend fills in over successive refreshes). |
+| Provider | Drives | Source | Setup |
+|----------|--------|--------|-------|
+| **Metals API** | gold · copper | [metalpriceapi.com](https://metalpriceapi.com) / [metals-api.com](https://metals-api.com) (`XAU`, `XCU`) | Free key. One call fetches both; 1-day change and sparkline build from a rolling `localStorage` history. |
+| **Energy API** | Brent oil · natural gas | [Alpha Vantage](https://www.alphavantage.co/support/#api-key) (`BRENT`, `NATURAL_GAS`) | Free key. Returns real daily history, so sparklines and change are exact from the first load. |
+| **Geopolitics API** | intel feed | [GDELT DOC 2.0](https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/) (keyless) · [ACLED](https://acleddata.com/register/) (optional) | GDELT is on by default, no signup — region-scoped, auto-categorised, source-linked. Add an ACLED key + account email to switch the feed to live Horn-of-Africa **conflict events** (type, location, fatalities). |
 
 Set an **auto-refresh** interval (5–60 min) in the same panel. The header shows
 **Live** / **Demo** status and the last-updated time; each commodity tile carries
-a `live` / `demo` badge.
+a `live` / `demo` badge, and any provider that errors shows the reason on its
+tile while the rest stay live.
+
+> **Units vary by provider.** The tile unit labels (USD/oz, USD/bbl, USD/MMBtu,
+> USD/lb) match common conventions, but a given metals provider may quote copper
+> per tonne or per ounce — sanity-check against your provider and adjust the
+> `unit` in the `DATA` object if needed.
 
 **Two things to know:**
 

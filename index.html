@@ -216,13 +216,28 @@
 <div class="modal" id="settings" hidden>
   <div class="modal-card" role="dialog" aria-modal="true" aria-label="Live data settings">
     <h3>Live data settings</h3>
-    <p class="lead">Go live when this page is served (GitHub Pages / localhost). Live calls are blocked inside the sandboxed Artifact preview and fall back to the demo snapshot.</p>
+    <p class="lead">Three independent providers — each drives its own tiles and falls back to the demo snapshot on its own. Live calls need the page served (GitHub Pages / localhost); they're blocked inside the sandboxed Artifact preview.</p>
+
     <div class="field">
-      <label for="cfg-key">Commodities API key <span class="hint">(API Ninjas)</span></label>
-      <input type="text" id="cfg-key" placeholder="paste key — stored only in this browser" autocomplete="off" spellcheck="false" />
-      <span class="hint">Free key at <a href="https://api-ninjas.com" target="_blank" rel="noopener">api-ninjas.com</a> → enables live gold · oil · gas · copper. Blank = demo snapshot.</span>
+      <label for="cfg-metals">🥇 Metals API <span class="hint">→ gold · copper</span></label>
+      <input type="text" id="cfg-metals" placeholder="metals-api.com / metalpriceapi.com key" autocomplete="off" spellcheck="false" />
+      <span class="hint">Free key at <a href="https://metalpriceapi.com" target="_blank" rel="noopener">metalpriceapi.com</a> or <a href="https://metals-api.com" target="_blank" rel="noopener">metals-api.com</a>.</span>
     </div>
-    <label class="row-check"><input type="checkbox" id="cfg-news" /> Live intel feed via GDELT <span class="hint">— keyless, no signup</span></label>
+
+    <div class="field">
+      <label for="cfg-energy">🛢️ Energy API <span class="hint">→ Brent oil · natural gas</span></label>
+      <input type="text" id="cfg-energy" placeholder="Alpha Vantage key" autocomplete="off" spellcheck="false" />
+      <span class="hint">Free key at <a href="https://www.alphavantage.co/support/#api-key" target="_blank" rel="noopener">alphavantage.co</a> — supplies real daily history for the sparklines.</span>
+    </div>
+
+    <div class="field">
+      <label>🛰️ Geopolitics API <span class="hint">→ intel feed</span></label>
+      <label class="row-check" style="margin:2px 0 8px"><input type="checkbox" id="cfg-news" /> Live news via <b>&nbsp;GDELT</b> <span class="hint">&nbsp;— keyless, on by default</span></label>
+      <input type="text" id="cfg-acled" placeholder="ACLED key (optional — conflict events)" autocomplete="off" spellcheck="false" />
+      <input type="text" id="cfg-acled-email" placeholder="ACLED account email (required with key)" autocomplete="off" spellcheck="false" style="margin-top:8px" />
+      <span class="hint">With an <a href="https://acleddata.com/register/" target="_blank" rel="noopener">ACLED</a> key + email, the feed switches to live Horn-of-Africa conflict events.</span>
+    </div>
+
     <div class="field">
       <label for="cfg-refresh">Auto-refresh</label>
       <select id="cfg-refresh">
@@ -233,11 +248,12 @@
         <option value="60">Every hour</option>
       </select>
     </div>
+
     <div class="modal-actions">
       <button id="cfg-save">Save &amp; refresh</button>
       <button class="icon-btn" id="cfg-close" style="flex:0 0 auto;width:auto;padding:0 16px">Close</button>
     </div>
-    <p class="note">Keys and preferences live only in this browser's <code>localStorage</code> — nothing is sent anywhere except directly to the data provider you configure. If a provider blocks browser (CORS) requests, route it through the thin proxy described in the README.</p>
+    <p class="note">Keys and preferences live only in this browser's <code>localStorage</code> — nothing is sent anywhere except directly to the provider you configure. If a provider blocks browser (CORS) requests, route it through the thin proxy described in the README.</p>
   </div>
 </div>
 
@@ -245,9 +261,10 @@
   <div class="banner">
     <span>⚠</span>
     <div><b>Demo snapshot — go live in ⚙ settings.</b> By default, market values and the feed show a curated,
-    dated snapshot. Enable the live intel feed (GDELT, keyless) and live commodity prices (paste a free API key)
-    from the settings panel; live calls need the page served (not the Artifact preview). Geopolitical context
-    reflects real, ongoing regional dynamics but should be verified against primary sources before operational use.</div>
+    dated snapshot. Connect three providers from the settings panel — <b>Metals API</b> (gold · copper),
+    <b>Energy API</b> (oil · gas) and a <b>Geopolitics API</b> (GDELT news, keyless; ACLED events, optional).
+    Live calls need the page served (not the Artifact preview). Geopolitical context reflects real, ongoing
+    regional dynamics but should be verified against primary sources before operational use.</div>
   </div>
 
   <!-- COMMODITIES -->
@@ -510,71 +527,117 @@
 
   /* ===================== live data layer ===================== */
   const CKEY="wm-config", HKEY="wm-hist";
-  const DEFAULT_CFG={ key:"", news:true, refresh:15 };
+  const DEFAULT_CFG={ metalsKey:"", energyKey:"", acledKey:"", acledEmail:"", news:true, refresh:15 };
   const getCfg=()=>{ try{return Object.assign({},DEFAULT_CFG,JSON.parse(localStorage.getItem(CKEY))||{});}catch(e){return {...DEFAULT_CFG};} };
   const setCfgLS=c=>{ try{localStorage.setItem(CKEY,JSON.stringify(c));}catch(e){} };
   const getHist=()=>{ try{return JSON.parse(localStorage.getItem(HKEY))||{};}catch(e){return {};} };
   const setHist=h=>{ try{localStorage.setItem(HKEY,JSON.stringify(h));}catch(e){} };
   let CFG=getCfg();
 
-  // -- commodities: API Ninjas (one key covers gold/oil/gas/copper) --
-  const NINJA="https://api.api-ninjas.com/v1/commodityprice?name=";
-  const NINJA_NAME={ gold:"gold", oil:"brent_crude_oil", gas:"natural_gas", copper:"copper" };
-  async function fetchCommodity(key){
-    const r=await fetch(NINJA+NINJA_NAME[key],{ headers:{ "X-Api-Key":CFG.key } });
+  // Which provider group drives each commodity tile
+  const GROUP={ gold:"metals", copper:"metals", oil:"energy", gas:"energy" };
+
+  // -- METALS API (metalpriceapi / metals-api): one call → gold + copper --
+  async function fetchMetals(){
+    const url=`https://api.metalpriceapi.com/v1/latest?api_key=${encodeURIComponent(CFG.metalsKey)}&base=USD&currencies=XAU,XCU`;
+    const r=await fetch(url); if(!r.ok) throw new Error("HTTP "+r.status);
+    const j=await r.json();
+    if(j&&j.success===false) throw new Error((j.error&&(j.error.info||j.error.message))||"provider error");
+    const rate=j.rates||j.data&&j.data.rates||{};
+    const px=sym=> rate["USD"+sym]!=null ? +rate["USD"+sym] : (rate[sym]? 1/+rate[sym] : null);
+    return { gold:{price:px("XAU")}, copper:{price:px("XCU")} };
+  }
+
+  // -- ENERGY API (Alpha Vantage): daily history → oil (Brent) + natural gas --
+  async function fetchAV(fn){
+    const r=await fetch(`https://www.alphavantage.co/query?function=${fn}&interval=daily&apikey=${encodeURIComponent(CFG.energyKey)}`);
     if(!r.ok) throw new Error("HTTP "+r.status);
     const j=await r.json();
-    const price=Array.isArray(j) ? (j[0]&&j[0].price) : j.price;
-    if(price==null) throw new Error("no price");
-    return +price;
+    if(j.Information||j.Note||j["Error Message"]) throw new Error(j.Information||j.Note||j["Error Message"]);
+    const data=(j.data||[]).filter(d=>d.value&&d.value!==".");
+    if(!data.length) throw new Error("no data");
+    const vals=data.slice(0,10).map(d=>+d.value).reverse();
+    const price=vals[vals.length-1], prev=vals.length>1?vals[vals.length-2]:price;
+    return { price, chg:prev?((price-prev)/prev*100):0, spark:vals.length>1?vals:[price,price] };
   }
+
   async function loadCommodities(){
-    if(!CFG.key) return DATA.commodities.map(c=>({ ...c, live:false }));
-    const h=getHist();
-    const out=await Promise.all(DATA.commodities.map(async c=>{
-      try{
-        const price=await fetchCommodity(c.key);
+    const h=getHist(); const res={};
+    if(CFG.metalsKey){ try{ Object.assign(res, await fetchMetals()); }catch(e){ res._err_metals=e.message; } }
+    if(CFG.energyKey){
+      try{ res.oil=await fetchAV("BRENT"); }catch(e){ res._err_oil=e.message; }
+      try{ res.gas=await fetchAV("NATURAL_GAS"); }catch(e){ res._err_gas=e.message; }
+    }
+    const errFor=k=> k==="oil"?res._err_oil : k==="gas"?res._err_gas : res._err_metals;
+    const out=DATA.commodities.map(c=>{
+      const r=res[c.key];
+      if(!r||r.price==null) return { ...c, live:false, err:errFor(c.key) };
+      let { price, chg, spark }=r;
+      if(!spark){                              // metals: build history locally for trend
         let arr=Array.isArray(h[c.key])?h[c.key].slice():[];
         if(!arr.length) arr=[price];
         if(arr[arr.length-1]!==price) arr.push(price);
         while(arr.length>12) arr.shift();
         h[c.key]=arr;
         const prev=arr.length>1?arr[arr.length-2]:price;
-        const chg=prev?((price-prev)/prev*100):0;
-        return { ...c, price, chg, spark:arr.length>1?arr:[price,price], live:true };
-      }catch(e){ return { ...c, live:false, err:e.message }; }
-    }));
+        chg=prev?((price-prev)/prev*100):0; spark=arr.length>1?arr:[price,price];
+      }
+      return { ...c, price, chg, spark, live:true };
+    });
     setHist(h);
     return out;
   }
 
-  // -- news: GDELT DOC 2.0 (keyless) --
-  const GDELT="https://api.gdeltproject.org/api/v2/doc/doc";
-  const NEWS_Q='(Sudan OR Ethiopia OR Somalia OR Eritrea OR Djibouti OR "Horn of Africa" OR "Red Sea" OR "Bab-el-Mandeb")';
+  // -- GEOPOLITICS API: GDELT news (keyless) or ACLED conflict events (keyed) --
   const gdeltDate=s=>{ const m=/(\d{4})(\d\d)(\d\d)T(\d\d)(\d\d)(\d\d)Z/.exec(s||""); return m?new Date(Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5],+m[6])):null; };
   const relTime=d=>{ if(!d) return ""; const s=(Date.now()-d.getTime())/1000;
     if(s<3600) return Math.max(1,Math.floor(s/60))+"m ago";
     if(s<86400) return Math.floor(s/3600)+"h ago";
     return Math.floor(s/86400)+"d ago"; };
   function classify(t){ t=(t||"").toLowerCase();
-    if(/attack|clash|militi|troop|strike|kill|forces|shabaab|\brsf\b|\bsaf\b|war|fight|militar|offensive|drone|coup|rebel/.test(t)) return {cat:"sec",catLabel:"Security"};
+    if(/attack|clash|militi|troop|strike|kill|forces|shabaab|\brsf\b|\bsaf\b|war|fight|militar|offensive|drone|coup|rebel|violence|battle/.test(t)) return {cat:"sec",catLabel:"Security"};
     if(/oil|\bgas\b|lng|ship|energy|barrel|tanker|crude|freight|\bport\b|pipeline|houthi|red sea|strait/.test(t)) return {cat:"energy",catLabel:"Energy"};
     if(/talks|summit|agreement|\bdeal\b|diplomat|minister|accord|mediat|envoy|negotiat|\bsign|\bvisit|meeting|union/.test(t)) return {cat:"dip",catLabel:"Diplomacy"};
     if(/gold|trade|econom|market|price|inflation|\bimf\b|debt|currenc|invest|budget|aid/.test(t)) return {cat:"econ",catLabel:"Economy"};
     return {cat:"dip",catLabel:"Regional"};
   }
   const snapFeed=()=>DATA.feed.map(f=>({ ...f, time:f.time+" ago" }));
+
+  const GDELT="https://api.gdeltproject.org/api/v2/doc/doc";
+  const NEWS_Q='(Sudan OR Ethiopia OR Somalia OR Eritrea OR Djibouti OR "Horn of Africa" OR "Red Sea" OR "Bab-el-Mandeb")';
+  async function fetchGdelt(){
+    const url=`${GDELT}?query=${encodeURIComponent(NEWS_Q)}&mode=artlist&maxrecords=14&format=json&sort=datedesc`;
+    const r=await fetch(url); if(!r.ok) throw new Error("HTTP "+r.status);
+    const arts=((await r.json()).articles||[]).filter(a=>a&&a.title);
+    if(!arts.length) throw new Error("no articles");
+    return arts.slice(0,10).map(a=>{ const c=classify(a.title);
+      return { cat:c.cat, catLabel:c.catLabel, time:relTime(gdeltDate(a.seendate)), head:a.title, src:a.domain||"", url:a.url }; });
+  }
+
+  // ACLED conflict events for the Horn (legacy key + email auth)
+  const ACLED_CAT={ "Battles":"sec", "Explosions/Remote violence":"sec", "Violence against civilians":"sec",
+    "Protests":"dip", "Riots":"dip", "Strategic developments":"econ" };
+  async function fetchAcled(){
+    const countries="Sudan|Ethiopia|Somalia|Eritrea|Djibouti|South Sudan";
+    const url=`https://api.acleddata.com/acled/read?key=${encodeURIComponent(CFG.acledKey)}&email=${encodeURIComponent(CFG.acledEmail)}`
+      +`&country=${encodeURIComponent(countries)}&country_where=%3D&limit=12&fields=event_date|event_type|sub_event_type|country|location|notes|fatalities`;
+    const r=await fetch(url); if(!r.ok) throw new Error("HTTP "+r.status);
+    const j=await r.json();
+    if(j.success===false || j.error) throw new Error(j.error&&j.error.message||"ACLED error");
+    const rows=j.data||[]; if(!rows.length) throw new Error("no events");
+    return rows.map(e=>{
+      const d=e.event_date?new Date(e.event_date+"T00:00:00Z"):null;
+      const fatal=+e.fatalities||0;
+      return { cat:ACLED_CAT[e.event_type]||"dip", catLabel:e.event_type||"Event",
+        time:relTime(d), head:`${e.sub_event_type||e.event_type}: ${e.location}, ${e.country}${fatal?` — ${fatal} killed`:""}`,
+        src:`ACLED · ${e.event_type}`, url:"" };
+    });
+  }
+
   async function loadNews(){
-    if(!CFG.news) return snapFeed();
-    try{
-      const url=`${GDELT}?query=${encodeURIComponent(NEWS_Q)}&mode=artlist&maxrecords=14&format=json&sort=datedesc`;
-      const r=await fetch(url); if(!r.ok) throw new Error("HTTP "+r.status);
-      const j=await r.json();
-      const arts=(j.articles||[]).filter(a=>a&&a.title);
-      if(!arts.length) throw new Error("no articles");
-      return arts.slice(0,10).map(a=>{ const c=classify(a.title);
-        return { cat:c.cat, catLabel:c.catLabel, time:relTime(gdeltDate(a.seendate)), head:a.title, src:a.domain||"", url:a.url }; });
-    }catch(e){ return snapFeed(); }
+    if(CFG.acledKey && CFG.acledEmail){ try{ return await fetchAcled(); }catch(e){ /* fall through */ } }
+    if(CFG.news){ try{ return await fetchGdelt(); }catch(e){ /* fall through */ } }
+    return snapFeed();
   }
 
   // -- status + refresh --
@@ -588,14 +651,16 @@
     const hh=new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
     $("upd").innerHTML = live ? `Updated <b>${hh}</b>` : `As of <b>${esc(DATA.asOf)}</b>`;
   }
+  const anyProvider=()=> !!(CFG.metalsKey||CFG.energyKey||CFG.news||(CFG.acledKey&&CFG.acledEmail));
   let timer=null, busy=false;
   async function refresh(){
     if(busy) return; busy=true;
-    setStatus((CFG.key||CFG.news)?"loading":"demo");
+    setStatus(anyProvider()?"loading":"demo");
     try{
       const [comm,news]=await Promise.all([loadCommodities(),loadNews()]);
       renderCommods(comm); renderFeed(news);
-      const live = comm.some(c=>c.live) || (CFG.news && news.some(n=>n.url));
+      const newsLive=news.some(n=>!/illustrative/.test(n.src||""));
+      const live = comm.some(c=>c.live) || newsLive;
       setStatus(live?"live":"demo"); stamp(live);
     } finally { busy=false; }
   }
@@ -603,13 +668,22 @@
 
   // -- settings modal --
   const modal=$("settings");
-  function openSettings(){ $("cfg-key").value=CFG.key||""; $("cfg-news").checked=!!CFG.news; $("cfg-refresh").value=String(CFG.refresh); modal.hidden=false; $("cfg-key").focus(); }
+  function openSettings(){
+    $("cfg-metals").value=CFG.metalsKey||""; $("cfg-energy").value=CFG.energyKey||"";
+    $("cfg-acled").value=CFG.acledKey||""; $("cfg-acled-email").value=CFG.acledEmail||"";
+    $("cfg-news").checked=!!CFG.news; $("cfg-refresh").value=String(CFG.refresh);
+    modal.hidden=false; $("cfg-metals").focus();
+  }
   $("gear").addEventListener("click",openSettings);
   $("cfg-close").addEventListener("click",()=>modal.hidden=true);
   modal.addEventListener("click",e=>{ if(e.target===modal) modal.hidden=true; });
   document.addEventListener("keydown",e=>{ if(e.key==="Escape") modal.hidden=true; });
   $("cfg-save").addEventListener("click",()=>{
-    CFG={ key:$("cfg-key").value.trim(), news:$("cfg-news").checked, refresh:+$("cfg-refresh").value };
+    CFG={
+      metalsKey:$("cfg-metals").value.trim(), energyKey:$("cfg-energy").value.trim(),
+      acledKey:$("cfg-acled").value.trim(), acledEmail:$("cfg-acled-email").value.trim(),
+      news:$("cfg-news").checked, refresh:+$("cfg-refresh").value
+    };
     setCfgLS(CFG); modal.hidden=true; schedule(); refresh();
   });
 
