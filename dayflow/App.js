@@ -18,7 +18,12 @@ export default function App() {
   return (
     <TaskProvider encryptionKey={vault.dataKey} synced={vault.synced}>
       <StatusBar style="dark" />
-      <TodoScreen account={vault.email} onLock={() => setVault(null)} />
+      <TodoScreen
+        account={vault.email}
+        dataKey={vault.dataKey}
+        onLock={() => setVault(null)}
+        onDeleted={() => setVault(null)}
+      />
     </TaskProvider>
   );
 }

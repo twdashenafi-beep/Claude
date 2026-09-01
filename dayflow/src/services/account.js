@@ -5,6 +5,7 @@ import {
   rewrapForNewPassword, rotateRecoveryCode,
 } from './vault';
 import * as store from './vaultStore';
+import { clearVaultData } from './localVault';
 
 // Account flows.
 //
@@ -143,6 +144,32 @@ export async function newRecoveryCode(email, dataKey) {
 
 export async function signOut() {
   if (supabase) await supabase.auth.signOut();
+}
+
+// Irreversible, and required in-app by App Store Guideline 5.1.1(v).
+//
+// The server side runs as a security-definer function because removing a row
+// from auth.users otherwise needs the service_role key, which cannot ship in a
+// client. Local state is wiped regardless of what the server says: if the
+// account is gone but the device still holds a vault record and a pile of
+// ciphertext, the next launch offers to unlock something that no longer exists.
+export async function deleteAccount() {
+  let remoteError = null;
+
+  if (isSupabaseConfigured) {
+    try {
+      const { error } = await supabase.rpc('delete_own_account');
+      if (error) throw error;
+    } catch (e) {
+      remoteError = e;
+    }
+  }
+
+  await store.clearLocal();
+  await clearVaultData();
+  if (supabase) await supabase.auth.signOut().catch(() => {});
+
+  if (remoteError) throw remoteError;
 }
 
 export async function getSession() {

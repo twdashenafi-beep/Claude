@@ -11,6 +11,7 @@ import AIInput from '../components/AIInput';
 import DailyBriefing from '../components/DailyBriefing';
 import QuickActions from '../components/QuickActions';
 import ConfettiOverlay from '../components/ConfettiOverlay';
+import AccountSheet from '../components/AccountSheet';
 import { VIEW_MODES } from '../utils/constants';
 import { COLORS, SERIF, SANS, SHEET_MAX_WIDTH } from '../utils/theme';
 import { format, startOfWeek } from 'date-fns';
@@ -96,7 +97,7 @@ function Column({
   );
 }
 
-export default function TodoScreen({ account, onLock }) {
+export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
   const { tasks, addTask, toggleTask, deleteTask, updateTask, syncState } = useTasks();
   const { width } = useWindowDimensions();
 
@@ -108,6 +109,7 @@ export default function TodoScreen({ account, onLock }) {
   const [quickTask, setQuickTask] = useState(null);
   const [showCompleted, setShowCompleted] = useState({ todo: false, done_for_me: false });
   const [celebrating, setCelebrating] = useState(false);
+  const [showAccount, setShowAccount] = useState(false);
 
   const inView = useMemo(() => tasks.filter(t => t.viewScope === viewMode), [tasks, viewMode]);
   const todo = useMemo(() => inView.filter(t => t.taskType === 'todo'), [inView]);
@@ -170,14 +172,12 @@ export default function TodoScreen({ account, onLock }) {
               >
                 <Text style={s.briefing}>Briefing</Text>
               </TouchableOpacity>
-              {onLock ? (
-                <TouchableOpacity
-                  onPress={onLock}
-                  hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
-                >
-                  <Text style={s.lock}>Lock</Text>
-                </TouchableOpacity>
-              ) : null}
+              <TouchableOpacity
+                onPress={() => setShowAccount(true)}
+                hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+              >
+                <Text style={s.lock}>Account</Text>
+              </TouchableOpacity>
             </View>
           </View>
           <Text style={s.date}>{dateLabel}</Text>
@@ -276,6 +276,15 @@ export default function TodoScreen({ account, onLock }) {
 
       <DailyBriefing visible={showBriefing} onClose={() => setShowBriefing(false)} tasks={tasks} />
       <ConfettiOverlay visible={celebrating} onDone={() => setCelebrating(false)} />
+
+      <AccountSheet
+        visible={showAccount}
+        email={account}
+        dataKey={dataKey}
+        onClose={() => setShowAccount(false)}
+        onLock={onLock}
+        onDeleted={onDeleted}
+      />
 
       <QuickActions
         visible={!!quickTask}
