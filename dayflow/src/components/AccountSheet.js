@@ -71,7 +71,13 @@ export default function AccountSheet({ visible, email, dataKey, onClose, onLock,
   };
 
   const Row = ({ label, detail, onPress, danger }) => (
-    <TouchableOpacity style={s.row} onPress={onPress} activeOpacity={0.6}>
+    <TouchableOpacity
+      style={s.row}
+      onPress={onPress}
+      activeOpacity={0.6}
+      accessibilityRole="button"
+      accessibilityLabel={detail ? `${label}. ${detail}` : label}
+    >
       <View style={s.rowText}>
         <Text style={[s.rowLabel, danger && s.danger]}>{label}</Text>
         {detail ? <Text style={s.rowDetail}>{detail}</Text> : null}
@@ -84,10 +90,14 @@ export default function AccountSheet({ visible, email, dataKey, onClose, onLock,
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={close}>
       <View style={s.container}>
         <View style={s.header}>
-          <TouchableOpacity onPress={view === 'menu' ? close : reset}>
+          <TouchableOpacity
+            onPress={view === 'menu' ? close : reset}
+            accessibilityRole="button"
+            accessibilityLabel={view === 'menu' ? 'Close account settings' : 'Back to account settings'}
+          >
             <Text style={s.headerAction}>{view === 'menu' ? 'Done' : 'Back'}</Text>
           </TouchableOpacity>
-          <Text style={s.headerTitle}>
+          <Text style={s.headerTitle} accessibilityRole="header">
             {view === 'menu' ? 'Account'
               : view === 'password' ? 'Change password'
               : view === 'code' ? 'Recovery code'
@@ -158,6 +168,7 @@ export default function AccountSheet({ visible, email, dataKey, onClose, onLock,
               </Text>
               <Text style={s.confirmLabel}>Type DELETE to confirm</Text>
               <TextInput
+                accessibilityLabel="Type the word DELETE to confirm"
                 style={s.input} placeholder="DELETE" placeholderTextColor={COLORS.inkFaint}
                 autoCapitalize="characters" autoCorrect={false}
                 value={typed} onChangeText={setTyped}
@@ -167,6 +178,9 @@ export default function AccountSheet({ visible, email, dataKey, onClose, onLock,
                 style={[s.button, s.dangerButton, (busy || typed.trim().toUpperCase() !== 'DELETE') && s.busy]}
                 onPress={confirmDelete}
                 disabled={busy || typed.trim().toUpperCase() !== 'DELETE'}
+                accessibilityRole="button"
+                aria-disabled={busy || typed.trim().toUpperCase() !== 'DELETE'}
+                accessibilityLabel="Permanently delete my account and all tasks"
               >
                 {busy ? <ActivityIndicator color={COLORS.sheet} />
                       : <Text style={s.buttonText}>Delete my account</Text>}

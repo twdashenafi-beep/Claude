@@ -108,6 +108,8 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo' }) {
       <View style={[st.bar, listening && st.barActive]}>
         <Text style={st.pen}>✎</Text>
         <TextInput
+          accessibilityLabel="Quick add a task"
+          accessibilityHint="Type naturally, for example: call Mekdi tomorrow at 11am"
           style={st.input}
           placeholder={listening ? 'Listening…' : 'Write a line…'}
           placeholderTextColor={listening ? COLORS.accent : COLORS.inkFaint}
@@ -118,7 +120,12 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo' }) {
           blurOnSubmit={false}
         />
         {text.trim().length > 0 && !listening && (
-          <TouchableOpacity style={st.send} onPress={() => doSubmit()}>
+          <TouchableOpacity
+            style={st.send}
+            onPress={() => doSubmit()}
+            accessibilityRole="button"
+            accessibilityLabel="Add this task"
+          >
             <Text style={st.sendIcon}>↑</Text>
           </TouchableOpacity>
         )}
@@ -126,6 +133,9 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo' }) {
           style={[st.mic, listening && st.micActive]}
           onPress={listening ? stopListening : startListening}
           activeOpacity={0.5}
+          accessibilityRole="button"
+          aria-selected={listening}
+          accessibilityLabel={listening ? 'Stop dictation' : 'Dictate a task'}
         >
           <Animated.View style={listening ? { transform: [{ scale: pulseAnim }] } : undefined}>
             <Text style={st.micIcon}>{listening ? '■' : '🎙'}</Text>

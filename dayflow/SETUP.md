@@ -286,8 +286,14 @@ them.
 an email address for authentication, and nothing else: task content is
 ciphertext the server cannot read.
 
-**VoiceOver labels** — only the voice-note controls have them. Apple checks
-accessibility, and it is the right thing regardless.
+**VoiceOver labels — done.** Every interactive element has an accessible name,
+tasks announce their title, who you are waiting on, due time and priority, the
+column headings and date are headings, and the view scopes are tabs carrying a
+selected state.
+
+One thing worth knowing: swipe-to-delete is a gesture and therefore invisible to
+a screen reader. The accessible route is the long-press action sheet, which the
+task row's hint points at.
 
 ## 8. Security checklist
 
