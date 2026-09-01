@@ -147,15 +147,35 @@ export function parseConfig(rawUrl, rawKey) {
 
 // Asks the project whether the pair actually works, so a wrong value is caught
 // here rather than as a failed sign-in later.
+// What the server said, when it says anything useful. Guessing from a status
+// code alone has already cost more time than reading the body would have.
+async function serverMessage(response) {
+  try {
+    const text = await response.text();
+    if (!text) return '';
+    try {
+      const body = JSON.parse(text);
+      return String(body.message || body.msg || body.error_description || body.error || '').trim();
+    } catch {
+      return text.slice(0, 160).trim();
+    }
+  } catch {
+    return '';
+  }
+}
+
 export async function verifyConfig({ url, anonKey }, { timeoutMs = 12000 } = {}) {
   const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
   const timer = setTimeout(() => controller && controller.abort(), timeoutMs);
 
   let response;
   try {
+    // Only the apikey header. A publishable key is not a JWT, so also sending
+    // it as a bearer token gives the gateway something it cannot parse and a
+    // perfectly good key comes back rejected.
     response = await fetch(`${url}/rest/v1/`, {
       method: 'GET',
-      headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
+      headers: { apikey: anonKey },
       signal: controller ? controller.signal : undefined,
     });
   } catch {
@@ -165,14 +185,18 @@ export async function verifyConfig({ url, anonKey }, { timeoutMs = 12000 } = {})
   }
 
   if (response.status === 401 || response.status === 403) {
+    // Whatever the project said is worth more than anything guessed from the
+    // status code, so lead with it.
+    const said = await serverMessage(response);
     // Projects on the newer key system usually have the legacy JWT keys turned
     // off, so a correctly copied "anon" key is refused with no hint as to why.
     const legacy = String(anonKey).split('.').length === 3;
+    const hint = legacy
+      ? ' That is a legacy "anon" key; projects on the newer key system have those switched off. Try the publishable key instead — Project Settings → API Keys, starting "sb_publishable_".'
+      : ' Copy it again from Project Settings → API Keys.';
     return {
       ok: false,
-      error: legacy
-        ? 'The project answered, but rejected that key. That is a legacy "anon" key, and projects on the newer key system have those switched off — use the publishable key instead (Project Settings → API Keys → Publishable key, starting "sb_publishable_").'
-        : 'The project answered, but rejected that key. Copy it again from Project Settings → API Keys.',
+      error: `The project rejected that key${said ? ` — it said: "${said}".` : '.'}${hint}`,
     };
   }
   if (!response.ok && response.status >= 500) {
