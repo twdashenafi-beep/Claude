@@ -1,61 +1,46 @@
 import React from 'react';
 import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { VIEW_MODES } from '../utils/constants';
+import { COLORS, SANS } from '../utils/theme';
 
+const VIEWS = [
+  { key: VIEW_MODES.DAY, label: 'Day' },
+  { key: VIEW_MODES.WEEK, label: 'Week' },
+  { key: VIEW_MODES.MONTH, label: 'Month' },
+];
+
+// Plain text scopes rather than a segmented control — on the sheet this reads
+// as a line of document furniture, not an app widget.
 export default function ViewToggle({ activeView, onChangeView }) {
-  const views = [
-    { key: VIEW_MODES.MONTH, label: 'Month' },
-    { key: VIEW_MODES.WEEK, label: 'Week' },
-    { key: VIEW_MODES.DAY, label: 'Day' },
-  ];
-
   return (
-    <View style={styles.container}>
-      {views.map(v => (
-        <TouchableOpacity
-          key={v.key}
-          style={[styles.tab, activeView === v.key && styles.activeTab]}
-          onPress={() => onChangeView(v.key)}
-        >
-          <Text style={[styles.tabText, activeView === v.key && styles.activeTabText]}>
-            {v.label}
-          </Text>
-        </TouchableOpacity>
-      ))}
+    <View style={s.row}>
+      {VIEWS.map((v, i) => {
+        const on = activeView === v.key;
+        return (
+          <React.Fragment key={v.key}>
+            {i > 0 ? <Text style={s.sep}>·</Text> : null}
+            <TouchableOpacity
+              onPress={() => onChangeView(v.key)}
+              hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
+            >
+              <Text style={[s.label, on && s.labelOn]}>{v.label}</Text>
+            </TouchableOpacity>
+          </React.Fragment>
+        );
+      })}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    backgroundColor: '#F2F2F7',
-    borderRadius: 10,
-    padding: 2,
-    marginHorizontal: 20,
-    marginVertical: 10,
+const s = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: 12 },
+  label: {
+    fontFamily: SANS, fontSize: 11.5, letterSpacing: 1.2,
+    textTransform: 'uppercase', color: COLORS.inkFaint,
   },
-  tab: {
-    flex: 1,
-    paddingVertical: 8,
-    alignItems: 'center',
-    borderRadius: 8,
+  labelOn: {
+    color: COLORS.ink, fontWeight: '700',
+    borderBottomWidth: 1.5, borderBottomColor: COLORS.accent, paddingBottom: 2,
   },
-  activeTab: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  tabText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#8E8E93',
-  },
-  activeTabText: {
-    color: '#000000',
-    fontWeight: '600',
-  },
+  sep: { color: '#D8D2C4', fontSize: 11 },
 });

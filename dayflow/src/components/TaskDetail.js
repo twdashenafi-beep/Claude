@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, ScrollView, Switch,
 } from 'react-native';
-import { PRIORITY_COLORS } from '../utils/constants';
+import { PRIORITY, PRIORITY_COLORS } from '../utils/constants';
 import { EARLY_REMINDER_OPTIONS } from '../services/notifications';
+import { COLORS } from '../utils/theme';
 
 export default function TaskDetail({ task, visible, onClose, onSave }) {
   const [title, setTitle] = useState('');
@@ -229,25 +230,25 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 16,
     borderBottomWidth: 0.5,
-    borderBottomColor: '#E5E5EA',
-    backgroundColor: '#FFFFFF',
+    borderBottomColor: COLORS.rule,
+    backgroundColor: COLORS.sheet,
   },
   headerBtn: {
     minWidth: 60,
   },
   cancelBtn: {
     fontSize: 16,
-    color: '#8E8E93',
+    color: COLORS.inkSoft,
   },
   headerTitle: {
     fontSize: 17,
     fontWeight: '600',
-    color: '#000000',
+    color: COLORS.ink,
   },
   saveBtn: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#007AFF',
+    color: COLORS.accent,
     textAlign: 'right',
   },
   body: {
@@ -259,38 +260,38 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#8E8E93',
+    color: COLORS.inkSoft,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 8,
   },
   titleInput: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.sheet,
     borderRadius: 12,
     padding: 14,
     fontSize: 17,
     fontWeight: '600',
-    color: '#000000',
+    color: COLORS.ink,
     borderWidth: 0.5,
-    borderColor: '#E5E5EA',
+    borderColor: COLORS.rule,
   },
   input: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.sheet,
     borderRadius: 12,
     padding: 14,
     fontSize: 15,
-    color: '#000000',
+    color: COLORS.ink,
     borderWidth: 0.5,
-    borderColor: '#E5E5EA',
+    borderColor: COLORS.rule,
   },
   notesInput: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.sheet,
     borderRadius: 12,
     padding: 14,
     fontSize: 15,
-    color: '#000000',
+    color: COLORS.ink,
     borderWidth: 0.5,
-    borderColor: '#E5E5EA',
+    borderColor: COLORS.rule,
     minHeight: 100,
   },
   priorityRow: {
@@ -304,10 +305,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     paddingVertical: 10,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.sheet,
     borderRadius: 10,
     borderWidth: 1.5,
-    borderColor: '#E5E5EA',
+    borderColor: COLORS.rule,
   },
   priorityDot: {
     width: 8,
@@ -317,13 +318,13 @@ const styles = StyleSheet.create({
   priorityText: {
     fontSize: 13,
     fontWeight: '500',
-    color: '#8E8E93',
+    color: COLORS.inkSoft,
   },
   metaCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.sheet,
     borderRadius: 12,
     borderWidth: 0.5,
-    borderColor: '#E5E5EA',
+    borderColor: COLORS.rule,
   },
   metaRow: {
     flexDirection: 'row',
@@ -331,15 +332,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 14,
     borderBottomWidth: 0.5,
-    borderBottomColor: '#F2F2F7',
+    borderBottomColor: '#F4F1EA',
   },
   metaLabel: {
     fontSize: 14,
-    color: '#8E8E93',
+    color: COLORS.inkSoft,
   },
   metaValue: {
     fontSize: 14,
-    color: '#000000',
+    color: COLORS.ink,
     fontWeight: '500',
   },
   switchRow: {
@@ -355,19 +356,19 @@ const styles = StyleSheet.create({
   reminderOption: {
     paddingVertical: 8,
     paddingHorizontal: 14,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: '#F4F1EA',
     borderRadius: 8,
   },
   reminderOptionActive: {
-    backgroundColor: '#007AFF',
+    backgroundColor: COLORS.accent,
   },
   reminderOptionText: {
     fontSize: 14,
-    color: '#8E8E93',
+    color: COLORS.inkSoft,
     fontWeight: '500',
   },
   reminderOptionTextActive: {
-    color: '#FFFFFF',
+    color: COLORS.sheet,
     fontWeight: '600',
   },
   attachGrid: {
@@ -376,11 +377,11 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   attachChip: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.sheet,
     borderRadius: 10,
     padding: 10,
     borderWidth: 0.5,
-    borderColor: '#E5E5EA',
+    borderColor: COLORS.rule,
     alignItems: 'center',
     gap: 6,
     width: 90,
@@ -389,18 +390,18 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 8,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: '#F4F1EA',
     justifyContent: 'center',
     alignItems: 'center',
   },
   attachIconText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#8E8E93',
+    color: COLORS.inkSoft,
   },
   attachName: {
     fontSize: 10,
-    color: '#8E8E93',
+    color: COLORS.inkSoft,
     textAlign: 'center',
   },
 });

@@ -16,6 +16,7 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
 
 import { PRIORITY, PRIORITY_COLORS } from '../utils/constants';
 import VoiceRecorder from './VoiceRecorder';
+import { COLORS, SERIF } from '../utils/theme';
 import {
   format, startOfMonth, getDay, getDaysInMonth, addMonths, subMonths,
   isSameDay, isToday as isDateToday,
@@ -86,18 +87,18 @@ const calStyles = StyleSheet.create({
   wrap: { paddingTop: 8, paddingBottom: 4, paddingHorizontal: 4 },
   nav: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   navBtn: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
-  arrow: { fontSize: 20, color: '#007AFF', fontWeight: '400' },
-  navTitle: { fontSize: 15, fontWeight: '600', color: '#000' },
+  arrow: { fontSize: 20, color: COLORS.accent, fontWeight: '400' },
+  navTitle: { fontSize: 15, fontWeight: '600', color: COLORS.ink },
   headerRow: { flexDirection: 'row', marginBottom: 4 },
   hCell: { flex: 1, alignItems: 'center', paddingVertical: 4 },
-  hText: { fontSize: 11, fontWeight: '600', color: '#8E8E93' },
+  hText: { fontSize: 11, fontWeight: '600', color: COLORS.inkSoft },
   row: { flexDirection: 'row' },
   cell: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 7, margin: 1, borderRadius: 20 },
-  cellSel: { backgroundColor: '#007AFF' },
-  cellToday: { borderWidth: 1.5, borderColor: '#007AFF' },
-  cText: { fontSize: 15, color: '#000' },
-  cTextSel: { color: '#FFF', fontWeight: '600' },
-  cTextToday: { color: '#007AFF', fontWeight: '600' },
+  cellSel: { backgroundColor: COLORS.accent },
+  cellToday: { borderWidth: 1.5, borderColor: COLORS.accent },
+  cText: { fontSize: 15, color: COLORS.ink },
+  cTextSel: { color: COLORS.sheet, fontWeight: '600' },
+  cTextToday: { color: COLORS.accent, fontWeight: '600' },
 });
 
 // ── Time Picker Modal ────────────────────────────────────────────────────────
@@ -199,42 +200,42 @@ const tp = StyleSheet.create({
     flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'center', alignItems: 'center',
   },
   sheet: {
-    backgroundColor: '#FFF', borderRadius: 14, width: 300, overflow: 'hidden',
+    backgroundColor: COLORS.sheet, borderRadius: 14, width: 300, overflow: 'hidden',
   },
   preview: {
-    fontSize: 32, fontWeight: '700', color: '#000', textAlign: 'center', paddingTop: 24, paddingBottom: 16,
+    fontSize: 32, fontWeight: '700', color: COLORS.ink, textAlign: 'center', paddingTop: 24, paddingBottom: 16,
   },
   row: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     paddingHorizontal: 24, paddingBottom: 24, gap: 10,
   },
   col: { alignItems: 'center', gap: 6 },
-  colLabel: { fontSize: 11, fontWeight: '600', color: '#8E8E93', marginBottom: 2 },
+  colLabel: { fontSize: 11, fontWeight: '600', color: COLORS.inkSoft, marginBottom: 2 },
   btn: {
     width: 52, height: 52, borderRadius: 26,
-    backgroundColor: '#F2F2F7', justifyContent: 'center', alignItems: 'center',
+    backgroundColor: '#F4F1EA', justifyContent: 'center', alignItems: 'center',
   },
-  btnText: { fontSize: 26, color: '#007AFF', fontWeight: '300', marginTop: -2 },
+  btnText: { fontSize: 26, color: COLORS.accent, fontWeight: '300', marginTop: -2 },
   valBox: {
     width: 68, height: 52, borderRadius: 12,
-    backgroundColor: '#F2F2F7', justifyContent: 'center', alignItems: 'center',
+    backgroundColor: '#F4F1EA', justifyContent: 'center', alignItems: 'center',
   },
-  val: { fontSize: 32, fontWeight: '700', color: '#000' },
-  colon: { fontSize: 32, fontWeight: '700', color: '#000', marginTop: 18 },
+  val: { fontSize: 32, fontWeight: '700', color: COLORS.ink },
+  colon: { fontSize: 32, fontWeight: '700', color: COLORS.ink, marginTop: 18 },
   ampm: {
     width: 52, height: 52, borderRadius: 12,
-    backgroundColor: '#F2F2F7', justifyContent: 'center', alignItems: 'center',
+    backgroundColor: '#F4F1EA', justifyContent: 'center', alignItems: 'center',
   },
-  ampmActive: { backgroundColor: '#007AFF' },
-  ampmText: { fontSize: 15, fontWeight: '600', color: '#8E8E93' },
-  ampmTextActive: { color: '#FFF' },
+  ampmActive: { backgroundColor: COLORS.accent },
+  ampmText: { fontSize: 15, fontWeight: '600', color: COLORS.inkSoft },
+  ampmTextActive: { color: COLORS.sheet },
   footer: {
-    flexDirection: 'row', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#E5E5EA',
+    flexDirection: 'row', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: COLORS.rule,
   },
   footerBtn: { flex: 1, paddingVertical: 16, alignItems: 'center' },
-  footerDiv: { width: StyleSheet.hairlineWidth, backgroundColor: '#E5E5EA' },
-  cancelText: { fontSize: 17, color: '#8E8E93' },
-  doneText: { fontSize: 17, fontWeight: '600', color: '#007AFF' },
+  footerDiv: { width: StyleSheet.hairlineWidth, backgroundColor: COLORS.rule },
+  cancelText: { fontSize: 17, color: COLORS.inkSoft },
+  doneText: { fontSize: 17, fontWeight: '600', color: COLORS.accent },
 });
 
 // ── Helper: Section Row ──────────────────────────────────────────────────────
@@ -283,7 +284,7 @@ function ToggleRow({ icon, iconBg, label, value, enabled, onToggle, isFirst, isL
       <Switch
         value={enabled}
         onValueChange={onToggle}
-        trackColor={{ false: '#E5E5EA', true: '#34C759' }}
+        trackColor={{ false: COLORS.rule, true: COLORS.ink }}
         thumbColor="#FFFFFF"
       />
     </View>
@@ -293,29 +294,29 @@ function ToggleRow({ icon, iconBg, label, value, enabled, onToggle, isFirst, isL
 const rs = StyleSheet.create({
   row: {
     flexDirection: 'row', alignItems: 'center', paddingVertical: 11, paddingHorizontal: 16,
-    backgroundColor: '#FFF', minHeight: 44,
+    backgroundColor: COLORS.sheet, minHeight: 44,
   },
   first: { borderTopLeftRadius: 10, borderTopRightRadius: 10 },
   last: { borderBottomLeftRadius: 10, borderBottomRightRadius: 10 },
-  border: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E5E5EA' },
+  border: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COLORS.rule },
   iconWrap: { width: 28, marginRight: 10 },
   icon: { fontSize: 17 },
   iconBox: {
     width: 28, height: 28, borderRadius: 6, justifyContent: 'center', alignItems: 'center', marginRight: 10,
   },
-  iconBoxText: { fontSize: 15, color: '#FFF' },
-  label: { fontSize: 16, color: '#000' },
+  iconBoxText: { fontSize: 15, color: COLORS.sheet },
+  label: { fontSize: 16, color: COLORS.ink },
   toggleInfo: { flex: 1 },
-  detail: { fontSize: 13, color: '#8E8E93', marginTop: 1 },
+  detail: { fontSize: 13, color: COLORS.inkSoft, marginTop: 1 },
   right: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4 },
-  value: { fontSize: 16, color: '#8E8E93' },
-  chevron: { fontSize: 20, color: '#C7C7CC', marginLeft: 2, fontWeight: '300' },
+  value: { fontSize: 16, color: COLORS.inkSoft },
+  chevron: { fontSize: 20, color: COLORS.inkFaint, marginLeft: 2, fontWeight: '300' },
 });
 
 // ── Priority Picker Popup ────────────────────────────────────────────────────
 
 const PRIORITY_OPTIONS = [
-  { key: 'none', label: 'None', color: '#8E8E93' },
+  { key: 'none', label: 'None', color: COLORS.inkSoft },
   { key: 'low', label: 'Low', color: PRIORITY_COLORS.low },
   { key: 'medium', label: 'Medium', color: PRIORITY_COLORS.medium },
   { key: 'high', label: 'High', color: PRIORITY_COLORS.high },
@@ -495,8 +496,8 @@ export default function AddTaskModal({ visible, onClose, onAdd, section = 'todo'
               style={[s.chip, isHighPriority && s.chipHigh]}
               onPress={() => setPriority(isHighPriority ? 'none' : 'high')}
             >
-              <Text style={[s.chipIcon, isHighPriority && { color: '#FF3B30' }]}>!</Text>
-              <Text style={[s.chipLabel, isHighPriority && { color: '#FF3B30', fontWeight: '600' }]}>
+              <Text style={[s.chipIcon, isHighPriority && { color: COLORS.accent }]}>!</Text>
+              <Text style={[s.chipLabel, isHighPriority && { color: COLORS.accent, fontWeight: '600' }]}>
                 {isHighPriority ? 'High' : 'Priority'}
               </Text>
             </TouchableOpacity>
@@ -568,32 +569,32 @@ const pickS = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 54,
   },
   optSel: {
-    backgroundColor: '#F2F2F7',
+    backgroundColor: '#F4F1EA',
   },
-  optText: { flex: 1, fontSize: 16, color: '#000' },
-  optTextSel: { fontWeight: '600', color: '#007AFF' },
-  check: { fontSize: 16, color: '#007AFF', fontWeight: '600' },
+  optText: { flex: 1, fontSize: 16, color: COLORS.ink },
+  optTextSel: { fontWeight: '600', color: COLORS.accent },
+  check: { fontSize: 16, color: COLORS.accent, fontWeight: '600' },
 });
 
 // ── Main styles ──────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFF' },
+  container: { flex: 1, backgroundColor: COLORS.sheet },
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#F2F2F7',
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#F4F1EA',
   },
-  cancel: { fontSize: 17, color: '#007AFF' },
-  headerTitle: { fontSize: 17, fontWeight: '600', color: '#000' },
+  cancel: { fontSize: 17, color: COLORS.accent },
+  headerTitle: { fontFamily: SERIF, fontSize: 17, fontWeight: '600', color: COLORS.ink },
   scroll: { flex: 1 },
   titleInput: {
     paddingHorizontal: 20, paddingTop: 20, paddingBottom: 8,
-    fontSize: 22, fontWeight: '600', color: '#000', letterSpacing: -0.3,
+    fontFamily: SERIF, fontSize: 23, fontWeight: '600', color: COLORS.ink, letterSpacing: -0.3,
   },
   notesInput: {
     paddingHorizontal: 20, paddingTop: 4, paddingBottom: 16,
-    fontSize: 16, color: '#333', minHeight: 44,
+    fontSize: 16, color: COLORS.inkSoft, minHeight: 44,
   },
   opts: {
     flexDirection: 'row', paddingHorizontal: 20, gap: 8, paddingBottom: 12, flexWrap: 'wrap',
@@ -601,23 +602,23 @@ const s = StyleSheet.create({
   chip: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 12, paddingVertical: 8,
-    backgroundColor: '#F5F5F7', borderRadius: 20,
+    backgroundColor: '#F4F1EA', borderRadius: 20,
   },
-  chipOn: { backgroundColor: '#E8F0FE' },
-  chipHigh: { backgroundColor: '#FFE5E5' },
+  chipOn: { backgroundColor: '#F4F1EA' },
+  chipHigh: { backgroundColor: '#F6EBE8' },
   chipIcon: { fontSize: 13 },
-  chipLabel: { fontSize: 14, color: '#8E8E93' },
-  chipLabelOn: { color: '#007AFF', fontWeight: '500' },
+  chipLabel: { fontSize: 14, color: COLORS.inkSoft },
+  chipLabelOn: { color: COLORS.accent, fontWeight: '500' },
   oweSection: { paddingHorizontal: 20, paddingTop: 8, gap: 8 },
   oweInput: {
-    fontSize: 15, color: '#000', borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E5E5EA', paddingBottom: 10,
+    fontSize: 15, color: COLORS.ink, borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.rule, paddingBottom: 10,
   },
   oweAmountRow: { flexDirection: 'row', alignItems: 'center' },
   currencyBtn: { paddingRight: 8 },
-  currencyText: { fontSize: 16, color: '#007AFF', fontWeight: '600' },
+  currencyText: { fontSize: 16, color: COLORS.accent, fontWeight: '600' },
   oweAmountInput: {
-    flex: 1, fontSize: 15, color: '#000', borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E5E5EA', paddingBottom: 10,
+    flex: 1, fontSize: 15, color: COLORS.ink, borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.rule, paddingBottom: 10,
   },
 });
