@@ -1,4 +1,4 @@
-import { supabase, isSupabaseConfigured } from './supabase';
+import { getSupabase, isSyncConfigured } from './supabase';
 import { deriveAccountKeys, normalizeEmail } from './crypto';
 import {
   createVault, unlockWithPassword, unlockWithRecoveryCode,
@@ -17,12 +17,12 @@ import { clearVaultData } from './localVault';
 // derived from the password, which is what lets the password change without
 // touching a single task.
 
-export { isSupabaseConfigured };
+export { isSyncConfigured };
 
 async function loadRecord() {
   // Remote first: a device signing in for the first time has no local copy, and
   // a device that changed its password elsewhere has a stale one.
-  if (isSupabaseConfigured) {
+  if (isSyncConfigured()) {
     try {
       const remote = await store.readRemote();
       if (remote) {
@@ -41,12 +41,12 @@ export async function signUp(email, password) {
   const { authHash, kek } = await deriveAccountKeys(mail, password);
   const { dataKey, recoveryCode, record } = await createVault(mail, kek);
 
-  if (!isSupabaseConfigured) {
+  if (!isSyncConfigured()) {
     await store.writeLocal(record);
     return { dataKey, recoveryCode, synced: false, needsConfirmation: false };
   }
 
-  const { data, error } = await supabase.auth.signUp({ email: mail, password: authHash });
+  const { data, error } = await getSupabase().auth.signUp({ email: mail, password: authHash });
   if (error) throw error;
 
   // With email confirmation on there is no session yet, so the record cannot be
@@ -65,8 +65,8 @@ export async function signIn(email, password) {
   const mail = normalizeEmail(email);
   const { authHash, kek } = await deriveAccountKeys(mail, password);
 
-  if (isSupabaseConfigured) {
-    const { error } = await supabase.auth.signInWithPassword({ email: mail, password: authHash });
+  if (isSyncConfigured()) {
+    const { error } = await getSupabase().auth.signInWithPassword({ email: mail, password: authHash });
     if (error) throw error;
   }
 
@@ -77,13 +77,13 @@ export async function signIn(email, password) {
   if (!dataKey) throw new Error('WRONG_PASSWORD');
 
   // A vault created before confirmation completed lives only on this device.
-  if (isSupabaseConfigured) {
+  if (isSyncConfigured()) {
     try {
       if (!(await store.readRemote())) await store.writeRemote(record);
     } catch { /* offline — it will go up on a later sign-in */ }
   }
 
-  return { dataKey, synced: isSupabaseConfigured };
+  return { dataKey, synced: isSyncConfigured() };
 }
 
 // Recovery. Proving the recovery code opens the vault; the new password is then
@@ -104,16 +104,16 @@ export async function recoverWithCode(email, code, newPassword) {
   const { authHash, kek } = await deriveAccountKeys(mail, newPassword);
   const updated = rewrapForNewPassword(record, dataKey, kek);
 
-  if (isSupabaseConfigured) {
-    const { data } = await supabase.auth.getSession();
+  if (isSyncConfigured()) {
+    const { data } = await getSupabase().auth.getSession();
     if (!data.session) throw new Error('NEEDS_EMAIL_RESET');
-    const { error } = await supabase.auth.updateUser({ password: authHash });
+    const { error } = await getSupabase().auth.updateUser({ password: authHash });
     if (error) throw error;
     await store.writeRemote(updated);
   }
 
   await store.writeLocal(updated);
-  return { dataKey, synced: isSupabaseConfigured };
+  return { dataKey, synced: isSyncConfigured() };
 }
 
 // Change password on an unlocked vault. Re-seals one key; tasks are untouched.
@@ -125,8 +125,8 @@ export async function changePassword(email, dataKey, newPassword) {
   const { authHash, kek } = await deriveAccountKeys(mail, newPassword);
   const updated = rewrapForNewPassword(record, dataKey, kek);
 
-  if (isSupabaseConfigured) {
-    const { error } = await supabase.auth.updateUser({ password: authHash });
+  if (isSyncConfigured()) {
+    const { error } = await getSupabase().auth.updateUser({ password: authHash });
     if (error) throw error;
     await store.writeRemote(updated);
   }
@@ -137,13 +137,13 @@ export async function newRecoveryCode(email, dataKey) {
   const record = await loadRecord();
   if (!record) throw new Error('NO_VAULT');
   const { recoveryCode, record: updated } = await rotateRecoveryCode(record, normalizeEmail(email), dataKey);
-  if (isSupabaseConfigured) await store.writeRemote(updated);
+  if (isSyncConfigured()) await store.writeRemote(updated);
   await store.writeLocal(updated);
   return recoveryCode;
 }
 
 export async function signOut() {
-  if (supabase) await supabase.auth.signOut();
+  if (getSupabase()) await getSupabase().auth.signOut();
 }
 
 // Irreversible, and required in-app by App Store Guideline 5.1.1(v).
@@ -156,9 +156,9 @@ export async function signOut() {
 export async function deleteAccount() {
   let remoteError = null;
 
-  if (isSupabaseConfigured) {
+  if (isSyncConfigured()) {
     try {
-      const { error } = await supabase.rpc('delete_own_account');
+      const { error } = await getSupabase().rpc('delete_own_account');
       if (error) throw error;
     } catch (e) {
       remoteError = e;
@@ -167,13 +167,13 @@ export async function deleteAccount() {
 
   await store.clearLocal();
   await clearVaultData();
-  if (supabase) await supabase.auth.signOut().catch(() => {});
+  if (getSupabase()) await getSupabase().auth.signOut().catch(() => {});
 
   if (remoteError) throw remoteError;
 }
 
 export async function getSession() {
-  if (!supabase) return null;
-  const { data } = await supabase.auth.getSession();
+  if (!getSupabase()) return null;
+  const { data } = await getSupabase().auth.getSession();
   return data.session || null;
 }
