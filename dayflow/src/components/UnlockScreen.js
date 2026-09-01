@@ -4,7 +4,6 @@ import {
   KeyboardAvoidingView, Platform, ActivityIndicator, ScrollView,
 } from 'react-native';
 import { signIn, signUp, getSession, isSupabaseConfigured } from '../services/account';
-import { deriveKeys } from '../services/crypto';
 import { COLORS, SERIF, SANS, SHEET_MAX_WIDTH } from '../utils/theme';
 
 // Sign in, or unlock this device.
@@ -22,6 +21,8 @@ export default function UnlockScreen({ onUnlock }) {
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const [checking, setChecking] = useState(true);
+  const [recovery, setRecovery] = useState(null);
+  const [wroteItDown, setWroteItDown] = useState(false);
 
   useEffect(() => {
     // A stored session means the account is known, but the key is not — it only
@@ -41,27 +42,23 @@ export default function UnlockScreen({ onUnlock }) {
 
     setBusy(true);
     try {
-      if (!isSupabaseConfigured) {
-        // Local-only build: derive and open, nothing to talk to.
-        const { encryptionKey } = await deriveKeys(mail, password);
-        return onUnlock({ encryptionKey, synced: false, email: mail });
-      }
-
       if (mode === 'signup') {
-        const { encryptionKey, needsConfirmation } = await signUp(mail, password);
-        if (needsConfirmation) {
-          setNotice('Check your email to confirm the account, then sign in.');
-          setMode('signin');
-          return;
-        }
-        return onUnlock({ encryptionKey, synced: true, email: mail });
+        const { dataKey, recoveryCode, synced, needsConfirmation } = await signUp(mail, password);
+        // The code exists in readable form exactly once. Nothing proceeds until
+        // it has been shown and acknowledged.
+        setRecovery({ code: recoveryCode, dataKey, synced, needsConfirmation });
+        return;
       }
 
-      const { encryptionKey } = await signIn(mail, password);
-      onUnlock({ encryptionKey, synced: true, email: mail });
+      const { dataKey, synced } = await signIn(mail, password);
+      onUnlock({ dataKey, synced, email: mail });
     } catch (e) {
       const message = String(e.message || e);
-      if (/invalid login credentials/i.test(message)) {
+      if (message === 'WRONG_PASSWORD') {
+        setError('That password does not open this vault.');
+      } else if (message === 'NO_VAULT') {
+        setError('No vault found for this account on this device. Create an account, or recover with your recovery code.');
+      } else if (/invalid login credentials/i.test(message)) {
         setError('Email or password is incorrect.');
       } else if (/already registered/i.test(message)) {
         setError('That email already has an account. Sign in instead.');
@@ -74,6 +71,73 @@ export default function UnlockScreen({ onUnlock }) {
       setBusy(false);
     }
   };
+
+  // Shown once, between creating the account and entering it. The code cannot be
+  // retrieved later — the vault stores only a value derived from it — so the
+  // flow deliberately stops here until it has been acknowledged.
+  if (recovery) {
+    return (
+      <SafeAreaView style={s.desk}>
+        <ScrollView contentContainerStyle={s.scroll}>
+          <View style={s.sheet}>
+            <Text style={s.wordmark}>DayFlow</Text>
+            <Text style={s.title}>Your recovery code</Text>
+            <View style={s.rule} />
+
+            <Text style={s.blurb}>
+              Write this down and keep it somewhere safe — a password manager, or
+              paper in a drawer. It is the only way back into your tasks if you
+              forget your password, and it is shown once.
+            </Text>
+
+            <View style={s.codeBox}>
+              <Text style={s.code} selectable>{recovery.code}</Text>
+            </View>
+
+            <Text style={s.codeNote}>
+              Not a second password: you will never be asked for it at sign-in,
+              only if you lose the first one.
+            </Text>
+
+            <TouchableOpacity
+              style={s.checkRow}
+              onPress={() => setWroteItDown(!wroteItDown)}
+              activeOpacity={0.7}
+            >
+              <View style={[s.checkbox, wroteItDown && s.checkboxOn]}>
+                {wroteItDown ? <Text style={s.checkMark}>✓</Text> : null}
+              </View>
+              <Text style={s.checkLabel}>I have saved my recovery code</Text>
+            </TouchableOpacity>
+
+            {recovery.needsConfirmation ? (
+              <Text style={s.notice}>
+                Confirm your email address, then sign in with your password.
+              </Text>
+            ) : null}
+
+            <TouchableOpacity
+              style={[s.button, !wroteItDown && s.buttonBusy]}
+              disabled={!wroteItDown}
+              onPress={() => {
+                if (recovery.needsConfirmation) {
+                  setRecovery(null);
+                  setMode('signin');
+                  setNotice('Confirm your email, then sign in.');
+                  return;
+                }
+                onUnlock({ dataKey: recovery.dataKey, synced: recovery.synced, email: email.trim() });
+              }}
+            >
+              <Text style={s.buttonText}>
+                {recovery.needsConfirmation ? 'Continue' : 'Open DayFlow'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
 
   if (checking) {
     return (
@@ -213,6 +277,26 @@ const s = StyleSheet.create({
     fontFamily: SANS, fontSize: 13, color: COLORS.inkSoft,
     textAlign: 'center', marginTop: 18,
   },
+  codeBox: {
+    borderWidth: 1, borderColor: COLORS.pencil,
+    paddingVertical: 18, paddingHorizontal: 12, marginBottom: 14,
+  },
+  code: {
+    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'ui-monospace, SFMono-Regular, Menlo, monospace' }),
+    fontSize: 16, letterSpacing: 1.5, textAlign: 'center', color: COLORS.ink, lineHeight: 26,
+  },
+  codeNote: {
+    fontFamily: SERIF, fontSize: 12.5, fontStyle: 'italic',
+    color: COLORS.inkFaint, lineHeight: 18, marginBottom: 20,
+  },
+  checkRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 18 },
+  checkbox: {
+    width: 17, height: 17, borderRadius: 2, borderWidth: 1, borderColor: '#B5AFA1',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  checkboxOn: { backgroundColor: COLORS.ink, borderColor: COLORS.ink },
+  checkMark: { fontSize: 11, color: COLORS.sheet, fontWeight: '700', marginTop: -1 },
+  checkLabel: { fontFamily: SANS, fontSize: 13.5, color: COLORS.ink },
   footnote: {
     fontFamily: SERIF, fontSize: 12, fontStyle: 'italic', color: COLORS.inkFaint,
     textAlign: 'center', marginTop: 18, lineHeight: 17,

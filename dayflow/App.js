@@ -16,7 +16,7 @@ export default function App() {
   if (!vault) return <UnlockScreen onUnlock={setVault} />;
 
   return (
-    <TaskProvider encryptionKey={vault.encryptionKey} synced={vault.synced}>
+    <TaskProvider encryptionKey={vault.dataKey} synced={vault.synced}>
       <StatusBar style="dark" />
       <TodoScreen account={vault.email} onLock={() => setVault(null)} />
     </TaskProvider>
