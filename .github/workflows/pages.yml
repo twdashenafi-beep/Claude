@@ -48,18 +48,35 @@ jobs:
       # only whether they arrived.
       - name: Check Supabase configuration
         run: |
-          url_state=$([ -n "$EXPO_PUBLIC_SUPABASE_URL" ] && echo present || echo MISSING)
-          key_state=$([ -n "$EXPO_PUBLIC_SUPABASE_ANON_KEY" ] && echo present || echo MISSING)
-          echo "EXPO_PUBLIC_SUPABASE_URL:      $url_state"
-          echo "EXPO_PUBLIC_SUPABASE_ANON_KEY: $key_state"
-          if [ "$url_state" = "MISSING" ] || [ "$key_state" = "MISSING" ]; then
-            echo "::warning title=Cloud sync disabled::Supabase repository secrets are missing, so this build is local-only and devices will not sync. Add them under Settings > Secrets and variables > Actions, then re-run."
-          else
+          state() { [ -n "$1" ] && echo present || echo MISSING; }
+          echo "As secrets (what the build uses):"
+          echo "  EXPO_PUBLIC_SUPABASE_URL:      $(state "$SEC_URL")"
+          echo "  EXPO_PUBLIC_SUPABASE_ANON_KEY: $(state "$SEC_KEY")"
+          echo "As variables (a common mix-up — same page, different tab):"
+          echo "  EXPO_PUBLIC_SUPABASE_URL:      $(state "$VAR_URL")"
+          echo "  EXPO_PUBLIC_SUPABASE_ANON_KEY: $(state "$VAR_KEY")"
+          echo "Near-miss names, in case of a typo:"
+          echo "  SUPABASE_URL:                  $(state "$ALT_URL")"
+          echo "  SUPABASE_ANON_KEY:             $(state "$ALT_KEY")"
+          echo "  EXPO_PUBLIC_SUPABASE_KEY:      $(state "$ALT_KEY2")"
+
+          if [ -n "$SEC_URL" ] && [ -n "$SEC_KEY" ]; then
             echo "Cloud sync will be enabled in this build."
+          elif [ -n "$VAR_URL" ] || [ -n "$VAR_KEY" ]; then
+            echo "::warning title=Values are variables, not secrets::Found under the Variables tab. The build reads secrets. Re-add them on the Secrets tab of the same page and re-run."
+          elif [ -n "$ALT_URL" ] || [ -n "$ALT_KEY" ] || [ -n "$ALT_KEY2" ]; then
+            echo "::warning title=Secret names do not match::Something similar exists but the names must be exactly EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY."
+          else
+            echo "::warning title=Cloud sync disabled::No Supabase secrets or variables reached this build, so it is local-only. Check they were added to this repository (Settings > Secrets and variables > Actions > Secrets tab), not to your account or an environment."
           fi
         env:
-          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
-          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+          SEC_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+          SEC_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+          VAR_URL: ${{ vars.EXPO_PUBLIC_SUPABASE_URL }}
+          VAR_KEY: ${{ vars.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+          ALT_URL: ${{ secrets.SUPABASE_URL }}
+          ALT_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          ALT_KEY2: ${{ secrets.EXPO_PUBLIC_SUPABASE_KEY }}
 
       - name: Build DayFlow web app
         working-directory: dayflow
