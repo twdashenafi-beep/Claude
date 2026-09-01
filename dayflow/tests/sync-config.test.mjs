@@ -92,6 +92,19 @@ const rejected = await withFetch(async () => ({ ok: false, status: 401 }), () =>
 ok('a rejected key does not verify', !rejected.ok);
 ok('a rejected key blames the key, not the URL', !rejected.ok && /key/.test(rejected.error));
 
+// Whatever the project says about the refusal is the most useful thing we have.
+const spoke = await withFetch(
+  async () => ({ ok: false, status: 401, text: async () => JSON.stringify({ message: 'Legacy API keys are disabled' }) }),
+  () => verifyConfig(config));
+ok('the server\'s own explanation is passed through',
+   !spoke.ok && spoke.error.includes('Legacy API keys are disabled'));
+
+const spokePlain = await withFetch(
+  async () => ({ ok: false, status: 401, text: async () => 'Invalid API key' }),
+  () => verifyConfig(config));
+ok('a non-JSON explanation is passed through too',
+   !spokePlain.ok && spokePlain.error.includes('Invalid API key'));
+
 ok('a rejected legacy key points at the publishable one',
    !rejected.ok && /sb_publishable_/.test(rejected.error));
 
@@ -115,6 +128,9 @@ let sentHeaders = null;
 await withFetch(async (_u, init) => { sentHeaders = init.headers; return { ok: true, status: 200 }; },
                 () => verifyConfig(config));
 ok('the check sends the key as apikey', sentHeaders && sentHeaders.apikey === ANON);
+// A publishable key is not a JWT, so a bearer header built from it would make
+// a valid key look invalid.
+ok('the check sends no bearer token', sentHeaders && !sentHeaders.Authorization);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
