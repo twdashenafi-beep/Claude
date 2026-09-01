@@ -19,7 +19,7 @@ export const COLORS = {
   done: '#A9A296',        // completed task text
 
   rule: '#E6E2D8',        // hairline between rows
-  pencil: '#4A463E',      // the two ruled lines: under the headings, and between the columns
+  pencil: '#211F1B',      // the two ruled lines: under the headings, and between the columns
 
   accent: '#7A1F1F',      // the red pen: high priority, amounts owed
   check: '#1A1A18',
