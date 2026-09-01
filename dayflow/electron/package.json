@@ -1,0 +1,54 @@
+{
+  "name": "dayflow-desktop",
+  "version": "1.0.0",
+  "description": "DayFlow - AI-Powered Task Manager for macOS",
+  "main": "main.js",
+  "author": "Tewodros Ashenafi",
+  "license": "MIT",
+  "scripts": {
+    "start": "NODE_ENV=development electron .",
+    "build": "cd .. && npx expo export --platform web --output-dir web-build && cd electron && electron-builder",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "build": {
+    "appId": "com.tewodros.dayflow",
+    "productName": "DayFlow",
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "icon": "../assets/icon.png",
+      "darkModeSupport": true
+    },
+    "dmg": {
+      "title": "DayFlow",
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
+    "directories": {
+      "output": "../release"
+    },
+    "files": [
+      "main.js",
+      "../web-build/**/*",
+      "../assets/**/*"
+    ]
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  }
+}

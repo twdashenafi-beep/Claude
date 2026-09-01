@@ -1,0 +1,406 @@
+import React, { useState, useEffect } from 'react';
+import {
+  View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, ScrollView, Switch,
+} from 'react-native';
+import { PRIORITY_COLORS } from '../utils/constants';
+import { EARLY_REMINDER_OPTIONS } from '../services/notifications';
+
+export default function TaskDetail({ task, visible, onClose, onSave }) {
+  const [title, setTitle] = useState('');
+  const [notes, setNotes] = useState('');
+  const [priority, setPriority] = useState('medium');
+  const [dueDate, setDueDate] = useState('');
+  const [dueTime, setDueTime] = useState('');
+  const [reminderEnabled, setReminderEnabled] = useState(false);
+  const [earlyReminderIdx, setEarlyReminderIdx] = useState(0);
+  const [owePerson, setOwePerson] = useState('');
+
+  useEffect(() => {
+    if (task) {
+      setTitle(task.title || '');
+      setNotes(task.notes || '');
+      setPriority(task.priority || 'medium');
+      setDueDate(task.dueDate || task.date || '');
+      setDueTime(task.dueTime || '');
+      setReminderEnabled(task.reminderEnabled || false);
+      const mins = task.earlyReminderMinutes || 0;
+      const idx = EARLY_REMINDER_OPTIONS.findIndex(o => o.minutes === mins);
+      setEarlyReminderIdx(idx >= 0 ? idx : 0);
+      setOwePerson(task.owePerson || '');
+    }
+  }, [task]);
+
+  if (!task) return null;
+
+  const handleSave = () => {
+    const earlyMinutes = EARLY_REMINDER_OPTIONS[earlyReminderIdx]?.minutes || 0;
+    onSave(task.id, {
+      title: title.trim() || task.title,
+      notes,
+      priority,
+      dueDate,
+      dueTime,
+      reminderEnabled: reminderEnabled || earlyMinutes > 0,
+      earlyReminderMinutes: earlyMinutes,
+      owePerson,
+    });
+    onClose();
+  };
+
+  const handleCancel = () => {
+    onClose();
+  };
+
+  const formatDisplayDate = (dateStr) => {
+    if (!dateStr) return 'No date';
+    try {
+      const d = new Date(dateStr);
+      return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const formatDisplayTime = (timeStr) => {
+    if (!timeStr) return 'No time';
+    try {
+      const [h, m] = timeStr.split(':').map(Number);
+      const p = h >= 12 ? 'PM' : 'AM';
+      const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+      return `${h12}:${String(m).padStart(2, '0')} ${p}`;
+    } catch {
+      return timeStr;
+    }
+  };
+
+  const isOweMe = task.taskType === 'done_for_me' || task.section === 'owe_me';
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={handleCancel} style={styles.headerBtn}>
+            <Text style={styles.cancelBtn}>Cancel</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Edit Task</Text>
+          <TouchableOpacity onPress={handleSave} style={styles.headerBtn}>
+            <Text style={styles.saveBtn}>Save</Text>
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView style={styles.body} keyboardShouldPersistTaps="handled">
+          {/* Title */}
+          <View style={styles.section}>
+            <Text style={styles.label}>Title</Text>
+            <TextInput
+              style={styles.titleInput}
+              value={title}
+              onChangeText={setTitle}
+              placeholder="Task title"
+              placeholderTextColor="#C7C7CC"
+            />
+          </View>
+
+          {/* Priority */}
+          <View style={styles.section}>
+            <Text style={styles.label}>Priority</Text>
+            <View style={styles.priorityRow}>
+              {[PRIORITY.LOW, PRIORITY.MEDIUM, PRIORITY.HIGH].map((p) => (
+                <TouchableOpacity
+                  key={p}
+                  style={[
+                    styles.priorityOption,
+                    priority === p && { backgroundColor: PRIORITY_COLORS[p] + '20', borderColor: PRIORITY_COLORS[p] },
+                  ]}
+                  onPress={() => setPriority(p)}
+                >
+                  <View style={[styles.priorityDot, { backgroundColor: PRIORITY_COLORS[p] }]} />
+                  <Text style={[
+                    styles.priorityText,
+                    priority === p && { color: PRIORITY_COLORS[p], fontWeight: '600' },
+                  ]}>
+                    {p.charAt(0).toUpperCase() + p.slice(1)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Date & Time (read-only display) */}
+          <View style={styles.section}>
+            <Text style={styles.label}>Date & Time</Text>
+            <View style={styles.metaCard}>
+              <View style={styles.metaRow}>
+                <Text style={styles.metaLabel}>Date</Text>
+                <Text style={styles.metaValue}>{formatDisplayDate(dueDate)}</Text>
+              </View>
+              <View style={[styles.metaRow, { borderBottomWidth: 0 }]}>
+                <Text style={styles.metaLabel}>Time</Text>
+                <Text style={styles.metaValue}>{formatDisplayTime(dueTime)}</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Remind Me Early */}
+          <View style={styles.section}>
+            <Text style={styles.label}>Remind Me Early</Text>
+            <View style={styles.reminderOptions}>
+              {EARLY_REMINDER_OPTIONS.map((opt, i) => (
+                <TouchableOpacity
+                  key={opt.label}
+                  style={[styles.reminderOption, earlyReminderIdx === i && styles.reminderOptionActive]}
+                  onPress={() => setEarlyReminderIdx(i)}
+                >
+                  <Text style={[
+                    styles.reminderOptionText,
+                    earlyReminderIdx === i && styles.reminderOptionTextActive,
+                  ]}>
+                    {opt.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Owe Person (for done_for_me tasks) */}
+          {isOweMe && (
+            <View style={styles.section}>
+              <Text style={styles.label}>Person</Text>
+              <TextInput
+                style={styles.input}
+                value={owePerson}
+                onChangeText={setOwePerson}
+                placeholder="Who owes you?"
+                placeholderTextColor="#C7C7CC"
+              />
+            </View>
+          )}
+
+          {/* Notes */}
+          <View style={styles.section}>
+            <Text style={styles.label}>Notes</Text>
+            <TextInput
+              style={styles.notesInput}
+              value={notes}
+              onChangeText={setNotes}
+              placeholder="Add notes..."
+              placeholderTextColor="#C7C7CC"
+              multiline
+              textAlignVertical="top"
+            />
+          </View>
+
+          {/* Attachments (read-only) */}
+          {task.attachments && task.attachments.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.label}>Attachments</Text>
+              <View style={styles.attachGrid}>
+                {task.attachments.map((file, idx) => (
+                  <View key={idx} style={styles.attachChip}>
+                    <View style={styles.attachIcon}>
+                      <Text style={styles.attachIconText}>
+                        {file.name.split('.').pop()?.toUpperCase() || 'FILE'}
+                      </Text>
+                    </View>
+                    <Text style={styles.attachName} numberOfLines={1}>{file.name}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          <View style={{ height: 40 }} />
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#F8F8FA',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#E5E5EA',
+    backgroundColor: '#FFFFFF',
+  },
+  headerBtn: {
+    minWidth: 60,
+  },
+  cancelBtn: {
+    fontSize: 16,
+    color: '#8E8E93',
+  },
+  headerTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#000000',
+  },
+  saveBtn: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#007AFF',
+    textAlign: 'right',
+  },
+  body: {
+    padding: 20,
+  },
+  section: {
+    marginBottom: 20,
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#8E8E93',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  titleInput: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#000000',
+    borderWidth: 0.5,
+    borderColor: '#E5E5EA',
+  },
+  input: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 15,
+    color: '#000000',
+    borderWidth: 0.5,
+    borderColor: '#E5E5EA',
+  },
+  notesInput: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 15,
+    color: '#000000',
+    borderWidth: 0.5,
+    borderColor: '#E5E5EA',
+    minHeight: 100,
+  },
+  priorityRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  priorityOption: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#E5E5EA',
+  },
+  priorityDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  priorityText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#8E8E93',
+  },
+  metaCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 0.5,
+    borderColor: '#E5E5EA',
+  },
+  metaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 14,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#F2F2F7',
+  },
+  metaLabel: {
+    fontSize: 14,
+    color: '#8E8E93',
+  },
+  metaValue: {
+    fontSize: 14,
+    color: '#000000',
+    fontWeight: '500',
+  },
+  switchRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  reminderOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  reminderOption: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    backgroundColor: '#F2F2F7',
+    borderRadius: 8,
+  },
+  reminderOptionActive: {
+    backgroundColor: '#007AFF',
+  },
+  reminderOptionText: {
+    fontSize: 14,
+    color: '#8E8E93',
+    fontWeight: '500',
+  },
+  reminderOptionTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  attachGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  attachChip: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    padding: 10,
+    borderWidth: 0.5,
+    borderColor: '#E5E5EA',
+    alignItems: 'center',
+    gap: 6,
+    width: 90,
+  },
+  attachIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: '#F2F2F7',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  attachIconText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#8E8E93',
+  },
+  attachName: {
+    fontSize: 10,
+    color: '#8E8E93',
+    textAlign: 'center',
+  },
+});

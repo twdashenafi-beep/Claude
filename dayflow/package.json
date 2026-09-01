@@ -1,0 +1,38 @@
+{
+  "name": "dayflow",
+  "version": "1.0.0",
+  "description": "AI-powered task manager with end-to-end encryption",
+  "author": "Tewodros Ashenafi",
+  "license": "MIT",
+  "main": "index.js",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "api": "node --env-file-if-exists=.env api-server.js",
+    "build:web": "expo export --platform web --output-dir web-build && node scripts/make-pwa.js web-build",
+    "doctor": "expo-doctor",
+    "build:pages": "EXPO_BASE_URL=/Claude expo export --platform web --output-dir web-build && node scripts/make-pwa.js web-build /Claude",
+    "preview:web": "npx serve web-build"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.80.0",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@supabase/supabase-js": "^2.99.3",
+    "cors": "^2.8.6",
+    "crypto-js": "^4.2.0",
+    "date-fns": "^4.1.0",
+    "expo": "~55.0.8",
+    "expo-av": "^16.0.8",
+    "expo-calendar": "^55.0.10",
+    "expo-notifications": "~55.0.13",
+    "expo-status-bar": "~55.0.4",
+    "express": "^5.2.1",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "react-native": "0.83.2",
+    "react-native-web": "^0.21.0"
+  },
+  "private": true
+}
