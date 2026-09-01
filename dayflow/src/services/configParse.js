@@ -164,6 +164,18 @@ async function serverMessage(response) {
   }
 }
 
+// The check hits a table the app actually reads rather than the PostgREST root.
+// The root serves the schema spec and Supabase restricts it to secret keys, so
+// probing there rejects a perfectly good publishable key with "Secret API key
+// required" — which sounds like the user picked the wrong key, and they did not.
+//
+// Querying tasks also settles a second question for free: whether the schema
+// has been run. Row Level Security means an unauthenticated read returns an
+// empty list rather than rows, which is all the confirmation needed.
+const PROBE = '/rest/v1/tasks?select=id&limit=1';
+
+// Asks the project whether the pair actually works, so a wrong value is caught
+// here rather than as a failed sign-in later.
 export async function verifyConfig({ url, anonKey }, { timeoutMs = 12000 } = {}) {
   const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
   const timer = setTimeout(() => controller && controller.abort(), timeoutMs);
@@ -173,7 +185,7 @@ export async function verifyConfig({ url, anonKey }, { timeoutMs = 12000 } = {})
     // Only the apikey header. A publishable key is not a JWT, so also sending
     // it as a bearer token gives the gateway something it cannot parse and a
     // perfectly good key comes back rejected.
-    response = await fetch(`${url}/rest/v1/`, {
+    response = await fetch(`${url}${PROBE}`, {
       method: 'GET',
       headers: { apikey: anonKey },
       signal: controller ? controller.signal : undefined,
@@ -184,26 +196,40 @@ export async function verifyConfig({ url, anonKey }, { timeoutMs = 12000 } = {})
     clearTimeout(timer);
   }
 
+  if (response.ok) return { ok: true };
+
+  // Whatever the project said is worth more than anything guessed from the
+  // status code, so lead with it.
+  const said = await serverMessage(response);
+  const quoted = said ? ` — it said: "${said}"` : '';
+
   if (response.status === 401 || response.status === 403) {
-    // Whatever the project said is worth more than anything guessed from the
-    // status code, so lead with it.
-    const said = await serverMessage(response);
     // Projects on the newer key system usually have the legacy JWT keys turned
     // off, so a correctly copied "anon" key is refused with no hint as to why.
     const legacy = String(anonKey).split('.').length === 3;
-    const hint = legacy
-      ? ' That is a legacy "anon" key; projects on the newer key system have those switched off. Try the publishable key instead — Project Settings → API Keys, starting "sb_publishable_".'
-      : ' Copy it again from Project Settings → API Keys.';
     return {
       ok: false,
-      error: `The project rejected that key${said ? ` — it said: "${said}".` : '.'}${hint}`,
+      error: legacy
+        ? `The project rejected that key${quoted}. That is a legacy "anon" key, and projects on the newer key system have those switched off. Use the publishable key instead — Project Settings → API Keys, starting "sb_publishable_".`
+        : `The project rejected that key${quoted}. Copy it again from Project Settings → API Keys.`,
     };
   }
-  if (!response.ok && response.status >= 500) {
-    return { ok: false, error: `The project answered with an error (${response.status}). Try again in a moment.` };
-  }
-  if (!response.ok && response.status === 404) {
+
+  if (response.status === 404) {
+    // The key was accepted; it is the table that is absent.
+    if (/schema cache|does not exist|PGRST/i.test(said)) {
+      return {
+        ok: false,
+        error: `Connected, but this project has no "tasks" table yet${quoted}. Run supabase/schema.sql in the SQL Editor, then try again.`,
+      };
+    }
     return { ok: false, error: 'That host is reachable but is not a Supabase project. Check the URL.' };
   }
-  return { ok: true };
+
+  if (response.status >= 500) {
+    return { ok: false, error: `The project answered with an error (${response.status})${quoted}. Try again in a moment.` };
+  }
+
+  return { ok: false, error: `The project answered with ${response.status}${quoted}.` };
 }
+

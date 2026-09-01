@@ -119,14 +119,29 @@ ok('an unreachable host blames the URL', !unreachable.ok && unreachable.error.in
 
 const notSupabase = await withFetch(async () => ({ ok: false, status: 404 }), () => verifyConfig(config));
 ok('a host that is not a Supabase project does not verify', !notSupabase.ok);
+ok('a bare 404 blames the URL', !notSupabase.ok && /not a Supabase project/.test(notSupabase.error));
+
+// A missing table is a different problem from a bad key, and has a different fix.
+const noSchema = await withFetch(
+  async () => ({ ok: false, status: 404, text: async () => JSON.stringify({
+    code: 'PGRST205', message: "Could not find the table 'public.tasks' in the schema cache" }) }),
+  () => verifyConfig(config));
+ok('a missing tasks table is reported as a missing schema, not a bad key',
+   !noSchema.ok && /schema\.sql/.test(noSchema.error));
+ok('the missing-schema message does not blame the key',
+   !noSchema.ok && !/rejected that key/.test(noSchema.error));
 
 const serverError = await withFetch(async () => ({ ok: false, status: 503 }), () => verifyConfig(config));
 ok('a server error does not verify', !serverError.ok);
 
 // The verification request must carry the key, or a wrong key would pass.
-let sentHeaders = null;
-await withFetch(async (_u, init) => { sentHeaders = init.headers; return { ok: true, status: 200 }; },
+let sentHeaders = null, probedUrl = null;
+await withFetch(async (u, init) => { probedUrl = u; sentHeaders = init.headers; return { ok: true, status: 200 }; },
                 () => verifyConfig(config));
+// The PostgREST root is restricted to secret keys, so probing it would refuse
+// every publishable key.
+ok('the check does not probe the PostgREST root', !/\/rest\/v1\/?$/.test(String(probedUrl)));
+ok('the check probes a table the app actually reads', /\/rest\/v1\/tasks\?/.test(String(probedUrl)));
 ok('the check sends the key as apikey', sentHeaders && sentHeaders.apikey === ANON);
 // A publishable key is not a JWT, so a bearer header built from it would make
 // a valid key look invalid.
