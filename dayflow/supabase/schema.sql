@@ -1,74 +1,57 @@
--- DayFlow Database Schema
--- Run this in the Supabase SQL Editor (Dashboard > SQL Editor > New Query)
+-- DayFlow — database schema
+-- Run this in the Supabase SQL Editor (Dashboard → SQL Editor → New Query).
+--
+-- The server stores ciphertext and nothing else. There is deliberately no
+-- title, priority, due date or person column: those live inside the encrypted
+-- blob, so a database dump reveals only how many tasks exist and when they
+-- changed. DayFlow cannot read your tasks, and neither can Supabase.
 
--- Tasks table
-CREATE TABLE IF NOT EXISTS tasks (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-  title TEXT NOT NULL,
-  date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  priority TEXT NOT NULL DEFAULT 'medium' CHECK (priority IN ('high', 'medium', 'low')),
-  category TEXT DEFAULT 'Other',
-  completed BOOLEAN DEFAULT FALSE,
-  section TEXT NOT NULL DEFAULT 'todo' CHECK (section IN ('todo', 'owe_me')),
-  -- Date/time/reminder fields
-  due_date TIMESTAMPTZ,
-  due_time TEXT,
-  reminder_enabled BOOLEAN DEFAULT FALSE,
-  -- OWE ME fields
-  owe_person TEXT,
-  owe_description TEXT,
-  -- AI fields
-  ai_steps TEXT[],
-  ai_summary TEXT,
-  -- Timestamps
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+create table if not exists tasks (
+  -- Client-generated, so a task keeps its identity across devices without a
+  -- round trip to the server before it can be saved offline.
+  id          text primary key,
+  user_id     uuid not null references auth.users(id) on delete cascade,
+
+  -- AES-256 blob: the whole task, encrypted on the device.
+  ciphertext  text not null,
+
+  -- Used for last-write-wins merging. Set by the client, because the device
+  -- that made the edit is the one that knows when it happened.
+  updated_at  timestamptz not null default now(),
+
+  -- Tombstone. A deleted task is kept as a flagged row so a device that was
+  -- offline during the delete does not resurrect it on its next push.
+  deleted     boolean not null default false,
+
+  created_at  timestamptz not null default now()
 );
 
--- Indexes for common queries
-CREATE INDEX IF NOT EXISTS idx_tasks_user_id ON tasks(user_id);
-CREATE INDEX IF NOT EXISTS idx_tasks_section ON tasks(user_id, section);
-CREATE INDEX IF NOT EXISTS idx_tasks_date ON tasks(user_id, date);
-CREATE INDEX IF NOT EXISTS idx_tasks_priority ON tasks(user_id, priority);
+create index if not exists idx_tasks_user on tasks(user_id);
+create index if not exists idx_tasks_user_updated on tasks(user_id, updated_at desc);
 
--- Enable Row Level Security
-ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
+alter table tasks enable row level security;
 
--- RLS Policies: users can only access their own tasks
-CREATE POLICY "Users can view their own tasks"
-  ON tasks FOR SELECT
-  USING (auth.uid() = user_id);
+-- Every policy is scoped to auth.uid(), so the anon key shipped in the app
+-- bundle cannot read or write anyone else's rows.
+drop policy if exists "read own tasks" on tasks;
+create policy "read own tasks" on tasks
+  for select using (auth.uid() = user_id);
 
-CREATE POLICY "Users can create their own tasks"
-  ON tasks FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+drop policy if exists "insert own tasks" on tasks;
+create policy "insert own tasks" on tasks
+  for insert with check (auth.uid() = user_id);
 
-CREATE POLICY "Users can update their own tasks"
-  ON tasks FOR UPDATE
-  USING (auth.uid() = user_id);
+drop policy if exists "update own tasks" on tasks;
+create policy "update own tasks" on tasks
+  for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
-CREATE POLICY "Users can delete their own tasks"
-  ON tasks FOR DELETE
-  USING (auth.uid() = user_id);
+drop policy if exists "delete own tasks" on tasks;
+create policy "delete own tasks" on tasks
+  for delete using (auth.uid() = user_id);
 
--- Auto-update updated_at timestamp
-CREATE OR REPLACE FUNCTION update_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER tasks_updated_at
-  BEFORE UPDATE ON tasks
-  FOR EACH ROW
-  EXECUTE FUNCTION update_updated_at();
-
--- Optional: allow anonymous/unauthenticated usage for development
--- Uncomment these if you want to test without auth:
--- CREATE POLICY "Allow anonymous read" ON tasks FOR SELECT USING (true);
--- CREATE POLICY "Allow anonymous insert" ON tasks FOR INSERT WITH CHECK (true);
--- CREATE POLICY "Allow anonymous update" ON tasks FOR UPDATE USING (true);
--- CREATE POLICY "Allow anonymous delete" ON tasks FOR DELETE USING (true);
+-- Housekeeping: drop tombstones once every device has certainly seen them.
+-- Optional — schedule it from Supabase's cron extension if you like.
+create or replace function purge_old_tombstones() returns void
+language sql security definer as $$
+  delete from tasks where deleted and updated_at < now() - interval '90 days';
+$$;

@@ -43,7 +43,14 @@ jobs:
       - name: Build DayFlow web app
         working-directory: dayflow
         # Pages serves this repo under /Claude/, so the bundle needs that base.
+        # The Supabase values are EXPO_PUBLIC_* and are inlined into the bundle
+        # by design — the anon key is meant to be public, and Row Level Security
+        # plus client-side encryption are what actually protect the data. They
+        # come from repository secrets only so they are easy to rotate.
         run: npm run build:pages
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
 
       - name: Assemble site
         run: |

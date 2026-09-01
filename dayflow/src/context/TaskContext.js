@@ -1,70 +1,141 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import React, {
+  createContext, useContext, useState, useCallback, useEffect, useRef, useMemo,
+} from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { scheduleTaskNotifications, cancelTaskNotifications } from '../services/notifications';
-import { newId } from '../utils/id';
 import { createTaskEncryptor, decryptTask } from '../services/encryption';
+import { newId } from '../utils/id';
+import { pullTasks, pushTasks, mergeTasks } from '../services/sync';
 
 const TaskContext = createContext();
-const STORAGE_KEY = '@dayflow_tasks_encrypted';
+const STORAGE_KEY = '@dayflow_vault_v2';
+const SYNC_INTERVAL_MS = 60000;
 
-export function TaskProvider({ children, encryptionKey }) {
+// Every mutation stamps updatedAt. Merging across devices has nothing else to
+// go on — the server cannot read the task — so the timestamp is what decides
+// which of two edits wins.
+const stamp = () => new Date().toISOString();
+
+export function TaskProvider({ children, encryptionKey, synced }) {
   const [tasks, setTasks] = useState([]);
   const [loaded, setLoaded] = useState(false);
+  const [syncState, setSyncState] = useState(synced ? 'idle' : 'off');
+  const tombstones = useRef([]);
+  const encryptAll = useMemo(() => createTaskEncryptor(), []);
 
-  // Load and decrypt tasks on mount
+  // ── Local vault ───────────────────────────────────────────────────────────
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       try {
         const stored = await AsyncStorage.getItem(STORAGE_KEY);
         if (stored) {
-          const raw = JSON.parse(stored);
-          const decrypted = raw.map(t => decryptTask(t, encryptionKey));
-          setTasks(decrypted);
+          const vault = JSON.parse(stored);
+          const rows = Array.isArray(vault) ? vault : vault.rows || [];
+          tombstones.current = (Array.isArray(vault) ? [] : vault.tombstones) || [];
+          const decrypted = rows
+            .map(row => {
+              const task = decryptTask(row.ciphertext, encryptionKey);
+              return task ? { ...task, id: row.id, updatedAt: row.updatedAt } : null;
+            })
+            .filter(Boolean);
+          if (!cancelled) setTasks(decrypted);
         }
       } catch (e) {
-        console.log('Failed to load tasks:', e);
+        console.warn('Failed to load vault:', e.message);
       }
-      setLoaded(true);
+      if (!cancelled) setLoaded(true);
     })();
+    return () => { cancelled = true; };
   }, [encryptionKey]);
 
-  // One encryptor per unlocked session, so ciphertext is reused across saves.
-  const encryptAll = useMemo(() => createTaskEncryptor(), []);
+  const persist = useCallback(
+    async list => {
+      const rows = encryptAll(list, encryptionKey);
+      await AsyncStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ v: 2, rows, tombstones: tombstones.current })
+      );
+      return rows;
+    },
+    [encryptAll, encryptionKey]
+  );
 
-  // Encrypt and persist tasks on change.
-  //
-  // Debounced because a single user action can commit several times in a row —
-  // "Clear all" toggles each task individually — and each commit would
-  // otherwise mean its own serialise and storage write.
+  // Debounced: a single user action can commit several times in a row, and each
+  // commit would otherwise mean its own serialise and storage write.
   const pending = useRef(null);
   const flush = useCallback(() => {
     if (!pending.current) return;
-    const { tasks: t, key } = pending.current;
+    const list = pending.current;
     pending.current = null;
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(encryptAll(t, key))).catch(() => {});
-  }, [encryptAll]);
+    persist(list).catch(() => {});
+  }, [persist]);
 
   useEffect(() => {
     if (!loaded) return;
-    pending.current = { tasks, key: encryptionKey };
+    pending.current = tasks;
     const handle = setTimeout(flush, 250);
     return () => clearTimeout(handle);
-  }, [tasks, loaded, encryptionKey, flush]);
+  }, [tasks, loaded, flush]);
 
-  // Don't lose a debounced write if the provider goes away first.
   useEffect(() => flush, [flush]);
 
-  const addTask = useCallback((taskData) => {
+  // ── Cloud sync ────────────────────────────────────────────────────────────
+  const syncNow = useCallback(async () => {
+    if (!synced || !loaded) return;
+    setSyncState('syncing');
+    try {
+      const remoteRows = await pullTasks();
+      if (!remoteRows) { setSyncState('off'); return; }
+
+      let outbound = [];
+      setTasks(current => {
+        const result = mergeTasks({
+          localTasks: current,
+          localTombstones: tombstones.current,
+          remoteRows,
+          decryptRow: ciphertext => decryptTask(ciphertext, encryptionKey),
+        });
+        tombstones.current = result.tombstones;
+        const byId = new Map(result.tasks.map(t => [t.id, t]));
+        outbound = result.pushIds.map(id => byId.get(id)).filter(Boolean);
+        return result.tasks;
+      });
+
+      // setTasks batches, so give React a tick to apply before encrypting.
+      await Promise.resolve();
+
+      const rows = outbound.length ? encryptAll(outbound, encryptionKey) : [];
+      const tombRows = tombstones.current.map(t => ({
+        id: t.id, ciphertext: '', updatedAt: t.updatedAt, deleted: true,
+      }));
+      if (rows.length || tombRows.length) await pushTasks([...rows, ...tombRows]);
+
+      setSyncState('ok');
+    } catch (e) {
+      console.warn('Sync failed:', e.message);
+      setSyncState('error');
+    }
+  }, [synced, loaded, encryptionKey, encryptAll]);
+
+  useEffect(() => {
+    if (!synced || !loaded) return;
+    syncNow();
+    const handle = setInterval(syncNow, SYNC_INTERVAL_MS);
+    return () => clearInterval(handle);
+  }, [synced, loaded, syncNow]);
+
+  // ── Mutations ─────────────────────────────────────────────────────────────
+  const addTask = useCallback(taskData => {
+    const now = stamp();
     const newTask = {
       id: newId(),
       title: taskData.title,
-      date: taskData.date || new Date().toISOString(),
-      dueDate: taskData.dueDate || taskData.date || new Date().toISOString(),
+      date: taskData.date || now,
+      dueDate: taskData.dueDate || taskData.date || now,
       dueTime: taskData.dueTime || '',
       reminderEnabled: taskData.reminderEnabled || false,
       earlyReminderMinutes: taskData.earlyReminderMinutes || 0,
-      reminderDate: taskData.reminderDate || null,
-      reminderTime: taskData.reminderTime || null,
       priority: taskData.priority || 'medium',
       completed: false,
       section: taskData.section || 'todo',
@@ -74,7 +145,8 @@ export function TaskProvider({ children, encryptionKey }) {
       notes: taskData.notes || '',
       voiceNoteUri: taskData.voiceNoteUri || null,
       attachments: taskData.attachments || [],
-      createdAt: new Date().toISOString(),
+      createdAt: now,
+      updatedAt: now,
     };
     setTasks(prev => [newTask, ...prev]);
 
@@ -84,11 +156,11 @@ export function TaskProvider({ children, encryptionKey }) {
     return newTask;
   }, []);
 
-  const toggleTask = useCallback((id) => {
+  const toggleTask = useCallback(id => {
     setTasks(prev =>
       prev.map(t => {
         if (t.id !== id) return t;
-        const updated = { ...t, completed: !t.completed };
+        const updated = { ...t, completed: !t.completed, updatedAt: stamp() };
         if (updated.completed) cancelTaskNotifications(id);
         else if (updated.dueDate && updated.dueTime) scheduleTaskNotifications(updated).catch(() => {});
         return updated;
@@ -96,8 +168,14 @@ export function TaskProvider({ children, encryptionKey }) {
     );
   }, []);
 
-  const deleteTask = useCallback((id) => {
+  const deleteTask = useCallback(id => {
     cancelTaskNotifications(id);
+    // Tombstone, not removal: an offline device would otherwise re-upload this
+    // task on its next push and it would come back.
+    tombstones.current = [
+      ...tombstones.current.filter(t => t.id !== id),
+      { id, updatedAt: stamp() },
+    ];
     setTasks(prev => prev.filter(t => t.id !== id));
   }, []);
 
@@ -105,16 +183,19 @@ export function TaskProvider({ children, encryptionKey }) {
     setTasks(prev =>
       prev.map(t => {
         if (t.id !== id) return t;
-        const updated = { ...t, ...updates };
-        if (!updated.completed && updated.dueDate && updated.dueTime) scheduleTaskNotifications(updated).catch(() => {});
-        else cancelTaskNotifications(id);
+        const updated = { ...t, ...updates, updatedAt: stamp() };
+        if (!updated.completed && updated.dueDate && updated.dueTime) {
+          scheduleTaskNotifications(updated).catch(() => {});
+        } else cancelTaskNotifications(id);
         return updated;
       })
     );
   }, []);
 
   return (
-    <TaskContext.Provider value={{ tasks, addTask, toggleTask, deleteTask, updateTask }}>
+    <TaskContext.Provider
+      value={{ tasks, addTask, toggleTask, deleteTask, updateTask, syncState, syncNow }}
+    >
       {children}
     </TaskContext.Provider>
   );
