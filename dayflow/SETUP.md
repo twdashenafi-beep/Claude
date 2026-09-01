@@ -251,7 +251,48 @@ capable of recovering it, which is the point of end-to-end encryption.
 later edit wins. Deletes are kept as tombstones so a device that was offline
 during a delete does not bring the task back.
 
-## 7. Security checklist
+## 7. App Store submission
+
+Not yet done, in the order they block you.
+
+**In-app account deletion — done.** Guideline 5.1.1(v) rejects any app offering
+account creation without in-app deletion. It lives in **Account → Delete
+account**, behind a typed confirmation, and calls a `security definer` function
+rather than shipping a service-role key.
+
+**Encryption export declaration — your call to make.** App Store Connect asks
+about encryption on every submission until `app.json` answers it:
+
+```json
+"ios": {
+  "infoPlist": {
+    "ITSAppUsesNonExemptEncryption": false
+  }
+}
+```
+
+`false` asserts the app uses no *non-exempt* encryption. Apps using only
+standard algorithms to protect the user's own data commonly qualify for the
+exemption, and DayFlow uses AES and PBKDF2 for exactly that. But this is a legal
+attestation about US export rules, not a technical setting, so it is left unset
+deliberately — read Apple's export-compliance questions and answer them
+yourself rather than inheriting an answer from this file.
+
+**Privacy policy and support URLs** — both required App Store metadata, and
+neither exists yet. They must be reachable public pages; the Pages site can host
+them.
+
+**Privacy nutrition labels** — declared in App Store Connect. DayFlow collects
+an email address for authentication, and nothing else: task content is
+ciphertext the server cannot read.
+
+**`expo-av` is deprecated** and slated for removal; voice notes break on the
+next SDK bump. Migrate to `expo-audio`.
+
+**VoiceOver labels** — there are none anywhere in the app. Apple checks
+accessibility, and it is the right thing regardless.
+
+## 8. Security checklist
 
 - [ ] Master password set (encrypts all task data; unrecoverable if lost)
 - [ ] Supabase sign-ups disabled once your account exists

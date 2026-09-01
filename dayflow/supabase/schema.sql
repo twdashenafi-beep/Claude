@@ -83,3 +83,38 @@ create policy "insert own vault" on vaults
 drop policy if exists "update own vault" on vaults;
 create policy "update own vault" on vaults
   for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- ---------------------------------------------------------------------------
+-- Account deletion.
+--
+-- App Store Guideline 5.1.1(v) requires any app offering account creation to
+-- offer deletion from inside the app. Removing a row from auth.users normally
+-- needs the service_role key, which must never ship in a client bundle — so
+-- this runs as the function owner instead, and can only ever delete the caller.
+--
+-- security definer is a loaded gun, so: search_path is pinned (an unqualified
+-- name could otherwise be captured by a schema the caller controls), auth.uid()
+-- is the only thing that decides what gets deleted, and execute is granted to
+-- authenticated users alone rather than to anon or public.
+create or replace function delete_own_account()
+returns void
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'Not authenticated';
+  end if;
+
+  -- Both cascade from auth.users, but deleting them explicitly keeps the
+  -- function correct even if that constraint is ever changed.
+  delete from public.tasks  where user_id = auth.uid();
+  delete from public.vaults where user_id = auth.uid();
+  delete from auth.users    where id = auth.uid();
+end;
+$$;
+
+revoke all on function delete_own_account() from public;
+revoke all on function delete_own_account() from anon;
+grant execute on function delete_own_account() to authenticated;
