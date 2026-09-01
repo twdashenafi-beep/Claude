@@ -3,11 +3,11 @@ import {
   View, Text, TouchableOpacity, StyleSheet, Animated, PanResponder,
 } from 'react-native';
 import { VoicePlayButton } from './VoiceRecorder';
-import { COLORS, SANS, SERIF, currencySymbol } from '../utils/theme';
+import { COLORS, SANS, SERIF } from '../utils/theme';
 
-// One ruled line on the sheet: a checkbox, the task, and whatever the task
-// carries on its right edge. No card, no background — the row is defined by
-// the hairline beneath it, the way a line on paper is.
+// An entry in one of the two columns. The column is narrow, so the title takes
+// the full width and everything else — who owes, how much, when — sits on a
+// second line beneath it rather than competing for the same row.
 export default function TaskItem({ task, onToggle, onDelete, onPress, onLongPress }) {
   const translateX = useRef(new Animated.Value(0)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
@@ -19,11 +19,11 @@ export default function TaskItem({ task, onToggle, onDelete, onPress, onLongPres
 
   const panResponder = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: (_, gs) => Math.abs(gs.dx) > 20 && Math.abs(gs.dx) > Math.abs(gs.dy),
+      onMoveShouldSetPanResponder: (_, gs) => Math.abs(gs.dx) > 24 && Math.abs(gs.dx) > Math.abs(gs.dy) * 2,
       onPanResponderMove: (_, gs) => { if (gs.dx < 0) translateX.setValue(gs.dx); },
       onPanResponderRelease: (_, gs) => {
-        if (gs.dx < -100) {
-          Animated.timing(translateX, { toValue: -500, duration: 160, useNativeDriver: true })
+        if (gs.dx < -90) {
+          Animated.timing(translateX, { toValue: -400, duration: 160, useNativeDriver: true })
             .start(() => onDelete(task.id));
         } else {
           Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
@@ -46,9 +46,11 @@ export default function TaskItem({ task, onToggle, onDelete, onPress, onLongPres
   };
 
   const done = task.completed;
-  const amount = task.oweAmount
-    ? `${currencySymbol(task.oweCurrency)}${task.oweAmount}`
-    : null;
+  // Who it is with, and when it is due — what you need in order to chase it.
+  const meta = [
+    task.owePerson || null,
+    !done && task.dueTime ? task.dueTime : null,
+  ].filter(Boolean);
 
   return (
     <Animated.View style={{ opacity: opacityAnim }}>
@@ -57,7 +59,7 @@ export default function TaskItem({ task, onToggle, onDelete, onPress, onLongPres
           style={[st.check, done && st.checkDone]}
           onPress={() => onToggle(task.id)}
           activeOpacity={0.6}
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}
         >
           {done && <Text style={st.checkMark}>✓</Text>}
         </TouchableOpacity>
@@ -69,28 +71,21 @@ export default function TaskItem({ task, onToggle, onDelete, onPress, onLongPres
           delayLongPress={400}
           activeOpacity={0.6}
         >
-          <View style={st.titleRow}>
-            {!done && task.priority === 'high' && <Text style={st.priority}>!</Text>}
-            <Text style={[st.title, done && st.titleDone]} numberOfLines={1}>
-              {task.title}
-            </Text>
-          </View>
-          {task.owePerson ? (
-            <Text style={[st.person, done && st.personDone]} numberOfLines={1}>
-              {task.owePerson}
+          <Text style={[st.title, done && st.titleDone]} numberOfLines={2}>
+            {!done && task.priority === 'high' ? (
+              <Text style={st.priority}>! </Text>
+            ) : null}
+            {task.title}
+          </Text>
+
+          {meta.length > 0 ? (
+            <Text style={[st.meta, done && st.metaDone]} numberOfLines={1}>
+              {meta.join('  ·  ')}
             </Text>
           ) : null}
         </TouchableOpacity>
 
-        <View style={st.right}>
-          {task.voiceNoteUri ? <VoicePlayButton uri={task.voiceNoteUri} /> : null}
-          {!done && task.reminderEnabled && task.dueTime ? (
-            <Text style={st.time}>{task.dueTime}</Text>
-          ) : null}
-          {amount ? (
-            <Text style={[st.amount, done && st.amountDone]}>{amount}</Text>
-          ) : null}
-        </View>
+        {task.voiceNoteUri ? <VoicePlayButton uri={task.voiceNoteUri} /> : null}
       </Animated.View>
     </Animated.View>
   );
@@ -99,38 +94,26 @@ export default function TaskItem({ task, onToggle, onDelete, onPress, onLongPres
 const st = StyleSheet.create({
   row: {
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 11,
-    minHeight: 44,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: COLORS.rule,
+    alignItems: 'flex-start',
+    paddingVertical: 9,
     backgroundColor: COLORS.sheet,
   },
   check: {
-    width: 17, height: 17, borderRadius: 2,
-    borderWidth: 1, borderColor: '#B8B2A4',
+    width: 15, height: 15, borderRadius: 2,
+    borderWidth: 1, borderColor: '#B5AFA1',
     justifyContent: 'center', alignItems: 'center',
-    marginRight: 14,
+    marginRight: 10, marginTop: 3,
   },
   checkDone: { backgroundColor: COLORS.check, borderColor: COLORS.check },
-  checkMark: { fontSize: 11, color: COLORS.sheet, fontWeight: '700', marginTop: -1 },
+  checkMark: { fontSize: 10, color: COLORS.sheet, fontWeight: '700', marginTop: -1 },
 
-  body: { flex: 1, paddingRight: 10 },
-  titleRow: { flexDirection: 'row', alignItems: 'baseline' },
-  priority: {
-    fontFamily: SERIF, fontSize: 15, fontWeight: '700',
-    color: COLORS.accent, marginRight: 6,
-  },
-  title: { flex: 1, fontFamily: SANS, fontSize: 15.5, color: COLORS.ink, letterSpacing: -0.1 },
+  body: { flex: 1 },
+  priority: { fontFamily: SERIF, fontWeight: '700', color: COLORS.accent },
+  title: { fontFamily: SANS, fontSize: 14.5, lineHeight: 19, color: COLORS.ink },
   titleDone: { color: COLORS.done, textDecorationLine: 'line-through' },
-  person: { fontFamily: SANS, fontSize: 12, color: COLORS.inkFaint, marginTop: 2 },
-  personDone: { color: COLORS.done },
-
-  right: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  time: { fontFamily: SANS, fontSize: 12, color: COLORS.inkFaint, fontVariant: ['tabular-nums'] },
-  amount: {
-    fontFamily: SERIF, fontSize: 14.5, color: COLORS.accent,
-    fontVariant: ['tabular-nums'],
+  meta: {
+    fontFamily: SERIF, fontSize: 12, fontStyle: 'italic', color: COLORS.inkSoft,
+    marginTop: 2, fontVariant: ['tabular-nums'],
   },
-  amountDone: { color: COLORS.done, textDecorationLine: 'line-through' },
+  metaDone: { color: COLORS.done },
 });

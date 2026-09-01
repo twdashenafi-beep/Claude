@@ -18,8 +18,8 @@ export const COLORS = {
   inkFaint: '#96907F',    // hints, placeholders
   done: '#A9A296',        // completed task text
 
-  rule: '#E2DED4',        // hairline between rows
-  ruleStrong: '#2B2A26',  // the divider between the two lists
+  rule: '#E6E2D8',        // hairline between rows
+  pencil: '#4A463E',      // the two ruled lines: under the headings, and between the columns
 
   accent: '#7A1F1F',      // the red pen: high priority, amounts owed
   check: '#1A1A18',
@@ -51,9 +51,3 @@ export const SECTION_LABEL = {
   textTransform: 'uppercase',
   color: COLORS.inkSoft,
 };
-
-export const CURRENCY_SYMBOLS = { USD: '$', GBP: '£', EUR: '€', ETB: 'Br' };
-
-export function currencySymbol(code) {
-  return CURRENCY_SYMBOLS[code] || '$';
-}
