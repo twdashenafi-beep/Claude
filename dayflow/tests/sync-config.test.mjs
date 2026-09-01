@@ -92,6 +92,14 @@ const rejected = await withFetch(async () => ({ ok: false, status: 401 }), () =>
 ok('a rejected key does not verify', !rejected.ok);
 ok('a rejected key blames the key, not the URL', !rejected.ok && /key/.test(rejected.error));
 
+ok('a rejected legacy key points at the publishable one',
+   !rejected.ok && /sb_publishable_/.test(rejected.error));
+
+const rejectedNew = await withFetch(async () => ({ ok: false, status: 401 }),
+  () => verifyConfig({ url: URL_OK, anonKey: 'sb_publishable_abcdef123456' }));
+ok('a rejected publishable key does not mention legacy keys',
+   !rejectedNew.ok && !/legacy/.test(rejectedNew.error));
+
 const unreachable = await withFetch(async () => { throw new Error('ENOTFOUND'); }, () => verifyConfig(config));
 ok('an unreachable host does not verify', !unreachable.ok);
 ok('an unreachable host blames the URL', !unreachable.ok && unreachable.error.includes(URL_OK));

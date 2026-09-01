@@ -165,7 +165,15 @@ export async function verifyConfig({ url, anonKey }, { timeoutMs = 12000 } = {})
   }
 
   if (response.status === 401 || response.status === 403) {
-    return { ok: false, error: 'The project answered, but rejected that key. Copy the "anon" / "public" key again.' };
+    // Projects on the newer key system usually have the legacy JWT keys turned
+    // off, so a correctly copied "anon" key is refused with no hint as to why.
+    const legacy = String(anonKey).split('.').length === 3;
+    return {
+      ok: false,
+      error: legacy
+        ? 'The project answered, but rejected that key. That is a legacy "anon" key, and projects on the newer key system have those switched off — use the publishable key instead (Project Settings → API Keys → Publishable key, starting "sb_publishable_").'
+        : 'The project answered, but rejected that key. Copy it again from Project Settings → API Keys.',
+    };
   }
   if (!response.ok && response.status >= 500) {
     return { ok: false, error: `The project answered with an error (${response.status}). Try again in a moment.` };
