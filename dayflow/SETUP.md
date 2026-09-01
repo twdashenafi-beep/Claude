@@ -232,9 +232,20 @@ public web bundle:
 - Leave **Confirm email** on. The first sign-up then needs a link clicked before
   it can be used.
 
-**What happens if you forget the password:** the data is unrecoverable. There is
-no reset, because there is nothing on the server that could perform one. That is
-the cost of end-to-end encryption, and it is the point of it.
+**Your recovery code.** Sign-up shows a 32-character code once. Tasks are
+encrypted with a random data key that nobody types; that key is then stored
+twice over, sealed once by your password and once by this code. Either opens the
+vault, and neither reveals the other.
+
+Two things follow. Changing your password re-seals one small key rather than
+re-encrypting anything, so a vault of ten thousand tasks changes password as
+fast as an empty one — and, more importantly, stays readable afterwards. And a
+forgotten password stops being fatal.
+
+Keep the code somewhere real: a password manager, or paper. It is shown once,
+because the vault stores only a value derived from it. Lose both the password
+and the code and the data is genuinely gone — there is nothing on any server
+capable of recovering it, which is the point of end-to-end encryption.
 
 **Conflicts.** If you edit the same task on two devices before they sync, the
 later edit wins. Deletes are kept as tombstones so a device that was offline

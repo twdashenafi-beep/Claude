@@ -4,28 +4,33 @@
 
 import { mergeTasks } from '../src/services/merge.js';
 import { encryptTask, decryptTask, createTaskEncryptor } from '../src/services/encryption.js';
-import { deriveKeys } from '../src/services/crypto.js';
+import { deriveAccountKeys } from '../src/services/crypto.js';
+import { createVault, unlockWithPassword } from '../src/services/vault.js';
 
 let pass = 0, fail = 0;
 const ok = (label, cond) => { cond ? pass++ : fail++; console.log(`${cond ? 'PASS' : 'FAIL'}  ${label}`); };
 
 // ── Cross-device key agreement ──
-const A = await deriveKeys('T.Ashenafi@PM.me ', 'correct horse battery');
-const B = await deriveKeys('t.ashenafi@pm.me', 'correct horse battery');
-ok('same email (any case/space) + password -> same key on every device', A.encryptionKey === B.encryptionKey);
-ok('auth hash differs from encryption key', A.authHash !== A.encryptionKey);
-const C = await deriveKeys('t.ashenafi@pm.me', 'correct horse batteryX');
-ok('different password -> different key', C.encryptionKey !== A.encryptionKey);
-const D = await deriveKeys('other@pm.me', 'correct horse battery');
-ok('different email -> different key', D.encryptionKey !== A.encryptionKey);
+const A = await deriveAccountKeys('T.Ashenafi@PM.me ', 'correct horse battery');
+const B = await deriveAccountKeys('t.ashenafi@pm.me', 'correct horse battery');
+ok('same email (any case/space) + password -> same kek on every device', A.kek === B.kek);
+ok('auth hash differs from the key-encrypting key', A.authHash !== A.kek);
+const C = await deriveAccountKeys('t.ashenafi@pm.me', 'correct horse batteryX');
+ok('different password -> different kek', C.kek !== A.kek);
+const D = await deriveAccountKeys('other@pm.me', 'correct horse battery');
+ok('different email -> different kek', D.kek !== A.kek);
 
 // ── Blob encryption ──
-const key = A.encryptionKey;
+// Tasks are encrypted with the vault's data key, not the password-derived one.
+const vaultA = await createVault('t.ashenafi@pm.me', A.kek);
+const key = vaultA.dataKey;
+ok('two devices with the same password reach the same data key',
+   unlockWithPassword(vaultA.record, B.kek) === key);
 const task = { id: 'x1', title: 'Call Mekdi', priority: 'high', owePerson: 'Sara', updatedAt: '2026-09-01T10:00:00Z' };
 const blob = encryptTask(task, key);
 ok('ciphertext leaks no field', !blob.includes('Mekdi') && !blob.includes('high') && !blob.includes('Sara'));
 ok('round trips', JSON.stringify(decryptTask(blob, key)) === JSON.stringify(task));
-ok('wrong key returns null, not garbage', decryptTask(blob, C.encryptionKey) === null);
+ok('wrong key returns null, not garbage', decryptTask(blob, C.kek) === null);
 
 // ── Memoised encryptor ──
 const enc = createTaskEncryptor();

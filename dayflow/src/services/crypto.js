@@ -27,7 +27,13 @@ import CryptoJS from 'crypto-js';
 const ITERATIONS = 210000;
 const KEY_BYTES = 32;
 
-const ENC_CONTEXT = 'dayflow-encryption-v1';
+const KEK_CONTEXT = 'dayflow-kek-v1';
+const RECOVERY_CONTEXT = 'dayflow-recovery-v1';
+
+// Crockford-style base32, minus I, L, O and U so a handwritten code cannot be
+// misread. 32 characters carries 160 bits.
+const ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+const RECOVERY_CHARS = 32;
 
 function toHex(buffer) {
   return Array.from(new Uint8Array(buffer))
@@ -68,8 +74,14 @@ export function normalizeEmail(email) {
   return (email || '').trim().toLowerCase();
 }
 
-// Returns { authHash, encryptionKey }. Only authHash is ever sent anywhere.
-export async function deriveKeys(email, password) {
+// Returns { authHash, kek }. Only authHash is ever sent anywhere.
+//
+// The kek — key-encrypting key — does not encrypt tasks. It wraps the key that
+// does. That indirection is what makes a password change possible: re-wrapping
+// one small key is cheap, whereas deriving the task key from the password
+// directly would mean every existing task became unreadable the moment the
+// password changed.
+export async function deriveAccountKeys(email, password) {
   const salt = normalizeEmail(email);
   if (!salt) throw new Error('Email is required to derive keys');
 
@@ -77,12 +89,57 @@ export async function deriveKeys(email, password) {
 
   // A single extra round is enough here: the input is already a 256-bit key
   // from a slow derivation, so there is nothing cheap left to brute force.
-  const [authHash, encryptionKey] = await Promise.all([
+  const [authHash, kek] = await Promise.all([
     pbkdf2(masterKey, password, 1),
-    pbkdf2(masterKey, ENC_CONTEXT, 1),
+    pbkdf2(masterKey, KEK_CONTEXT, 1),
   ]);
 
-  return { authHash, encryptionKey };
+  return { authHash, kek };
+}
+
+function randomBytes(count) {
+  if (subtle && globalThis.crypto.getRandomValues) {
+    return globalThis.crypto.getRandomValues(new Uint8Array(count));
+  }
+  const words = CryptoJS.lib.WordArray.random(count);
+  const hex = words.toString(CryptoJS.enc.Hex);
+  return Uint8Array.from(hex.match(/../g).map(h => parseInt(h, 16)));
+}
+
+// The key that actually encrypts tasks. Random, never derived from anything the
+// user types, so it survives a password change untouched.
+export function generateDataKey() {
+  return Array.from(randomBytes(KEY_BYTES))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+// A printable second way into the vault, shown once at sign-up. Without it a
+// forgotten password means the data is gone — there is nothing on the server
+// capable of recovering it.
+export function generateRecoveryCode() {
+  const bytes = randomBytes(RECOVERY_CHARS);
+  const chars = Array.from(bytes, b => ALPHABET[b % ALPHABET.length]);
+  return chars.join('').replace(/(.{4})(?=.)/g, '$1-');
+}
+
+// Accepts the code however it was transcribed — spaces, dashes, lower case, and
+// the characters most often confused for one another.
+export function normalizeRecoveryCode(code) {
+  return (code || '')
+    .toUpperCase()
+    .replace(/[^0-9A-Z]/g, '')
+    .replace(/O/g, '0')
+    .replace(/[IL]/g, '1')
+    .replace(/U/g, 'V');
+}
+
+// No slow KDF here, deliberately: the code carries 160 bits of entropy, so
+// stretching it would cost the user seconds and an attacker nothing.
+export async function deriveRecoveryKey(code, email) {
+  const normalized = normalizeRecoveryCode(code);
+  if (normalized.length < RECOVERY_CHARS) throw new Error('Recovery code is incomplete');
+  return pbkdf2(normalized, `${normalizeEmail(email)}|${RECOVERY_CONTEXT}`, 1);
 }
 
 export const KDF_ITERATIONS = ITERATIONS;
