@@ -97,20 +97,48 @@ self.addEventListener('activate', event => {
   );
 });
 
+const SHELL = '${base}';
+
+function save(request, response) {
+  if (response && response.ok) {
+    const copy = response.clone();
+    caches.open(CACHE).then(cache => cache.put(request, copy));
+  }
+  return response;
+}
+
+// Content-hashed bundles cannot change under a given name, so cache-first is
+// both safe and fastest for them. Everything else — the shell above all — has
+// to be network-first: serving a cached index.html means a device that has
+// installed the app never sees another deploy, which is a very quiet way to
+// ship nothing.
 self.addEventListener('fetch', event => {
   const { request } = event;
   if (request.method !== 'GET') return;
 
+  const url = new URL(request.url);
+
+  // Not ours. API calls and anything else cross-origin go straight to the
+  // network without passing through here at all.
+  if (url.origin !== self.location.origin) return;
+
+  if (url.pathname.includes('/_expo/static/')) {
+    event.respondWith(
+      caches.match(request).then(hit => hit || fetch(request).then(res => save(request, res)))
+    );
+    return;
+  }
+
   event.respondWith(
-    caches.match(request).then(hit => {
-      if (hit) return hit;
-      return fetch(request).catch(() => {
+    fetch(request)
+      .then(res => save(request, res))
+      .catch(() => caches.match(request).then(hit => {
+        if (hit) return hit;
         // A navigation that misses the cache still needs the app shell back,
         // otherwise a deep link offline shows the browser error page.
-        if (request.mode === 'navigate') return caches.match('${base}');
+        if (request.mode === 'navigate') return caches.match(SHELL);
         throw new Error('offline');
-      });
-    })
+      }))
   );
 });
 `

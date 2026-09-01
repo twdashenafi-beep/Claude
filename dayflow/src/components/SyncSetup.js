@@ -7,6 +7,8 @@ import { parseConfig, verifyConfig } from '../services/syncConfig';
 import { configureSync } from '../services/supabase';
 import { COLORS, SERIF, SANS, SHEET_MAX_WIDTH } from '../utils/theme';
 
+const BUILD_ID = process.env.EXPO_PUBLIC_BUILD_ID || 'dev';
+
 // Connecting this device to a Supabase project.
 //
 // The two values asked for here are public by design — the anon key is in the
@@ -128,6 +130,9 @@ export default function SyncSetup({ onDone, onSkip }) {
               tasks are encrypted on this device with your master password before anything
               is sent, and the server never sees that password.
             </Text>
+            {/* So "which build am I looking at" is answerable from the screen
+                rather than inferred from whether a message has changed. */}
+            <Text style={s.build}>Build {BUILD_ID}</Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -188,5 +193,9 @@ const s = StyleSheet.create({
   footnote: {
     fontFamily: SANS, fontSize: 11.5, lineHeight: 17,
     color: COLORS.inkFaint, marginTop: 22,
+  },
+  build: {
+    fontFamily: SANS, fontSize: 10.5, letterSpacing: 0.8,
+    color: COLORS.inkFaint, marginTop: 14, textAlign: 'right',
   },
 });

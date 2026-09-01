@@ -11,9 +11,9 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "api": "node --env-file-if-exists=.env api-server.js",
-    "build:web": "expo export --platform web --output-dir web-build && node scripts/make-pwa.js web-build",
+    "build:web": "EXPO_PUBLIC_BUILD_ID=$(date -u +%Y%m%d-%H%M) expo export --platform web --output-dir web-build && node scripts/make-pwa.js web-build",
     "doctor": "expo-doctor",
-    "build:pages": "EXPO_BASE_URL=/Claude expo export --platform web --output-dir web-build && node scripts/make-pwa.js web-build /Claude",
+    "build:pages": "EXPO_PUBLIC_BUILD_ID=$(date -u +%Y%m%d-%H%M) EXPO_BASE_URL=/Claude expo export --platform web --output-dir web-build && node scripts/make-pwa.js web-build /Claude",
     "preview:web": "npx serve web-build",
     "test": "node tests/crypto-and-merge.test.mjs && node tests/vault.test.mjs && node tests/error-report.test.mjs && node tests/sync-config.test.mjs"
   },
