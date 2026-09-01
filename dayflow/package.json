@@ -15,7 +15,7 @@
     "doctor": "expo-doctor",
     "build:pages": "EXPO_BASE_URL=/Claude expo export --platform web --output-dir web-build && node scripts/make-pwa.js web-build /Claude",
     "preview:web": "npx serve web-build",
-    "test": "node tests/crypto-and-merge.test.mjs && node tests/vault.test.mjs"
+    "test": "node tests/crypto-and-merge.test.mjs && node tests/vault.test.mjs && node tests/error-report.test.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",

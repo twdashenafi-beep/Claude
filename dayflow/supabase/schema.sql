@@ -118,3 +118,12 @@ $$;
 revoke all on function delete_own_account() from public;
 revoke all on function delete_own_account() from anon;
 grant execute on function delete_own_account() to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Realtime.
+--
+-- Devices subscribe to changes on tasks rather than polling. Row Level Security
+-- still applies to the stream, so a subscriber only ever receives their own
+-- rows — and those rows are ciphertext, so the notification carries nothing
+-- readable either way. It is only a signal to go and merge.
+alter publication supabase_realtime add table tasks;

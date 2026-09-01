@@ -51,3 +51,33 @@ export async function pushTasks(rows) {
 }
 
 export { mergeTasks } from './merge';
+
+// Watch for changes written by your other devices.
+//
+// Polling every minute meant an edit on the iPad could sit unseen for most of a
+// minute, and cost a request per device per minute whether or not anything had
+// changed. A Realtime subscription costs one connection and delivers in about a
+// second.
+//
+// The callback is deliberately given no payload. Rows arrive as ciphertext the
+// subscription cannot read, and acting on a single row would bypass the merge
+// rules — so a change simply means "something moved, go and merge properly".
+//
+// Returns an unsubscribe function, and null when Realtime is unavailable so the
+// caller knows to keep polling instead.
+export function watchTasks(onChange) {
+  if (!supabase) return null;
+
+  let active = true;
+  const channel = supabase
+    .channel('dayflow-tasks')
+    .on('postgres_changes', { event: '*', schema: 'public', table: TABLE }, () => {
+      if (active) onChange();
+    })
+    .subscribe();
+
+  return () => {
+    active = false;
+    supabase.removeChannel(channel);
+  };
+}
