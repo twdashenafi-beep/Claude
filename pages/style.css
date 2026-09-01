@@ -1,0 +1,43 @@
+/* Shared styling for the DayFlow legal and support pages. Deliberately plain:
+   these are documents, and they read like the app's own sheet. */
+:root {
+  --ink: #1a1a18; --soft: #57534b; --faint: #96907f;
+  --sheet: #fff; --desk: #e9e6df; --rule: #e6e2d8; --pencil: #211f1b;
+  --accent: #7a1f1f;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--desk); color: var(--ink);
+  font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+main {
+  max-width: 720px; margin: 0 auto; min-height: 100vh; background: var(--sheet);
+  padding: 42px 44px 72px; border-left: 1px solid var(--rule); border-right: 1px solid var(--rule);
+}
+.wordmark {
+  font-family: Georgia, "Times New Roman", serif; font-size: 12.5px;
+  letter-spacing: 3px; text-transform: uppercase; color: var(--soft);
+}
+h1 { font-family: Georgia, serif; font-size: 27px; margin: 12px 0 4px; font-weight: 600; }
+.updated { color: var(--faint); font-size: 13px; margin: 0 0 14px; }
+hr { border: 0; border-top: 1px solid var(--pencil); margin: 0 0 26px; }
+h2 {
+  font-size: 11px; letter-spacing: 1.6px; text-transform: uppercase;
+  color: var(--soft); margin: 34px 0 10px; font-weight: 700;
+}
+p, li { color: #2b2924; }
+a { color: var(--accent); }
+strong { font-weight: 600; }
+.lede {
+  font-family: Georgia, serif; font-style: italic; font-size: 17px;
+  line-height: 1.6; color: var(--soft); margin-bottom: 4px;
+}
+table { border-collapse: collapse; width: 100%; margin: 6px 0 4px; }
+th, td { text-align: left; padding: 9px 10px 9px 0; border-bottom: 1px solid var(--rule); font-size: 15px; }
+th { font-size: 11px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--soft); }
+footer {
+  margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--rule);
+  font-size: 13px; color: var(--faint);
+}
+footer a { margin-right: 16px; }
+@media (max-width: 600px) { main { padding: 30px 20px 56px; } }

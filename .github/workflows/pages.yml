@@ -1,5 +1,8 @@
 # Publishes to GitHub Pages:
 #   /                DayFlow, built from source as an installable web app
+#   /privacy.html    privacy policy   (required App Store metadata)
+#   /support.html    support page     (required App Store metadata)
+#   /terms.html      terms of use
 #   /world-monitor/  the static dashboard from the repo root
 #
 # One-time setup: repo Settings -> Pages -> Source: "GitHub Actions".
@@ -57,6 +60,9 @@ jobs:
           mkdir -p _site/world-monitor
           cp -r dayflow/web-build/. _site/
           cp index.html _site/world-monitor/index.html
+          # Privacy, support and terms. App Store Connect requires reachable
+          # public URLs for the first two before a submission is accepted.
+          cp pages/*.html pages/*.css _site/
           # Pages runs the output through Jekyll otherwise, which strips
           # directories beginning with an underscore — including _expo.
           touch _site/.nojekyll

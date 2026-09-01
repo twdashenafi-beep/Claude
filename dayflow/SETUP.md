@@ -278,9 +278,18 @@ attestation about US export rules, not a technical setting, so it is left unset
 deliberately — read Apple's export-compliance questions and answer them
 yourself rather than inheriting an answer from this file.
 
-**Privacy policy and support URLs** — both required App Store metadata, and
-neither exists yet. They must be reachable public pages; the Pages site can host
-them.
+**Privacy policy and support URLs — done.** Published alongside the app and
+deployed by the same workflow:
+
+| Page | URL |
+|---|---|
+| Privacy policy | `https://twdashenafi-beep.github.io/Claude/privacy.html` |
+| Support | `https://twdashenafi-beep.github.io/Claude/support.html` |
+| Terms of use | `https://twdashenafi-beep.github.io/Claude/terms.html` |
+
+Paste the first two into App Store Connect. They are written from how the app
+actually behaves, not from a template — but they are a starting point, not legal
+advice. Have someone qualified read them before you take money.
 
 **Privacy nutrition labels** — declared in App Store Connect. DayFlow collects
 an email address for authentication, and nothing else: task content is
