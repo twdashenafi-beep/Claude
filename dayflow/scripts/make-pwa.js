@@ -175,7 +175,28 @@ html = html.replace(
   `  <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('${base}sw.js', { scope: '${base}' }).catch(function () {});
+        // Whether a worker was already in charge decides what a handover means
+        // below, and registering is what changes it — so read it first.
+        var hadController = !!navigator.serviceWorker.controller;
+
+        // updateViaCache 'none' keeps the browser's HTTP cache away from sw.js
+        // itself; without it a stale worker can be re-validated as fresh and
+        // outlive every deploy. update() then asks now rather than waiting for
+        // the browser's own check, which on iOS can be a day away.
+        navigator.serviceWorker
+          .register('${base}sw.js', { scope: '${base}', updateViaCache: 'none' })
+          .then(function (reg) { reg.update().catch(function () {}); })
+          .catch(function () {});
+
+        // A worker that skipped waiting takes control mid-session, leaving this
+        // page running the build before it. Reload once, and only when there
+        // was a previous worker — on a first install there is nothing stale.
+        var reloaded = false;
+        navigator.serviceWorker.addEventListener('controllerchange', function () {
+          if (reloaded || !hadController) return;
+          reloaded = true;
+          window.location.reload();
+        });
       });
     }
   </script>
