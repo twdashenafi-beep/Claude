@@ -19,6 +19,7 @@ AI-powered task manager with end-to-end encryption. Built with React Native (Exp
 - **Owe Me** — A follow-up column for what other people owe *you*: the task, who you are waiting on, and when to chase it
 - **Reminders** — Local notifications at the due time, with early-reminder options
 - **Persistent Storage** — Tasks survive restarts via encrypted AsyncStorage
+- **Encrypted Sync** — Sign in on each device and they share the same tasks. The server stores only ciphertext; the key is derived from your password and never leaves the device
 - **Multi-Platform** — iPhone, iPad, Mac (Electron), and Web
 
 ## Quick Start
@@ -52,7 +53,7 @@ Full instructions, including the one-time GitHub Pages switch, are in
 
 - **Framework:** React Native + Expo SDK 55
 - **Encryption:** CryptoJS (AES-256, PBKDF2 key derivation)
-- **Storage:** AsyncStorage (local), Supabase (optional cloud)
+- **Storage:** AsyncStorage (local), Supabase (optional encrypted sync)
 - **Notifications:** expo-notifications
 - **Audio:** expo-av
 - **NLP:** Custom natural language parser
@@ -90,7 +91,11 @@ dayflow/
 │   ├── screens/
 │   │   └── TodoScreen.js           # Main screen (To Do + Owe Me tabs)
 │   ├── services/
+│   │   ├── account.js              # Sign in / sign up (sends only an auth hash)
 │   │   ├── ai.js                   # Claude client (talks to api-server.js)
+│   │   ├── crypto.js               # Key derivation: auth hash vs encryption key
+│   │   ├── merge.js                # Conflict policy (pure, tested)
+│   │   ├── sync.js                 # Push/pull ciphertext rows
 │   │   ├── calendar.js             # Device calendar sync
 │   │   ├── encryption.js           # AES-256 encryption service
 │   │   ├── nlParser.js             # Natural language parser

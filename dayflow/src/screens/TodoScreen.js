@@ -17,6 +17,16 @@ import { format, startOfWeek } from 'date-fns';
 
 const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
 
+// Sync is background work; it earns one quiet word in the tally line, and says
+// nothing at all when there is nothing to report.
+const SYNC_LABEL = {
+  syncing: 'syncing…',
+  error: 'sync failed — will retry',
+  off: '',
+  ok: '',
+  idle: '',
+};
+
 // One of the two columns. Both are always on the page — the whole point of the
 // layout is seeing what you owe and what you are owed side by side.
 function Column({
@@ -86,8 +96,8 @@ function Column({
   );
 }
 
-export default function TodoScreen() {
-  const { tasks, addTask, toggleTask, deleteTask, updateTask } = useTasks();
+export default function TodoScreen({ account, onLock }) {
+  const { tasks, addTask, toggleTask, deleteTask, updateTask, syncState } = useTasks();
   const { width } = useWindowDimensions();
 
   const [viewMode, setViewMode] = useState(VIEW_MODES.DAY);
@@ -153,16 +163,27 @@ export default function TodoScreen() {
           {/* Masthead */}
           <View style={s.mastheadRow}>
             <Text style={s.wordmark}>DayFlow</Text>
-            <TouchableOpacity
-              onPress={() => setShowBriefing(true)}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            >
-              <Text style={s.briefing}>Briefing</Text>
-            </TouchableOpacity>
+            <View style={s.mastheadActions}>
+              <TouchableOpacity
+                onPress={() => setShowBriefing(true)}
+                hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+              >
+                <Text style={s.briefing}>Briefing</Text>
+              </TouchableOpacity>
+              {onLock ? (
+                <TouchableOpacity
+                  onPress={onLock}
+                  hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+                >
+                  <Text style={s.lock}>Lock</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
           </View>
           <Text style={s.date}>{dateLabel}</Text>
           <Text style={s.tally}>
             {inView.length === 0 ? 'Nothing on the page yet' : `${doneCount} of ${inView.length} done`}
+            {SYNC_LABEL[syncState] ? `  ·  ${SYNC_LABEL[syncState]}` : ''}
           </Text>
 
           <ViewToggle activeView={viewMode} onChangeView={setViewMode} />
@@ -291,6 +312,11 @@ const s = StyleSheet.create({
   },
 
   mastheadRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
+  mastheadActions: { flexDirection: 'row', gap: 16 },
+  lock: {
+    fontFamily: SANS, fontSize: 11.5, letterSpacing: 0.6,
+    textTransform: 'uppercase', color: COLORS.inkSoft, fontWeight: '600',
+  },
   wordmark: {
     fontFamily: SERIF, fontSize: 12.5, letterSpacing: 3,
     textTransform: 'uppercase', color: COLORS.inkSoft,

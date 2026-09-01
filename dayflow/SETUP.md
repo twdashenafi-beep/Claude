@@ -184,21 +184,66 @@ Expo dev server after changing `EXPO_PUBLIC_*` — those are baked in at bundle
 time. Beyond local use, deploy the API server somewhere private and point
 `EXPO_PUBLIC_API_URL` at it; the deployed web app cannot reach your localhost.
 
-### Supabase cloud sync
+### Encrypted sync across your devices
 
-1. Create a project at supabase.com.
-2. Run `supabase/schema.sql` in the SQL Editor — it creates the table, indexes,
-   RLS policies and the `updated_at` trigger.
-3. Set `EXPO_PUBLIC_SUPABASE_URL` / `_ANON_KEY` for the client and
-   `SUPABASE_URL` / `SUPABASE_ANON_KEY` for the API server.
+Sync is end-to-end encrypted. The server stores one row per task holding a
+ciphertext blob, a timestamp and a deleted flag — no title, no priority, no due
+date, no names. Neither Supabase nor anyone with a database dump can read it.
 
-RLS scopes every row to `auth.uid()`, so requests must be authenticated as a
-Supabase user. Task content is encrypted on-device first — Supabase only ever
-stores ciphertext.
+**How the keys work.** One password, derived twice, with your email as the salt:
+
+```
+masterKey     = PBKDF2-SHA256(password, email, 210,000 iterations)
+authHash      = PBKDF2(masterKey, password, 1)   -> sent to Supabase as the password
+encryptionKey = PBKDF2(masterKey, "dayflow-encryption-v1", 1)   -> never leaves the device
+```
+
+Supabase only ever sees `authHash`, which is a one-way function of the master
+key, so it cannot derive the key that decrypts your tasks. And because the salt
+is your email rather than a per-device random value, every device that signs in
+with the same email and password arrives at the same key — which is exactly
+what makes the tasks readable on all three.
+
+**Set it up once:**
+
+1. Create a free project at [supabase.com](https://supabase.com).
+2. Open **SQL Editor → New Query**, paste `supabase/schema.sql`, and run it.
+3. Copy **Project URL** and the **anon public** key from **Settings → API**.
+4. Put them in `.env`:
+
+   ```bash
+   EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+   EXPO_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+   ```
+
+5. For the deployed web app, add the same two as **repository secrets**
+   (Settings → Secrets and variables → Actions) and the deploy workflow passes
+   them into the build.
+
+**Then, on each device:** open the app, create the account once, and sign in on
+the other two with the same email and password. Tasks sync within a minute, and
+on every launch.
+
+**Two settings worth changing in Supabase**, since the anon key ships in a
+public web bundle:
+
+- **Authentication → Providers → Email**: turn off **Enable sign-ups** once your
+  own account exists, so nobody else can register against your project.
+- Leave **Confirm email** on. The first sign-up then needs a link clicked before
+  it can be used.
+
+**What happens if you forget the password:** the data is unrecoverable. There is
+no reset, because there is nothing on the server that could perform one. That is
+the cost of end-to-end encryption, and it is the point of it.
+
+**Conflicts.** If you edit the same task on two devices before they sync, the
+later edit wins. Deletes are kept as tombstones so a device that was offline
+during a delete does not bring the task back.
 
 ## 7. Security checklist
 
-- [ ] Master password set (encrypts all task data)
+- [ ] Master password set (encrypts all task data; unrecoverable if lost)
+- [ ] Supabase sign-ups disabled once your account exists
 - [ ] `.env` not committed — it is in `.gitignore`
 - [ ] No secret behind an `EXPO_PUBLIC_*` name (those are public)
 - [ ] `ANTHROPIC_API_KEY` only ever on the server
