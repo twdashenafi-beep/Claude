@@ -1,0 +1,65 @@
+{
+  "expo": {
+    "name": "DayFlow",
+    "slug": "dayflow",
+    "version": "1.0.0",
+    "orientation": "default",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.tewodros.dayflow",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSCalendarsUsageDescription": "DayFlow needs calendar access to sync your tasks.",
+        "NSCalendarsFullAccessUsageDescription": "DayFlow needs full calendar access to read and write events.",
+        "NSMicrophoneUsageDescription": "DayFlow needs microphone access for voice notes and voice commands.",
+        "NSSpeechRecognitionUsageDescription": "DayFlow uses speech recognition for voice task input.",
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
+      },
+      "requireFullScreen": false
+    },
+    "android": {
+      "package": "com.tewodros.dayflow",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#ffffff",
+        "foregroundImage": "./assets/adaptive-icon.png"
+      },
+      "permissions": [
+        "READ_CALENDAR",
+        "WRITE_CALENDAR",
+        "RECORD_AUDIO",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-calendar",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#007AFF"
+        }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "DayFlow needs microphone access for voice notes."
+        }
+      ]
+    ]
+  }
+}
