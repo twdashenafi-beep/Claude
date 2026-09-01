@@ -126,4 +126,20 @@ grant execute on function delete_own_account() to authenticated;
 -- still applies to the stream, so a subscriber only ever receives their own
 -- rows — and those rows are ciphertext, so the notification carries nothing
 -- readable either way. It is only a signal to go and merge.
-alter publication supabase_realtime add table tasks;
+--
+-- Guarded, because adding a table to a publication twice is an error rather
+-- than a no-op, and the SQL editor runs this file as one transaction — so an
+-- unguarded line here would roll back the whole script on a re-run, making a
+-- second run look like it had done nothing.
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'tasks'
+  ) then
+    alter publication supabase_realtime add table tasks;
+  end if;
+end
+$$;
