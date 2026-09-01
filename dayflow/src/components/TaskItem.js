@@ -3,27 +3,27 @@ import {
   View, Text, TouchableOpacity, StyleSheet, Animated, PanResponder,
 } from 'react-native';
 import { VoicePlayButton } from './VoiceRecorder';
+import { COLORS, SANS, SERIF, currencySymbol } from '../utils/theme';
 
+// One ruled line on the sheet: a checkbox, the task, and whatever the task
+// carries on its right edge. No card, no background — the row is defined by
+// the hairline beneath it, the way a line on paper is.
 export default function TaskItem({ task, onToggle, onDelete, onPress, onLongPress }) {
   const translateX = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(0.97)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
   const lastTap = useRef(0);
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(opacityAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
-      Animated.spring(scaleAnim, { toValue: 1, friction: 10, tension: 80, useNativeDriver: true }),
-    ]).start();
+    Animated.timing(opacityAnim, { toValue: 1, duration: 160, useNativeDriver: true }).start();
   }, []);
 
   const panResponder = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: (_, gs) => Math.abs(gs.dx) > 20,
+      onMoveShouldSetPanResponder: (_, gs) => Math.abs(gs.dx) > 20 && Math.abs(gs.dx) > Math.abs(gs.dy),
       onPanResponderMove: (_, gs) => { if (gs.dx < 0) translateX.setValue(gs.dx); },
       onPanResponderRelease: (_, gs) => {
         if (gs.dx < -100) {
-          Animated.timing(translateX, { toValue: -400, duration: 180, useNativeDriver: true })
+          Animated.timing(translateX, { toValue: -500, duration: 160, useNativeDriver: true })
             .start(() => onDelete(task.id));
         } else {
           Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
@@ -35,11 +35,6 @@ export default function TaskItem({ task, onToggle, onDelete, onPress, onLongPres
   const handleTap = () => {
     const now = Date.now();
     if (now - lastTap.current < 300) {
-      // Double tap = complete
-      Animated.sequence([
-        Animated.timing(scaleAnim, { toValue: 0.94, duration: 60, useNativeDriver: true }),
-        Animated.spring(scaleAnim, { toValue: 1, friction: 5, useNativeDriver: true }),
-      ]).start();
       onToggle(task.id);
       lastTap.current = 0;
     } else {
@@ -51,29 +46,21 @@ export default function TaskItem({ task, onToggle, onDelete, onPress, onLongPres
   };
 
   const done = task.completed;
+  const amount = task.oweAmount
+    ? `${currencySymbol(task.oweCurrency)}${task.oweAmount}`
+    : null;
 
   return (
-    <Animated.View style={{ opacity: opacityAnim, transform: [{ scale: scaleAnim }] }}>
-      <Animated.View
-        style={[st.row, { transform: [{ translateX }] }]}
-        {...panResponder.panHandlers}
-      >
+    <Animated.View style={{ opacity: opacityAnim }}>
+      <Animated.View style={[st.row, { transform: [{ translateX }] }]} {...panResponder.panHandlers}>
         <TouchableOpacity
           style={[st.check, done && st.checkDone]}
-          onPress={() => {
-            Animated.sequence([
-              Animated.timing(scaleAnim, { toValue: 0.94, duration: 60, useNativeDriver: true }),
-              Animated.spring(scaleAnim, { toValue: 1, friction: 5, useNativeDriver: true }),
-            ]).start();
-            onToggle(task.id);
-          }}
-          activeOpacity={0.5}
+          onPress={() => onToggle(task.id)}
+          activeOpacity={0.6}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         >
-          {done && <Text style={st.checkIcon}>✓</Text>}
+          {done && <Text style={st.checkMark}>✓</Text>}
         </TouchableOpacity>
-
-        {!done && task.priority === 'high' && <Text style={st.prio}>!</Text>}
 
         <TouchableOpacity
           style={st.body}
@@ -82,14 +69,28 @@ export default function TaskItem({ task, onToggle, onDelete, onPress, onLongPres
           delayLongPress={400}
           activeOpacity={0.6}
         >
-          <Text style={[st.title, done && st.titleDone]} numberOfLines={1}>{task.title}</Text>
-          {task.oweAmount ? (
-            <Text style={st.sub}>{task.oweCurrency === 'ETB' ? 'Br' : task.oweCurrency === 'GBP' ? '£' : task.oweCurrency === 'EUR' ? '€' : '$'}{task.oweAmount}</Text>
+          <View style={st.titleRow}>
+            {!done && task.priority === 'high' && <Text style={st.priority}>!</Text>}
+            <Text style={[st.title, done && st.titleDone]} numberOfLines={1}>
+              {task.title}
+            </Text>
+          </View>
+          {task.owePerson ? (
+            <Text style={[st.person, done && st.personDone]} numberOfLines={1}>
+              {task.owePerson}
+            </Text>
           ) : null}
         </TouchableOpacity>
 
-        {task.voiceNoteUri && <VoicePlayButton uri={task.voiceNoteUri} />}
-        {!done && task.reminderEnabled && task.dueTime && <Text style={st.bell}>🔔</Text>}
+        <View style={st.right}>
+          {task.voiceNoteUri ? <VoicePlayButton uri={task.voiceNoteUri} /> : null}
+          {!done && task.reminderEnabled && task.dueTime ? (
+            <Text style={st.time}>{task.dueTime}</Text>
+          ) : null}
+          {amount ? (
+            <Text style={[st.amount, done && st.amountDone]}>{amount}</Text>
+          ) : null}
+        </View>
       </Animated.View>
     </Animated.View>
   );
@@ -99,21 +100,37 @@ const st = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    backgroundColor: '#FFF',
-    minHeight: 52,
+    paddingVertical: 11,
+    minHeight: 44,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.rule,
+    backgroundColor: COLORS.sheet,
   },
   check: {
-    width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: '#D1D1D6',
-    justifyContent: 'center', alignItems: 'center', marginRight: 14,
+    width: 17, height: 17, borderRadius: 2,
+    borderWidth: 1, borderColor: '#B8B2A4',
+    justifyContent: 'center', alignItems: 'center',
+    marginRight: 14,
   },
-  checkDone: { backgroundColor: '#007AFF', borderColor: '#007AFF' },
-  checkIcon: { fontSize: 13, color: '#FFF', fontWeight: '700', marginTop: -1 },
-  prio: { fontSize: 17, fontWeight: '800', color: '#FF3B30', marginRight: 8 },
-  body: { flex: 1 },
-  title: { fontSize: 17, fontWeight: '400', color: '#000', letterSpacing: -0.2 },
-  titleDone: { textDecorationLine: 'line-through', color: '#C7C7CC' },
-  sub: { fontSize: 13, color: '#8E8E93', marginTop: 2 },
-  bell: { fontSize: 12, marginLeft: 8, opacity: 0.6 },
+  checkDone: { backgroundColor: COLORS.check, borderColor: COLORS.check },
+  checkMark: { fontSize: 11, color: COLORS.sheet, fontWeight: '700', marginTop: -1 },
+
+  body: { flex: 1, paddingRight: 10 },
+  titleRow: { flexDirection: 'row', alignItems: 'baseline' },
+  priority: {
+    fontFamily: SERIF, fontSize: 15, fontWeight: '700',
+    color: COLORS.accent, marginRight: 6,
+  },
+  title: { flex: 1, fontFamily: SANS, fontSize: 15.5, color: COLORS.ink, letterSpacing: -0.1 },
+  titleDone: { color: COLORS.done, textDecorationLine: 'line-through' },
+  person: { fontFamily: SANS, fontSize: 12, color: COLORS.inkFaint, marginTop: 2 },
+  personDone: { color: COLORS.done },
+
+  right: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  time: { fontFamily: SANS, fontSize: 12, color: COLORS.inkFaint, fontVariant: ['tabular-nums'] },
+  amount: {
+    fontFamily: SERIF, fontSize: 14.5, color: COLORS.accent,
+    fontVariant: ['tabular-nums'],
+  },
+  amountDone: { color: COLORS.done, textDecorationLine: 'line-through' },
 });

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Animated, Platform } from 'react-native';
 import { parseNaturalLanguage } from '../services/nlParser';
+import { COLORS, SANS, SERIF } from '../utils/theme';
 
 const SpeechRecognition =
   Platform.OS === 'web' && typeof window !== 'undefined'
@@ -105,11 +106,11 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo' }) {
   return (
     <View style={st.wrap}>
       <View style={[st.bar, listening && st.barActive]}>
-        <Text style={st.sparkle}>✦</Text>
+        <Text style={st.pen}>✎</Text>
         <TextInput
           style={st.input}
-          placeholder={listening ? 'Listening...' : 'Add a task...'}
-          placeholderTextColor={listening ? '#FF3B30' : '#C7C7CC'}
+          placeholder={listening ? 'Listening…' : 'Write a line…'}
+          placeholderTextColor={listening ? COLORS.accent : COLORS.inkFaint}
           value={text}
           onChangeText={handleChange}
           onSubmitEditing={() => doSubmit()}
@@ -142,9 +143,9 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo' }) {
       {preview && !listening && !processing && text.trim().length > 2 && (
         <View style={st.previewRow}>
           <Text style={st.previewText} numberOfLines={1}>{preview.title}</Text>
-          {preview.hasDate && <Text style={st.tag}>📅 {preview.viewScope}</Text>}
-          {preview.hasTime && <Text style={st.tag}>🕐 {preview.dueTime}</Text>}
-          {preview.priority === 'high' && <Text style={[st.tag, { color: '#FF3B30' }]}>! High</Text>}
+          {preview.hasDate && <Text style={st.tag}>{preview.viewScope}</Text>}
+          {preview.hasTime && <Text style={st.tag}>{preview.dueTime}</Text>}
+          {preview.priority === 'high' && <Text style={[st.tag, { color: COLORS.accent, fontWeight: '700' }]}>High</Text>}
         </View>
       )}
 
@@ -154,30 +155,35 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo' }) {
 }
 
 const st = StyleSheet.create({
-  wrap: { paddingHorizontal: 20, paddingTop: 6, paddingBottom: 2 },
+  wrap: { paddingTop: 14, paddingBottom: 2 },
   bar: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#F5F5F7', borderRadius: 12, paddingHorizontal: 12, gap: 8,
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    borderBottomWidth: 1, borderBottomColor: COLORS.rule,
+    paddingBottom: 7,
   },
-  barActive: { backgroundColor: '#FFF0F0', borderWidth: 1.5, borderColor: '#FF3B30' },
-  sparkle: { fontSize: 14, color: '#007AFF', opacity: 0.5 },
-  input: { flex: 1, fontSize: 15, color: '#000', paddingVertical: 10 },
+  barActive: { borderBottomColor: COLORS.accent },
+  pen: { fontSize: 14, color: COLORS.inkFaint },
+  input: {
+    flex: 1, fontFamily: SANS, fontSize: 15.5, color: COLORS.ink,
+    paddingVertical: 4, outlineStyle: 'none',
+  },
   send: {
-    width: 26, height: 26, borderRadius: 13, backgroundColor: '#007AFF',
+    width: 24, height: 24, borderRadius: 12, backgroundColor: COLORS.ink,
     justifyContent: 'center', alignItems: 'center',
   },
-  sendIcon: { fontSize: 14, color: '#FFF', fontWeight: '700', marginTop: -1 },
+  sendIcon: { fontSize: 13, color: COLORS.sheet, fontWeight: '700', marginTop: -1 },
   mic: {
-    width: 36, height: 36, borderRadius: 18, backgroundColor: '#E8E8ED',
+    width: 30, height: 30, borderRadius: 15,
     justifyContent: 'center', alignItems: 'center',
+    marginRight: -4,
   },
-  micActive: { backgroundColor: '#FF3B30' },
-  micIcon: { fontSize: 17 },
-  listenRow: { flexDirection: 'row', alignItems: 'center', paddingTop: 5, paddingLeft: 4, gap: 6 },
-  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#FF3B30' },
-  listenText: { fontSize: 12, color: '#FF3B30', fontWeight: '500' },
-  previewRow: { flexDirection: 'row', alignItems: 'center', paddingTop: 4, paddingLeft: 4, gap: 6 },
-  previewText: { fontSize: 12, color: '#8E8E93', flex: 1 },
-  tag: { fontSize: 11, color: '#007AFF', fontWeight: '500' },
-  creating: { fontSize: 12, color: '#007AFF', paddingTop: 4, paddingLeft: 4 },
+  micActive: { backgroundColor: COLORS.accent },
+  micIcon: { fontSize: 16, lineHeight: 20 },
+  listenRow: { flexDirection: 'row', alignItems: 'center', paddingTop: 6, gap: 6 },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.accent },
+  listenText: { fontFamily: SANS, fontSize: 11.5, color: COLORS.accent },
+  previewRow: { flexDirection: 'row', alignItems: 'center', paddingTop: 6, gap: 10 },
+  previewText: { fontFamily: SERIF, fontSize: 12.5, fontStyle: 'italic', color: COLORS.inkFaint, flex: 1 },
+  tag: { fontFamily: SANS, fontSize: 10.5, letterSpacing: 0.6, color: COLORS.inkSoft, textTransform: 'uppercase' },
+  creating: { fontFamily: SANS, fontSize: 11.5, color: COLORS.inkFaint, paddingTop: 6 },
 });
