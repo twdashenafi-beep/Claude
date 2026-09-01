@@ -43,6 +43,24 @@ jobs:
         working-directory: dayflow
         run: npm ci
 
+      # Without this the only place the omission shows up is a grey line at the
+      # bottom of the app, on a phone, after a deploy. Secrets are never echoed —
+      # only whether they arrived.
+      - name: Check Supabase configuration
+        run: |
+          url_state=$([ -n "$EXPO_PUBLIC_SUPABASE_URL" ] && echo present || echo MISSING)
+          key_state=$([ -n "$EXPO_PUBLIC_SUPABASE_ANON_KEY" ] && echo present || echo MISSING)
+          echo "EXPO_PUBLIC_SUPABASE_URL:      $url_state"
+          echo "EXPO_PUBLIC_SUPABASE_ANON_KEY: $key_state"
+          if [ "$url_state" = "MISSING" ] || [ "$key_state" = "MISSING" ]; then
+            echo "::warning title=Cloud sync disabled::Supabase repository secrets are missing, so this build is local-only and devices will not sync. Add them under Settings > Secrets and variables > Actions, then re-run."
+          else
+            echo "Cloud sync will be enabled in this build."
+          fi
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+
       - name: Build DayFlow web app
         working-directory: dayflow
         # Pages serves this repo under /Claude/, so the bundle needs that base.
