@@ -184,6 +184,30 @@ Expo dev server after changing `EXPO_PUBLIC_*` — those are baked in at bundle
 time. Beyond local use, deploy the API server somewhere private and point
 `EXPO_PUBLIC_API_URL` at it; the deployed web app cannot reach your localhost.
 
+#### Cost, and the limits that bound it
+
+These endpoints spend **your** money, not the caller's, and the app bundle is
+public — so the routes are discoverable by anyone who looks. Three limits apply:
+
+| Limit | Default | Override |
+|---|---|---|
+| Requests per caller per hour | 30 | `AI_RATE_LIMIT` |
+| Requests per day, all callers | 2000 | `AI_DAILY_CEILING` |
+| Tasks accepted per request | 60 | fixed |
+
+Request bodies are capped at 256 KB, task titles at 500 characters, and the
+counters are visible at `/health`. Over the per-caller limit the server answers
+429 with `Retry-After`; over the daily ceiling, 503.
+
+The counters live in memory, so they reset on restart and are per-process. Behind
+more than one instance they want moving to Redis or the database, or each
+instance will happily grant the full quota.
+
+Sizing the ceiling is arithmetic you should do before shipping: multiply your
+expected daily requests by the per-request cost of the model in `api-server.js`
+and decide what you are willing to lose in a bad week. If DayFlow ever charges
+users, the AI features are the line item that scales with usage.
+
 ### Encrypted sync across your devices
 
 Sync is end-to-end encrypted. The server stores one row per task holding a
@@ -246,6 +270,14 @@ Keep the code somewhere real: a password manager, or paper. It is shown once,
 because the vault stores only a value derived from it. Lose both the password
 and the code and the data is genuinely gone — there is nothing on any server
 capable of recovering it, which is the point of end-to-end encryption.
+
+**How sync is triggered.** Devices subscribe to Realtime changes on the `tasks`
+table, so an edit on one appears on the others in about a second. A five-minute
+poll runs behind it as a backstop for a dropped socket or a sleeping device, and
+if Realtime is unavailable the app falls back to polling once a minute. The
+schema enables this with `alter publication supabase_realtime add table tasks` —
+RLS still applies to the stream, and the rows are ciphertext, so a notification
+carries nothing readable. It is only a signal to go and merge.
 
 **Conflicts.** If you edit the same task on two devices before they sync, the
 later edit wins. Deletes are kept as tombstones so a device that was offline

@@ -5,11 +5,17 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { scheduleTaskNotifications, cancelTaskNotifications } from '../services/notifications';
 import { createTaskEncryptor, decryptTask } from '../services/encryption';
 import { newId } from '../utils/id';
-import { pullTasks, pushTasks, mergeTasks } from '../services/sync';
+import { pullTasks, pushTasks, mergeTasks, watchTasks } from '../services/sync';
 
 const TaskContext = createContext();
 const STORAGE_KEY = '@dayflow_vault_v2';
-const SYNC_INTERVAL_MS = 60000;
+// A backstop, not the mechanism. Realtime delivers changes in about a second;
+// this only covers a dropped socket or a device that was asleep.
+const SYNC_BACKSTOP_MS = 300000;
+
+// Realtime fires once per row, so a device saving twenty tasks would otherwise
+// trigger twenty merges. Coalesce them.
+const SYNC_DEBOUNCE_MS = 800;
 
 // Every mutation stamps updatedAt. Merging across devices has nothing else to
 // go on — the server cannot read the task — so the timestamp is what decides
@@ -119,10 +125,26 @@ export function TaskProvider({ children, encryptionKey, synced }) {
   }, [synced, loaded, encryptionKey, encryptAll]);
 
   useEffect(() => {
-    if (!synced || !loaded) return;
+    if (!synced || !loaded) return undefined;
+
     syncNow();
-    const handle = setInterval(syncNow, SYNC_INTERVAL_MS);
-    return () => clearInterval(handle);
+
+    let debounce = null;
+    const nudge = () => {
+      clearTimeout(debounce);
+      debounce = setTimeout(syncNow, SYNC_DEBOUNCE_MS);
+    };
+
+    const unwatch = watchTasks(nudge);
+    // Without Realtime there is nothing pushing changes, so fall back to the
+    // old cadence rather than syncing only on launch.
+    const backstop = setInterval(syncNow, unwatch ? SYNC_BACKSTOP_MS : 60000);
+
+    return () => {
+      clearTimeout(debounce);
+      clearInterval(backstop);
+      if (unwatch) unwatch();
+    };
   }, [synced, loaded, syncNow]);
 
   // ── Mutations ─────────────────────────────────────────────────────────────

@@ -20,13 +20,82 @@ const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || '';
 
 const MODEL = 'claude-opus-5';
 
+// Cost controls.
+//
+// The AI endpoints spend the operator's money, not the caller's, so an
+// unmetered /ai/summary is an open invitation to run up a bill — and the app
+// bundle is public, so anyone can find these routes. These are the crude but
+// effective limits: a per-caller quota, a global daily ceiling, and a cap on
+// how many tasks one request may carry.
+const RATE_WINDOW_MS = 60 * 60 * 1000;
+const RATE_MAX_PER_WINDOW = Number(process.env.AI_RATE_LIMIT) || 30;
+const DAILY_REQUEST_CEILING = Number(process.env.AI_DAILY_CEILING) || 2000;
+const MAX_TASKS_PER_REQUEST = 60;
+const MAX_TITLE_LENGTH = 500;
+
+// In-memory, so it resets on restart and does not survive across instances.
+// Adequate for one process; a real deployment behind several should move this
+// to Redis or the database.
+const callers = new Map();
+let dailyCount = 0;
+let dailyResetAt = Date.now() + 24 * 60 * 60 * 1000;
+
+function rateLimit(req, res, next) {
+  const now = Date.now();
+
+  if (now > dailyResetAt) {
+    dailyCount = 0;
+    dailyResetAt = now + 24 * 60 * 60 * 1000;
+  }
+  if (dailyCount >= DAILY_REQUEST_CEILING) {
+    return res.status(503).json({ error: 'Daily AI limit reached. Try again tomorrow.' });
+  }
+
+  // Prefer the authenticated user over the IP: behind a proxy every caller can
+  // share an address, and a bearer token is the closer thing to an identity.
+  const key = req.get('authorization') || req.ip || 'anonymous';
+  const seen = (callers.get(key) || []).filter(t => now - t < RATE_WINDOW_MS);
+
+  if (seen.length >= RATE_MAX_PER_WINDOW) {
+    const retryAfter = Math.ceil((RATE_WINDOW_MS - (now - seen[0])) / 1000);
+    res.set('Retry-After', String(retryAfter));
+    return res.status(429).json({ error: 'Too many AI requests. Try again later.', retryAfter });
+  }
+
+  seen.push(now);
+  callers.set(key, seen);
+  dailyCount += 1;
+
+  // Drop callers that have gone quiet, so the map cannot grow without bound.
+  if (callers.size > 5000) {
+    for (const [k, times] of callers) {
+      if (!times.some(t => now - t < RATE_WINDOW_MS)) callers.delete(k);
+    }
+  }
+
+  next();
+}
+
+// A caller could otherwise post ten thousand tasks and turn one request into a
+// very expensive one.
+function clampTasks(tasks) {
+  if (!Array.isArray(tasks)) return [];
+  return tasks.slice(0, MAX_TASKS_PER_REQUEST).map(t => ({
+    title: String(t?.title || '').slice(0, MAX_TITLE_LENGTH),
+    priority: ['high', 'medium', 'low'].includes(t?.priority) ? t.priority : 'medium',
+    completed: !!t?.completed,
+  }));
+}
+
 const supabase =
   SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 const anthropic = ANTHROPIC_API_KEY ? new Anthropic({ apiKey: ANTHROPIC_API_KEY }) : null;
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+// Bounded so a large body cannot be used to exhaust memory before any
+// handler sees it.
+app.use(express.json({ limit: '256kb' }));
 
 // ── Claude proxy ────────────────────────────────────────────────────────────
 
@@ -59,21 +128,23 @@ function requireAnthropic(req, res, next) {
 }
 
 function describeTasks(tasks) {
-  if (!Array.isArray(tasks) || tasks.length === 0) return '(no tasks)';
-  return tasks
-    .map(t => `- ${t.title} [${t.priority || 'medium'}] ${t.completed ? 'done' : 'open'}`)
+  const safe = clampTasks(tasks);
+  if (safe.length === 0) return '(no tasks)';
+  return safe
+    .map(t => `- ${t.title} [${t.priority}] ${t.completed ? 'done' : 'open'}`)
     .join('\n');
 }
 
-app.post('/ai/prioritize', requireAnthropic, async (req, res) => {
+app.post('/ai/prioritize', rateLimit, requireAnthropic, async (req, res) => {
   const { title, context } = req.body || {};
   if (!title || !title.trim()) {
     return res.status(400).json({ error: 'title is required' });
   }
+  const safeTitle = title.trim().slice(0, MAX_TITLE_LENGTH);
   try {
     const text = await askClaude(
       `Suggest a priority for a new task in a personal task manager.\n\n` +
-        `New task: "${title.trim()}"\n` +
+        `New task: "${safeTitle}"\n` +
         `Existing tasks:\n${describeTasks(context)}\n\n` +
         `Reply with exactly one word: high, medium, or low.`
     );
@@ -83,15 +154,16 @@ app.post('/ai/prioritize', requireAnthropic, async (req, res) => {
   }
 });
 
-app.post('/ai/steps', requireAnthropic, async (req, res) => {
+app.post('/ai/steps', rateLimit, requireAnthropic, async (req, res) => {
   const { title } = req.body || {};
   if (!title || !title.trim()) {
     return res.status(400).json({ error: 'title is required' });
   }
+  const safeTitle = title.trim().slice(0, MAX_TITLE_LENGTH);
   try {
     const text = await askClaude(
       `Break this task into 3-5 actionable sub-steps, one concise line each.\n\n` +
-        `Task: "${title.trim()}"\n\n` +
+        `Task: "${safeTitle}"\n\n` +
         `Reply with just the numbered steps, nothing else.`,
       { effort: 'low', maxTokens: 4096 }
     );
@@ -101,7 +173,7 @@ app.post('/ai/steps', requireAnthropic, async (req, res) => {
   }
 });
 
-app.post('/ai/summary', requireAnthropic, async (req, res) => {
+app.post('/ai/summary', rateLimit, requireAnthropic, async (req, res) => {
   const { tasks, period } = req.body || {};
   const window = period === 'week' ? 'weekly' : 'daily';
   try {
@@ -189,6 +261,8 @@ app.get('/health', (req, res) => {
     port: PORT,
     ai: !!anthropic,
     supabase: !!supabase,
+    aiRequestsToday: dailyCount,
+    aiDailyCeiling: DAILY_REQUEST_CEILING,
   });
 });
 
@@ -196,4 +270,7 @@ app.listen(PORT, () => {
   console.log(`DayFlow API running on http://localhost:${PORT}`);
   console.log(`  AI features:  ${anthropic ? 'enabled' : 'disabled (set ANTHROPIC_API_KEY)'}`);
   console.log(`  Supabase:     ${supabase ? 'enabled' : 'disabled (set SUPABASE_URL / SUPABASE_ANON_KEY)'}`);
+  if (anthropic) {
+    console.log(`  AI limits:    ${RATE_MAX_PER_WINDOW}/caller/hour, ${DAILY_REQUEST_CEILING}/day total`);
+  }
 });
