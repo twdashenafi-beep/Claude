@@ -3,12 +3,30 @@ import { StatusBar } from 'expo-status-bar';
 import { TaskProvider } from './src/context/TaskContext';
 import TodoScreen from './src/screens/TodoScreen';
 import UnlockScreen from './src/components/UnlockScreen';
+import SyncSetup from './src/components/SyncSetup';
 import ErrorBoundary, { recordError } from './src/components/ErrorBoundary';
 import { requestPermissions } from './src/services/notifications';
+import { initSync } from './src/services/supabase';
+import { markSyncSkipped, wasSyncSkipped } from './src/services/syncConfig';
 
 export default function App() {
   // The encryption key lives in memory only, so closing the app locks it.
   const [vault, setVault] = useState(null);
+
+  // Sync details are read from storage before anything can sign in, so nothing
+  // renders until that has settled — otherwise the unlock screen would briefly
+  // claim to be offline on a device that is in fact connected.
+  const [syncChecked, setSyncChecked] = useState(false);
+  const [needsSetup, setNeedsSetup] = useState(false);
+
+  useEffect(() => {
+    initSync()
+      .then(async configured => {
+        if (!configured) setNeedsSetup(!(await wasSyncSkipped()));
+      })
+      .catch(() => {})
+      .finally(() => setSyncChecked(true));
+  }, []);
 
   useEffect(() => {
     requestPermissions().catch(() => {});
@@ -24,8 +42,13 @@ export default function App() {
 
   return (
     <ErrorBoundary onReset={() => setVault(null)}>
-      {!vault ? (
-        <UnlockScreen onUnlock={setVault} />
+      {!syncChecked ? null : needsSetup ? (
+        <SyncSetup
+          onDone={() => setNeedsSetup(false)}
+          onSkip={() => { markSyncSkipped().catch(() => {}); setNeedsSetup(false); }}
+        />
+      ) : !vault ? (
+        <UnlockScreen onUnlock={setVault} onSetupSync={() => setNeedsSetup(true)} />
       ) : (
         <TaskProvider encryptionKey={vault.dataKey} synced={vault.synced}>
           <StatusBar style="dark" />

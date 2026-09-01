@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { getSupabase } from './supabase';
 
 // Sync engine.
 //
@@ -16,6 +16,7 @@ import { supabase } from './supabase';
 const TABLE = 'tasks';
 
 export async function pullTasks() {
+  const supabase = getSupabase();
   if (!supabase) return null;
 
   const { data, error } = await supabase
@@ -32,6 +33,7 @@ export async function pullTasks() {
 }
 
 export async function pushTasks(rows) {
+  const supabase = getSupabase();
   if (!supabase || rows.length === 0) return;
 
   const { data: userData } = await supabase.auth.getUser();
@@ -66,6 +68,7 @@ export { mergeTasks } from './merge';
 // Returns an unsubscribe function, and null when Realtime is unavailable so the
 // caller knows to keep polling instead.
 export function watchTasks(onChange) {
+  const supabase = getSupabase();
   if (!supabase) return null;
 
   let active = true;

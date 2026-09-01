@@ -43,9 +43,11 @@ jobs:
         working-directory: dayflow
         run: npm ci
 
-      # Without this the only place the omission shows up is a grey line at the
-      # bottom of the app, on a phone, after a deploy. Secrets are never echoed —
-      # only whether they arrived.
+      # Optional. Supplying these bakes the project details into the bundle so
+      # the app is connected on first launch; without them it asks for them on
+      # each device instead, which works just as well. Neither value is secret —
+      # the anon key is public by design — so they are here only for convenience
+      # and easy rotation. Secrets are never echoed, only whether they arrived.
       - name: Check Supabase configuration
         run: |
           state() { [ -n "$1" ] && echo present || echo MISSING; }
@@ -67,7 +69,7 @@ jobs:
           elif [ -n "$ALT_URL" ] || [ -n "$ALT_KEY" ] || [ -n "$ALT_KEY2" ]; then
             echo "::warning title=Secret names do not match::Something similar exists but the names must be exactly EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY."
           else
-            echo "::warning title=Cloud sync disabled::No Supabase secrets or variables reached this build, so it is local-only. Check they were added to this repository (Settings > Secrets and variables > Actions > Secrets tab), not to your account or an environment."
+            echo "No Supabase values in this build — the app will ask for them on first launch on each device. That is a supported setup, not an error."
           fi
         env:
           SEC_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
@@ -83,8 +85,9 @@ jobs:
         # Pages serves this repo under /Claude/, so the bundle needs that base.
         # The Supabase values are EXPO_PUBLIC_* and are inlined into the bundle
         # by design — the anon key is meant to be public, and Row Level Security
-        # plus client-side encryption are what actually protect the data. They
-        # come from repository secrets only so they are easy to rotate.
+        # plus client-side encryption are what actually protect the data. When
+        # absent the app asks for them per device, so an empty value here is a
+        # missing convenience rather than a broken build.
         run: npm run build:pages
         env:
           EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}

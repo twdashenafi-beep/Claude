@@ -233,20 +233,36 @@ what makes the tasks readable on all three.
 1. Create a free project at [supabase.com](https://supabase.com).
 2. Open **SQL Editor → New Query**, paste `supabase/schema.sql`, and run it.
 3. Copy **Project URL** and the **anon public** key from **Settings → API**.
-4. Put them in `.env`:
+4. Open the app and paste the two values into the setup screen it shows on
+   first launch. Do this once per device.
 
-   ```bash
-   EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-   EXPO_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-   ```
+Neither value is a secret — the anon key is public by design, and is visible in
+the JavaScript of every Supabase web app. Row Level Security and the client-side
+encryption are what protect the data, so there is nothing lost by entering them
+in the app rather than hiding them in a build.
 
-5. For the deployed web app, add the same two as **repository secrets**
-   (Settings → Secrets and variables → Actions) and the deploy workflow passes
-   them into the build.
+The setup screen is forgiving about what it is given: it accepts the dashboard
+address as well as the project URL, copes with the two fields being the wrong
+way round, strips whitespace and stray quotes, and checks the pair against the
+project before accepting it. It refuses a `service_role` key outright — that one
+bypasses every row policy and must never reach a client.
+
+**Optionally, to skip that screen**, provide the same two values at build time
+and they are baked into the bundle:
+
+```bash
+EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+```
+
+in `.env` for local runs, or as repository secrets under **Settings → Secrets
+and variables → Actions** for the deployed web app. Build-time values win over
+anything entered in the app. This is a convenience, not a requirement, and the
+deploy works without them.
 
 **Then, on each device:** open the app, create the account once, and sign in on
-the other two with the same email and password. Tasks sync within a minute, and
-on every launch.
+the other two with the same email and password. Changes reach the other devices
+in about a second.
 
 **Two settings worth changing in Supabase**, since the anon key ships in a
 public web bundle:

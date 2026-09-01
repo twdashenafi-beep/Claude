@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { supabase } from './supabase';
+import { getSupabase } from './supabase';
 
 // Where the wrapped data key lives.
 //
@@ -27,6 +27,7 @@ export async function clearLocal() {
 }
 
 export async function readRemote() {
+  const supabase = getSupabase();
   if (!supabase) return null;
   const { data, error } = await supabase
     .from('vaults')
@@ -42,6 +43,7 @@ export async function readRemote() {
 }
 
 export async function writeRemote(record) {
+  const supabase = getSupabase();
   if (!supabase) return;
   const { data: userData } = await supabase.auth.getUser();
   const userId = userData?.user?.id;

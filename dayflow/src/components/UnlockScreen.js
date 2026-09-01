@@ -3,7 +3,7 @@ import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, SafeAreaView,
   KeyboardAvoidingView, Platform, ActivityIndicator, ScrollView,
 } from 'react-native';
-import { signIn, signUp, getSession, isSupabaseConfigured } from '../services/account';
+import { signIn, signUp, getSession, isSyncConfigured } from '../services/account';
 import { COLORS, SERIF, SANS, SHEET_MAX_WIDTH } from '../utils/theme';
 
 // Sign in, or unlock this device.
@@ -12,7 +12,7 @@ import { COLORS, SERIF, SANS, SHEET_MAX_WIDTH } from '../utils/theme';
 // what lets three devices read each other's tasks. When cloud sync is not
 // configured the screen still works — it just derives the key and opens the
 // vault locally, with nothing to sign in to.
-export default function UnlockScreen({ onUnlock }) {
+export default function UnlockScreen({ onUnlock, onSetupSync }) {
   const [mode, setMode] = useState('signin'); // 'signin' | 'signup'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -242,10 +242,12 @@ export default function UnlockScreen({ onUnlock }) {
               </Text>
             </TouchableOpacity>
 
-            {!isSupabaseConfigured ? (
-              <Text style={s.footnote}>
-                Cloud sync is not configured on this build — tasks stay on this device.
-              </Text>
+            {!isSyncConfigured() ? (
+              <TouchableOpacity onPress={onSetupSync} accessibilityRole="button">
+                <Text style={s.footnote}>
+                  Tasks stay on this device. Tap to sync with your other devices.
+                </Text>
+              </TouchableOpacity>
             ) : null}
           </View>
         </ScrollView>
@@ -316,7 +318,8 @@ const s = StyleSheet.create({
   checkMark: { fontSize: 11, color: COLORS.sheet, fontWeight: '700', marginTop: -1 },
   checkLabel: { fontFamily: SANS, fontSize: 13.5, color: COLORS.ink },
   footnote: {
-    fontFamily: SERIF, fontSize: 12, fontStyle: 'italic', color: COLORS.inkFaint,
+    fontFamily: SERIF, fontSize: 12, fontStyle: 'italic', color: COLORS.inkSoft,
     textAlign: 'center', marginTop: 18, lineHeight: 17,
+    textDecorationLine: 'underline',
   },
 });
