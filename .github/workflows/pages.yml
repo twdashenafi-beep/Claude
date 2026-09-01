@@ -1,6 +1,6 @@
-# Publishes both sites in this repo to GitHub Pages:
-#   /          World Monitor dashboard (the static index.html at the repo root)
-#   /dayflow/  DayFlow, built from source as an installable web app
+# Publishes to GitHub Pages:
+#   /                DayFlow, built from source as an installable web app
+#   /world-monitor/  the static dashboard from the repo root
 #
 # One-time setup: repo Settings -> Pages -> Source: "GitHub Actions".
 # If a run is blocked with a deployment-protection error, allow this branch
@@ -42,14 +42,14 @@ jobs:
 
       - name: Build DayFlow web app
         working-directory: dayflow
-        # Served from /Claude/dayflow/, so the bundle needs that base path.
+        # Pages serves this repo under /Claude/, so the bundle needs that base.
         run: npm run build:pages
 
       - name: Assemble site
         run: |
-          mkdir -p _site/dayflow
-          cp index.html _site/index.html
-          cp -r dayflow/web-build/. _site/dayflow/
+          mkdir -p _site/world-monitor
+          cp -r dayflow/web-build/. _site/
+          cp index.html _site/world-monitor/index.html
           # Pages runs the output through Jekyll otherwise, which strips
           # directories beginning with an underscore — including _expo.
           touch _site/.nojekyll

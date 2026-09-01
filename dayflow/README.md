@@ -38,7 +38,7 @@ The optional cloud and AI features are configured through `.env`; copy
 
 | Where | How | Notes |
 |---|---|---|
-| **Web** | `https://twdashenafi-beep.github.io/Claude/dayflow/` | Deployed by `.github/workflows/pages.yml` |
+| **Web** | `https://twdashenafi-beep.github.io/Claude/` | Deployed by `.github/workflows/pages.yml` |
 | **iPhone / iPad** | Open that URL in Safari → Share → **Add to Home Screen** | Full-screen, works offline, free |
 | **iPhone / iPad (native)** | `eas build --platform ios --profile production` → TestFlight | Adds reminders and calendar sync; needs an Apple Developer account |
 | **Mac** | `cd electron && npm run build` | `.dmg` in `release/` |

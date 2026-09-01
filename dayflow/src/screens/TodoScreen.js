@@ -36,9 +36,14 @@ export default function TodoScreen() {
     return result;
   }, [tasks, viewMode, activeTab, search]);
 
-  const prio = { high: 0, medium: 1, low: 2 };
-  const openTasks = filteredTasks.filter(t => !t.completed).sort((a, b) => prio[a.priority] - prio[b.priority]);
-  const completedTasks = filteredTasks.filter(t => t.completed);
+  // Derived on every render otherwise — a sort per keystroke in the search box.
+  const [openTasks, completedTasks] = useMemo(() => {
+    const prio = { high: 0, medium: 1, low: 2 };
+    return [
+      filteredTasks.filter(t => !t.completed).sort((a, b) => prio[a.priority] - prio[b.priority]),
+      filteredTasks.filter(t => t.completed),
+    ];
+  }, [filteredTasks]);
 
   // Celebrate the moment the last open task in this view is cleared — but not
   // on an empty list, and not again until something re-opens.

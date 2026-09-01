@@ -13,7 +13,7 @@
     "api": "node --env-file-if-exists=.env api-server.js",
     "build:web": "expo export --platform web --output-dir web-build && node scripts/make-pwa.js web-build",
     "doctor": "expo-doctor",
-    "build:pages": "EXPO_BASE_URL=/Claude/dayflow expo export --platform web --output-dir web-build && node scripts/make-pwa.js web-build /Claude/dayflow",
+    "build:pages": "EXPO_BASE_URL=/Claude expo export --platform web --output-dir web-build && node scripts/make-pwa.js web-build /Claude",
     "preview:web": "npx serve web-build"
   },
   "dependencies": {

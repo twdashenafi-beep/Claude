@@ -46,7 +46,7 @@ installing as its own app, and it only works while your machine is serving.
 
 Once the site is deployed (section 3), open it in **Safari** on the device:
 
-1. Go to `https://twdashenafi-beep.github.io/Claude/dayflow/`
+1. Go to `https://twdashenafi-beep.github.io/Claude/`
 2. Tap the **Share** button → **Add to Home Screen** → **Add**
 
 It then launches full-screen from its own icon, with no Safari chrome, and
@@ -79,7 +79,8 @@ npm run preview:web     # local preview
 ```
 
 Deploying to GitHub Pages is automated by `.github/workflows/pages.yml`, which
-publishes the World Monitor dashboard at `/` and DayFlow at `/dayflow/`.
+publishes DayFlow at the site root and moves the older World Monitor dashboard
+to `/world-monitor/`.
 
 **One-time setup:** in the repo, **Settings → Pages → Source: GitHub Actions**.
 Push to a branch the workflow watches (or run it from the Actions tab) and it
@@ -91,8 +92,8 @@ encrypted in your own browser's storage and never sent anywhere.
 
 ### Serving from a different path
 
-`npm run build:pages` bakes in the `/Claude/dayflow` base path. For any other
-host, set your own:
+`npm run build:pages` bakes in the `/Claude` base path that GitHub Pages serves
+this repo from. For any other host, set your own:
 
 ```bash
 EXPO_BASE_URL=/my/path npx expo export --platform web --output-dir web-build

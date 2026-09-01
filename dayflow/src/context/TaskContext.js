@@ -1,8 +1,8 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { scheduleTaskNotifications, cancelTaskNotifications } from '../services/notifications';
 import { newId } from '../utils/id';
-import { encryptTask, decryptTask } from '../services/encryption';
+import { createTaskEncryptor, decryptTask } from '../services/encryption';
 
 const TaskContext = createContext();
 const STORAGE_KEY = '@dayflow_tasks_encrypted';
@@ -28,12 +28,31 @@ export function TaskProvider({ children, encryptionKey }) {
     })();
   }, [encryptionKey]);
 
-  // Encrypt and persist tasks on change
+  // One encryptor per unlocked session, so ciphertext is reused across saves.
+  const encryptAll = useMemo(() => createTaskEncryptor(), []);
+
+  // Encrypt and persist tasks on change.
+  //
+  // Debounced because a single user action can commit several times in a row —
+  // "Clear all" toggles each task individually — and each commit would
+  // otherwise mean its own serialise and storage write.
+  const pending = useRef(null);
+  const flush = useCallback(() => {
+    if (!pending.current) return;
+    const { tasks: t, key } = pending.current;
+    pending.current = null;
+    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(encryptAll(t, key))).catch(() => {});
+  }, [encryptAll]);
+
   useEffect(() => {
     if (!loaded) return;
-    const encrypted = tasks.map(t => encryptTask(t, encryptionKey));
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(encrypted)).catch(() => {});
-  }, [tasks, loaded, encryptionKey]);
+    pending.current = { tasks, key: encryptionKey };
+    const handle = setTimeout(flush, 250);
+    return () => clearTimeout(handle);
+  }, [tasks, loaded, encryptionKey, flush]);
+
+  // Don't lose a debounced write if the provider goes away first.
+  useEffect(() => flush, [flush]);
 
   const addTask = useCallback((taskData) => {
     const newTask = {
