@@ -286,10 +286,7 @@ them.
 an email address for authentication, and nothing else: task content is
 ciphertext the server cannot read.
 
-**`expo-av` is deprecated** and slated for removal; voice notes break on the
-next SDK bump. Migrate to `expo-audio`.
-
-**VoiceOver labels** — there are none anywhere in the app. Apple checks
+**VoiceOver labels** — only the voice-note controls have them. Apple checks
 accessibility, and it is the right thing regardless.
 
 ## 8. Security checklist

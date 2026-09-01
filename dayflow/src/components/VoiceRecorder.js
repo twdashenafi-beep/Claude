@@ -1,134 +1,78 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Audio } from 'expo-av';
+import {
+  useAudioRecorder, useAudioPlayer, useAudioPlayerStatus,
+  setAudioModeAsync, requestRecordingPermissionsAsync, RecordingPresets,
+} from 'expo-audio';
+import { COLORS, SANS } from '../utils/theme';
+
+// Voice notes, on expo-audio.
+//
+// expo-av, which this used before, is deprecated and scheduled for removal —
+// voice notes would have broken on the next SDK upgrade. The replacement is
+// hook-based rather than imperative: the recorder and player are objects owned
+// by the component tree, so there is no create/unload lifecycle to get wrong.
 
 export default function VoiceRecorder({ onRecordingComplete, existingUri, onDelete }) {
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const [isRecording, setIsRecording] = useState(false);
   const [duration, setDuration] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const recordingRef = useRef(null);
-  const soundRef = useRef(null);
-  const timerRef = useRef(null);
+  const timer = useRef(null);
 
-  useEffect(() => {
-    return () => {
-      clearInterval(timerRef.current);
-      if (soundRef.current) {
-        soundRef.current.unloadAsync();
-      }
-    };
-  }, []);
+  useEffect(() => () => clearInterval(timer.current), []);
 
   const startRecording = async () => {
     try {
-      const { granted } = await Audio.requestPermissionsAsync();
+      const { granted } = await requestRecordingPermissionsAsync();
       if (!granted) return;
 
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-      });
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      // record() is synchronous, but the recorder has to be prepared first or
+      // it starts against nothing.
+      await recorder.prepareToRecordAsync();
+      recorder.record();
 
-      const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
-      recordingRef.current = recording;
       setIsRecording(true);
       setDuration(0);
-
-      timerRef.current = setInterval(() => {
-        setDuration(d => d + 1);
-      }, 1000);
+      timer.current = setInterval(() => setDuration(d => d + 1), 1000);
     } catch (err) {
-      console.log('Failed to start recording:', err);
+      console.warn('Failed to start recording:', err.message);
     }
   };
 
   const stopRecording = async () => {
-    if (!recordingRef.current) return;
-
-    clearInterval(timerRef.current);
+    clearInterval(timer.current);
     setIsRecording(false);
-
     try {
-      await recordingRef.current.stopAndUnloadAsync();
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
-      const uri = recordingRef.current.getURI();
-      recordingRef.current = null;
-
-      if (uri && onRecordingComplete) {
-        onRecordingComplete(uri, duration);
-      }
+      await recorder.stop();
+      // Recording holds the audio session; hand it back so playback elsewhere
+      // is not routed to the earpiece afterwards.
+      await setAudioModeAsync({ allowsRecording: false });
+      if (recorder.uri && onRecordingComplete) onRecordingComplete(recorder.uri, duration);
     } catch (err) {
-      console.log('Failed to stop recording:', err);
+      console.warn('Failed to stop recording:', err.message);
     }
   };
 
-  const playRecording = async (uri) => {
-    try {
-      if (soundRef.current) {
-        await soundRef.current.unloadAsync();
-      }
+  const formatTime = secs => `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
 
-      const { sound } = await Audio.Sound.createAsync({ uri });
-      soundRef.current = sound;
-      setIsPlaying(true);
-
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (status.didJustFinish) {
-          setIsPlaying(false);
-        }
-      });
-
-      await sound.playAsync();
-    } catch (err) {
-      console.log('Failed to play:', err);
-      setIsPlaying(false);
-    }
-  };
-
-  const stopPlayback = async () => {
-    if (soundRef.current) {
-      await soundRef.current.stopAsync();
-      setIsPlaying(false);
-    }
-  };
-
-  const formatTime = (secs) => {
-    const m = Math.floor(secs / 60);
-    const s = secs % 60;
-    return `${m}:${String(s).padStart(2, '0')}`;
-  };
-
-  // Show existing recording playback
   if (existingUri) {
     return (
       <View style={st.existing}>
-        <TouchableOpacity
-          style={st.playBtn}
-          onPress={() => isPlaying ? stopPlayback() : playRecording(existingUri)}
-          activeOpacity={0.6}
-        >
-          <Text style={st.playIcon}>{isPlaying ? '⏹' : '▶'}</Text>
-        </TouchableOpacity>
+        <VoicePlayButton uri={existingUri} />
         <Text style={st.existingLabel}>Voice note</Text>
-        {onDelete && (
+        {onDelete ? (
           <TouchableOpacity onPress={onDelete} style={st.deleteBtn}>
             <Text style={st.deleteText}>Remove</Text>
           </TouchableOpacity>
-        )}
+        ) : null}
       </View>
     );
   }
 
-  // Recording UI
   if (isRecording) {
     return (
-      <TouchableOpacity
-        style={st.recordingRow}
-        onPressOut={stopRecording}
-        activeOpacity={0.8}
-      >
+      <TouchableOpacity style={st.recordingRow} onPressOut={stopRecording} activeOpacity={0.8}>
         <View style={st.recordDot} />
         <Text style={st.recordTime}>{formatTime(duration)}</Text>
         <Text style={st.recordHint}>Release to stop</Text>
@@ -136,13 +80,15 @@ export default function VoiceRecorder({ onRecordingComplete, existingUri, onDele
     );
   }
 
-  // Idle mic button
   return (
     <TouchableOpacity
       style={st.micBtn}
       onLongPress={startRecording}
       delayLongPress={200}
       activeOpacity={0.6}
+      accessibilityRole="button"
+      accessibilityLabel="Record a voice note"
+      accessibilityHint="Press and hold to record, release to stop"
     >
       <Text style={st.micIcon}>🎙</Text>
       <Text style={st.micLabel}>Hold to record</Text>
@@ -150,97 +96,58 @@ export default function VoiceRecorder({ onRecordingComplete, existingUri, onDele
   );
 }
 
-// Standalone playback button for task list
+// Standalone playback for a task row.
 export function VoicePlayButton({ uri }) {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const soundRef = useRef(null);
+  const player = useAudioPlayer(uri);
+  const status = useAudioPlayerStatus(player);
+  const playing = status?.playing ?? false;
 
-  useEffect(() => {
-    return () => {
-      if (soundRef.current) soundRef.current.unloadAsync();
-    };
-  }, []);
-
-  const toggle = async () => {
-    try {
-      if (isPlaying && soundRef.current) {
-        await soundRef.current.stopAsync();
-        setIsPlaying(false);
-        return;
-      }
-
-      if (soundRef.current) await soundRef.current.unloadAsync();
-      const { sound } = await Audio.Sound.createAsync({ uri });
-      soundRef.current = sound;
-      setIsPlaying(true);
-
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (status.didJustFinish) setIsPlaying(false);
-      });
-
-      await sound.playAsync();
-    } catch (err) {
-      console.log('Playback error:', err);
-      setIsPlaying(false);
+  const toggle = () => {
+    if (playing) {
+      player.pause();
+      // Rewind, so the next tap replays rather than resuming from the end.
+      player.seekTo(0).catch(() => {});
+      return;
     }
+    if (status?.didJustFinish) player.seekTo(0).catch(() => {});
+    player.play();
   };
 
   return (
-    <TouchableOpacity onPress={toggle} style={st.listMic} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-      <Text style={[st.listMicIcon, isPlaying && st.listMicPlaying]}>🎙</Text>
+    <TouchableOpacity
+      onPress={toggle}
+      style={st.listMic}
+      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      accessibilityRole="button"
+      accessibilityLabel={playing ? 'Stop voice note' : 'Play voice note'}
+    >
+      <Text style={[st.listMicIcon, playing && st.listMicPlaying]}>
+        {playing ? '⏹' : '▶'}
+      </Text>
     </TouchableOpacity>
   );
 }
 
 const st = StyleSheet.create({
-  micBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    backgroundColor: '#F2F2F7',
-    borderRadius: 10,
-  },
-  micIcon: { fontSize: 18 },
-  micLabel: { fontSize: 14, color: '#8E8E93' },
+  micBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10 },
+  micIcon: { fontSize: 17 },
+  micLabel: { fontFamily: SANS, fontSize: 13.5, color: COLORS.inkFaint },
 
   recordingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: '#FFF0F0',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#FF3B30',
+    flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10,
   },
-  recordDot: {
-    width: 10, height: 10, borderRadius: 5, backgroundColor: '#FF3B30',
+  recordDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: COLORS.accent },
+  recordTime: {
+    fontFamily: SANS, fontSize: 14, color: COLORS.ink, fontVariant: ['tabular-nums'],
   },
-  recordTime: { fontSize: 18, fontWeight: '700', color: '#FF3B30', fontVariant: ['tabular-nums'] },
-  recordHint: { fontSize: 13, color: '#8E8E93', flex: 1, textAlign: 'right' },
+  recordHint: { fontFamily: SANS, fontSize: 12.5, color: COLORS.inkFaint },
 
-  existing: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    backgroundColor: '#F2F2F7',
-    borderRadius: 10,
-  },
-  playBtn: {
-    width: 32, height: 32, borderRadius: 16,
-    backgroundColor: '#007AFF', justifyContent: 'center', alignItems: 'center',
-  },
-  playIcon: { fontSize: 14, color: '#FFF' },
-  existingLabel: { flex: 1, fontSize: 14, color: '#000', fontWeight: '500' },
-  deleteBtn: { paddingHorizontal: 8, paddingVertical: 4 },
-  deleteText: { fontSize: 13, color: '#FF3B30' },
+  existing: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
+  existingLabel: { fontFamily: SANS, fontSize: 13.5, color: COLORS.inkSoft, flex: 1 },
+  deleteBtn: { paddingHorizontal: 4 },
+  deleteText: { fontFamily: SANS, fontSize: 12.5, color: COLORS.accent },
 
-  listMic: { marginLeft: 6 },
-  listMicIcon: { fontSize: 14 },
-  listMicPlaying: { opacity: 0.5 },
+  listMic: { paddingHorizontal: 2 },
+  listMicIcon: { fontSize: 12, color: COLORS.inkFaint },
+  listMicPlaying: { color: COLORS.accent },
 });

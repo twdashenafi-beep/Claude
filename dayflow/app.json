@@ -55,7 +55,7 @@
         }
       ],
       [
-        "expo-av",
+        "expo-audio",
         {
           "microphonePermission": "DayFlow needs microphone access for voice notes."
         }

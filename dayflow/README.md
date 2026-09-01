@@ -55,7 +55,7 @@ Full instructions, including the one-time GitHub Pages switch, are in
 - **Encryption:** CryptoJS (AES-256, PBKDF2 key derivation)
 - **Storage:** AsyncStorage (local), Supabase (optional encrypted sync)
 - **Notifications:** expo-notifications
-- **Audio:** expo-av
+- **Audio:** expo-audio
 - **NLP:** Custom natural language parser
 - **AI:** Claude via the DayFlow API server (optional)
 - **Desktop:** Electron wrapper for macOS
