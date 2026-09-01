@@ -23,15 +23,29 @@ AI-powered task manager with end-to-end encryption. Built with React Native (Exp
 ## Quick Start
 
 ```bash
+cd dayflow
 npm install
 npx expo start           # dev server (press w for web, i for iOS)
-npm run build:web        # static web build -> web-build/
+npm run build:web        # installable web app -> web-build/
 npm run api              # optional API server (AI + Supabase) on :3001
 ```
 
 DayFlow runs fully offline out of the box — no account, no keys, no network.
 The optional cloud and AI features are configured through `.env`; copy
 `.env.example` to get started.
+
+## Install it
+
+| Where | How | Notes |
+|---|---|---|
+| **Web** | `https://twdashenafi-beep.github.io/Claude/dayflow/` | Deployed by `.github/workflows/pages.yml` |
+| **iPhone / iPad** | Open that URL in Safari → Share → **Add to Home Screen** | Full-screen, works offline, free |
+| **iPhone / iPad (native)** | `eas build --platform ios --profile production` → TestFlight | Adds reminders and calendar sync; needs an Apple Developer account |
+| **Mac** | `cd electron && npm run build` | `.dmg` in `release/` |
+| **Trying it out** | `npx expo start`, scan the QR with Expo Go | No install, runs while your machine serves |
+
+Full instructions, including the one-time GitHub Pages switch, are in
+[SETUP.md](SETUP.md).
 
 ## Tech Stack
 
@@ -52,6 +66,7 @@ dayflow/
 ├── index.js                        # Expo root registration
 ├── api-server.js                   # Optional backend: Claude proxy + Supabase
 ├── app.json                        # Expo configuration
+├── app.config.js                   # Layers in the web base path per build
 ├── eas.json                        # EAS Build configuration
 ├── .env.example                    # Environment template
 ├── electron/                       # macOS Electron wrapper
@@ -83,6 +98,8 @@ dayflow/
 │   └── utils/
 │       ├── constants.js            # App constants
 │       └── id.js                   # Task id generation
+├── scripts/make-pwa.js             # Adds manifest + service worker post-export
+├── web/                            # Home-screen icons for the web app
 ├── supabase/schema.sql             # Cloud schema + RLS policies
 └── assets/                         # Icons, splash screens
 ```

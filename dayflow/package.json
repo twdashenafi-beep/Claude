@@ -11,8 +11,10 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "api": "node --env-file-if-exists=.env api-server.js",
-    "build:web": "expo export --platform web --output-dir web-build",
-    "doctor": "expo-doctor"
+    "build:web": "expo export --platform web --output-dir web-build && node scripts/make-pwa.js web-build",
+    "doctor": "expo-doctor",
+    "build:pages": "EXPO_BASE_URL=/Claude/dayflow expo export --platform web --output-dir web-build && node scripts/make-pwa.js web-build /Claude/dayflow",
+    "preview:web": "npx serve web-build"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",
