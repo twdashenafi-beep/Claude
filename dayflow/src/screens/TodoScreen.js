@@ -12,74 +12,54 @@ import DailyBriefing from '../components/DailyBriefing';
 import QuickActions from '../components/QuickActions';
 import ConfettiOverlay from '../components/ConfettiOverlay';
 import { VIEW_MODES } from '../utils/constants';
-import { COLORS, SERIF, SANS, SECTION_LABEL, SHEET_MAX_WIDTH, currencySymbol } from '../utils/theme';
+import { COLORS, SERIF, SANS, SHEET_MAX_WIDTH } from '../utils/theme';
 import { format, startOfWeek } from 'date-fns';
 
 const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
 
-function sortByPriority(list) {
-  return [...list].sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]);
-}
-
-// One list on the sheet. Both sections are always on the page — the point of
-// the layout is seeing what you owe yourself and what you are owed at once,
-// without switching between them.
-function Section({
-  label, tasks, showCompleted, onToggleCompleted, onAdd, emptyText, note,
+// One of the two columns. Both are always on the page — the whole point of the
+// layout is seeing what you owe and what you are owed side by side.
+function Column({
+  tasks, showCompleted, onToggleCompleted, emptyText, total,
   onToggle, onDelete, onPress, onLongPress, onReopenAll, onClearAll,
 }) {
-  const open = useMemo(() => sortByPriority(tasks.filter(t => !t.completed)), [tasks]);
+  const open = useMemo(
+    () => tasks.filter(t => !t.completed)
+      .sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]),
+    [tasks]
+  );
   const completed = useMemo(() => tasks.filter(t => t.completed), [tasks]);
 
-  return (
-    <View style={s.section}>
-      <View style={s.sectionHead}>
-        <Text style={s.sectionLabel}>{label}</Text>
-        <View style={s.sectionMeta}>
-          {note ? <Text style={s.sectionNote}>{note}</Text> : null}
-          <TouchableOpacity onPress={onAdd} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-            <Text style={s.addGlyph}>+</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+  const row = task => (
+    <TaskItem
+      key={task.id}
+      task={task}
+      onToggle={onToggle}
+      onDelete={onDelete}
+      onPress={onPress}
+      onLongPress={onLongPress}
+    />
+  );
 
+  return (
+    <View style={s.column}>
       {open.length === 0 && completed.length === 0 ? (
         <Text style={s.empty}>{emptyText}</Text>
       ) : null}
 
-      {open.map(task => (
-        <TaskItem
-          key={task.id}
-          task={task}
-          onToggle={onToggle}
-          onDelete={onDelete}
-          onPress={onPress}
-          onLongPress={onLongPress}
-        />
-      ))}
+      {open.map(row)}
 
       {open.length === 0 && completed.length > 0 ? (
         <Text style={s.empty}>All settled.</Text>
       ) : null}
 
-      {showCompleted
-        ? completed.map(task => (
-            <TaskItem
-              key={task.id}
-              task={task}
-              onToggle={onToggle}
-              onDelete={onDelete}
-              onPress={onPress}
-              onLongPress={onLongPress}
-            />
-          ))
-        : null}
+      {showCompleted ? completed.map(row) : null}
 
       {completed.length > 0 ? (
-        <View style={s.sectionFoot}>
+        <View style={s.columnFoot}>
           <TouchableOpacity onPress={onToggleCompleted}>
             <Text style={s.footLink}>
-              {showCompleted ? 'Hide' : 'Show'} {completed.length} completed
+              {showCompleted ? 'Hide' : 'Show'} {completed.length} done
             </Text>
           </TouchableOpacity>
           {showCompleted ? (
@@ -92,6 +72,14 @@ function Section({
               </TouchableOpacity>
             </View>
           ) : null}
+        </View>
+      ) : null}
+
+      {/* Ruled off at the foot of the column, the way a ledger totals up. */}
+      {total ? (
+        <View style={s.totalBlock}>
+          <View style={s.totalRule} />
+          <Text style={s.totalText}>{total}</Text>
         </View>
       ) : null}
     </View>
@@ -111,34 +99,23 @@ export default function TodoScreen() {
   const [showCompleted, setShowCompleted] = useState({ todo: false, done_for_me: false });
   const [celebrating, setCelebrating] = useState(false);
 
-  const inView = useMemo(
-    () => tasks.filter(t => t.viewScope === viewMode),
-    [tasks, viewMode]
-  );
+  const inView = useMemo(() => tasks.filter(t => t.viewScope === viewMode), [tasks, viewMode]);
   const todo = useMemo(() => inView.filter(t => t.taskType === 'todo'), [inView]);
   const oweMe = useMemo(() => inView.filter(t => t.taskType === 'done_for_me'), [inView]);
 
   const openCount = useMemo(() => inView.filter(t => !t.completed).length, [inView]);
   const doneCount = inView.length - openCount;
 
-  // Total outstanding across the Owe Me list. Mixed currencies are summed per
-  // currency rather than silently added together.
-  const oweNote = useMemo(() => {
-    const totals = {};
-    for (const t of oweMe) {
-      if (t.completed) continue;
-      const amount = parseFloat(t.oweAmount);
-      if (!amount) continue;
-      const code = t.oweCurrency || 'USD';
-      totals[code] = (totals[code] || 0) + amount;
-    }
-    const parts = Object.entries(totals).map(
-      ([code, sum]) => `${currencySymbol(code)}${sum.toFixed(2)}`
-    );
-    return parts.length ? `${parts.join(' · ')} outstanding` : null;
+  // Who you are waiting on, so the column foots with something actionable.
+  const oweSummary = useMemo(() => {
+    const waiting = oweMe.filter(t => !t.completed);
+    if (waiting.length === 0) return null;
+    const people = new Set(waiting.map(t => (t.owePerson || '').trim()).filter(Boolean));
+    const item = `${waiting.length} ${waiting.length === 1 ? 'item' : 'items'}`;
+    if (people.size === 0) return `Waiting on ${item}`;
+    return `Waiting on ${item} · ${people.size} ${people.size === 1 ? 'person' : 'people'}`;
   }, [oweMe]);
 
-  // Celebrate clearing the page, not just one list.
   const prevOpen = useRef(openCount);
   useEffect(() => {
     if (prevOpen.current > 0 && openCount === 0 && doneCount > 0) setCelebrating(true);
@@ -152,11 +129,13 @@ export default function TodoScreen() {
       ? `Week of ${format(startOfWeek(selectedDate, { weekStartsOn: 1 }), 'd MMMM yyyy')}`
       : format(selectedDate, 'MMMM yyyy');
 
-  // The sheet keeps page margins on a wide screen and tightens on a phone,
-  // where edge-to-edge padding would waste the little width there is.
-  const gutter = width < 480 ? 20 : 44;
+  // Page margins on a wide screen; tighter on a phone, where the two columns
+  // need every pixel they can get.
+  const narrow = width < 480;
+  const gutter = narrow ? 16 : 44;
+  const columnGap = narrow ? 16 : 26;
 
-  const sectionProps = {
+  const shared = {
     onToggle: toggleTask,
     onDelete: deleteTask,
     onPress: setDetailTask,
@@ -172,70 +151,87 @@ export default function TodoScreen() {
       >
         <View style={[s.sheet, { paddingHorizontal: gutter }]}>
           {/* Masthead */}
-          <View style={s.masthead}>
-            <View style={s.mastheadRow}>
-              <Text style={s.wordmark}>DayFlow</Text>
-              <TouchableOpacity
-                onPress={() => setShowBriefing(true)}
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-              >
-                <Text style={s.briefing}>Briefing</Text>
-              </TouchableOpacity>
-            </View>
-            <Text style={s.date}>{dateLabel}</Text>
-            <Text style={s.tally}>
-              {openCount === 0 && doneCount === 0
-                ? 'Nothing on the page yet'
-                : `${doneCount} of ${inView.length} done`}
-            </Text>
+          <View style={s.mastheadRow}>
+            <Text style={s.wordmark}>DayFlow</Text>
+            <TouchableOpacity
+              onPress={() => setShowBriefing(true)}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              <Text style={s.briefing}>Briefing</Text>
+            </TouchableOpacity>
           </View>
-
-          <View style={s.mastheadRule} />
+          <Text style={s.date}>{dateLabel}</Text>
+          <Text style={s.tally}>
+            {inView.length === 0 ? 'Nothing on the page yet' : `${doneCount} of ${inView.length} done`}
+          </Text>
 
           <ViewToggle activeView={viewMode} onChangeView={setViewMode} />
-
           <AIInput onAddTask={addTask} viewMode={viewMode} activeTab="todo" />
 
-          <Section
-            label="To Do"
-            tasks={todo}
-            emptyText={
-              viewMode === VIEW_MODES.DAY
-                ? 'Nothing due today.'
-                : viewMode === VIEW_MODES.WEEK
-                ? 'Nothing this week.'
-                : 'A clear month.'
-            }
-            showCompleted={showCompleted.todo}
-            onToggleCompleted={() =>
-              setShowCompleted(p => ({ ...p, todo: !p.todo }))
-            }
-            onAdd={() => setAddingTo('todo')}
-            onReopenAll={() => todo.filter(t => t.completed).forEach(t => toggleTask(t.id))}
-            onClearAll={() => todo.filter(t => t.completed).forEach(t => deleteTask(t.id))}
-            {...sectionProps}
-          />
+          {/* Column headings, side by side */}
+          <View style={[s.headings, { marginTop: narrow ? 18 : 26 }]}>
+            <View style={[s.headCell, { paddingRight: columnGap / 2 }]}>
+              <Text style={s.headText}>To Do</Text>
+              <TouchableOpacity
+                onPress={() => setAddingTo('todo')}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Text style={s.addGlyph}>+</Text>
+              </TouchableOpacity>
+            </View>
 
-          {/* The fold: the one heavy rule on the page */}
-          <View style={s.divider} />
+            <View style={s.headTick} />
 
-          <Section
-            label="Owe Me"
-            tasks={oweMe}
-            note={oweNote}
-            emptyText="Nobody owes you anything."
-            showCompleted={showCompleted.done_for_me}
-            onToggleCompleted={() =>
-              setShowCompleted(p => ({ ...p, done_for_me: !p.done_for_me }))
-            }
-            onAdd={() => setAddingTo('done_for_me')}
-            onReopenAll={() => oweMe.filter(t => t.completed).forEach(t => toggleTask(t.id))}
-            onClearAll={() => oweMe.filter(t => t.completed).forEach(t => deleteTask(t.id))}
-            {...sectionProps}
-          />
+            <View style={[s.headCell, { paddingLeft: columnGap / 2 }]}>
+              <Text style={s.headText}>Owe Me</Text>
+              <TouchableOpacity
+                onPress={() => setAddingTo('done_for_me')}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Text style={s.addGlyph}>+</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
 
-          <View style={s.footer}>
-            <Text style={s.footerNote}>Encrypted on this device</Text>
+          {/* The rule under both headings */}
+          <View style={s.headRule} />
+
+          {/* The two columns, split by the vertical rule */}
+          <View style={s.columns}>
+            <View style={[s.columnWrap, { paddingRight: columnGap / 2 }]}>
+              <Column
+                tasks={todo}
+                emptyText={
+                  viewMode === VIEW_MODES.DAY
+                    ? 'Nothing due today.'
+                    : viewMode === VIEW_MODES.WEEK
+                    ? 'Nothing this week.'
+                    : 'A clear month.'
+                }
+                showCompleted={showCompleted.todo}
+                onToggleCompleted={() => setShowCompleted(p => ({ ...p, todo: !p.todo }))}
+                onReopenAll={() => todo.filter(t => t.completed).forEach(t => toggleTask(t.id))}
+                onClearAll={() => todo.filter(t => t.completed).forEach(t => deleteTask(t.id))}
+                {...shared}
+              />
+            </View>
+
+            <View style={s.columnRule} />
+
+            <View style={[s.columnWrap, { paddingLeft: columnGap / 2 }]}>
+              <Column
+                tasks={oweMe}
+                total={oweSummary}
+                emptyText="Not waiting on anyone."
+                showCompleted={showCompleted.done_for_me}
+                onToggleCompleted={() =>
+                  setShowCompleted(p => ({ ...p, done_for_me: !p.done_for_me }))
+                }
+                onReopenAll={() => oweMe.filter(t => t.completed).forEach(t => toggleTask(t.id))}
+                onClearAll={() => oweMe.filter(t => t.completed).forEach(t => deleteTask(t.id))}
+                {...shared}
+              />
+            </View>
           </View>
         </View>
       </ScrollView>
@@ -258,7 +254,6 @@ export default function TodoScreen() {
       />
 
       <DailyBriefing visible={showBriefing} onClose={() => setShowBriefing(false)} tasks={tasks} />
-
       <ConfettiOverlay visible={celebrating} onDone={() => setCelebrating(false)} />
 
       <QuickActions
@@ -287,7 +282,7 @@ const s = StyleSheet.create({
     borderRightWidth: StyleSheet.hairlineWidth,
     borderColor: COLORS.sheetEdge,
     paddingTop: 26,
-    paddingBottom: 60,
+    paddingBottom: 48,
     shadowColor: '#3B3628',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.14,
@@ -295,52 +290,53 @@ const s = StyleSheet.create({
     elevation: 3,
   },
 
-  masthead: { paddingBottom: 14 },
   mastheadRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   wordmark: {
-    fontFamily: SERIF, fontSize: 13, letterSpacing: 3,
+    fontFamily: SERIF, fontSize: 12.5, letterSpacing: 3,
     textTransform: 'uppercase', color: COLORS.inkSoft,
   },
   briefing: {
-    fontFamily: SANS, fontSize: 12, letterSpacing: 0.6,
+    fontFamily: SANS, fontSize: 11.5, letterSpacing: 0.6,
     textTransform: 'uppercase', color: COLORS.accent, fontWeight: '600',
   },
-  date: {
-    fontFamily: SERIF, fontSize: 27, color: COLORS.ink,
-    marginTop: 12, letterSpacing: -0.3,
-  },
-  tally: { fontFamily: SANS, fontSize: 12.5, color: COLORS.inkFaint, marginTop: 5 },
+  date: { fontFamily: SERIF, fontSize: 25, color: COLORS.ink, marginTop: 10, letterSpacing: -0.3 },
+  tally: { fontFamily: SANS, fontSize: 12, color: COLORS.inkFaint, marginTop: 4 },
 
-  mastheadRule: { height: 1, backgroundColor: COLORS.ruleStrong, marginBottom: 4 },
+  // Headings sit above the rule, one per column.
+  headings: { flexDirection: 'row', alignItems: 'flex-end' },
+  // The vertical rule breaking the surface just above the horizontal one.
+  headTick: { width: 1, height: 11, backgroundColor: COLORS.pencil },
+  headCell: {
+    flex: 1, flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between', paddingBottom: 7,
+  },
+  headText: {
+    fontFamily: SERIF, fontSize: 17, letterSpacing: 2.4,
+    textTransform: 'uppercase', color: COLORS.ink,
+  },
+  addGlyph: { fontFamily: SANS, fontSize: 19, color: COLORS.inkFaint, lineHeight: 22 },
 
-  section: { paddingTop: 18 },
-  sectionHead: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingBottom: 8,
-  },
-  sectionLabel: SECTION_LABEL,
-  sectionMeta: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  sectionNote: {
-    fontFamily: SERIF, fontSize: 13, color: COLORS.accent,
-    fontVariant: ['tabular-nums'],
-  },
-  addGlyph: { fontFamily: SANS, fontSize: 21, color: COLORS.inkSoft, lineHeight: 24 },
+  headRule: { height: 1, backgroundColor: COLORS.pencil },
+
+  // The columns and the line between them.
+  columns: { flexDirection: 'row', flexGrow: 1, alignItems: 'stretch' },
+  columnWrap: { flex: 1 },
+  columnRule: { width: 1, backgroundColor: COLORS.pencil },
+  column: { paddingTop: 6 },
 
   empty: {
-    fontFamily: SERIF, fontSize: 15, fontStyle: 'italic',
-    color: COLORS.inkFaint, paddingVertical: 16,
+    fontFamily: SERIF, fontSize: 13.5, fontStyle: 'italic',
+    color: COLORS.inkFaint, paddingVertical: 14,
   },
 
-  sectionFoot: { paddingTop: 12, gap: 8 },
-  footActions: { flexDirection: 'row', gap: 20 },
-  footLink: { fontFamily: SANS, fontSize: 12.5, color: COLORS.inkSoft },
+  columnFoot: { paddingTop: 10, gap: 6 },
+  footActions: { flexDirection: 'row', gap: 16, flexWrap: 'wrap' },
+  footLink: { fontFamily: SANS, fontSize: 12, color: COLORS.inkSoft },
 
-  // The line the whole layout is built around.
-  divider: { height: 1.5, backgroundColor: COLORS.ruleStrong, marginTop: 30 },
-
-  footer: { marginTop: 'auto', paddingTop: 40, alignItems: 'center' },
-  footerNote: {
-    fontFamily: SANS, fontSize: 10.5, letterSpacing: 1.1,
-    textTransform: 'uppercase', color: '#C4BEB0',
+  totalBlock: { paddingTop: 14 },
+  totalRule: { height: 1, backgroundColor: COLORS.rule, marginBottom: 6 },
+  totalText: {
+    fontFamily: SERIF, fontSize: 12.5, fontStyle: 'italic', color: COLORS.inkSoft,
+    textAlign: 'right',
   },
 });

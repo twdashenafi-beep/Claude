@@ -26,8 +26,7 @@ export default function DailyBriefing({ visible, onClose, tasks }) {
   const completedToday = todayTasks.filter(t => t.completed);
   const highPrio = openToday.filter(t => t.priority === 'high');
   const oweTasks = tasks.filter(t => t.taskType === 'done_for_me' && !t.completed);
-  const totalOweAmount = oweTasks.reduce((sum, t) => sum + (parseFloat(t.oweAmount) || 0), 0);
-  const oweCurrencySymbol = oweTasks.length > 0 ? (oweTasks[0].oweCurrency === 'ETB' ? 'Br' : oweTasks[0].oweCurrency === 'GBP' ? '£' : oweTasks[0].oweCurrency === 'EUR' ? '€' : '$') : '$';
+  const owePeople = new Set(oweTasks.map(t => (t.owePerson || '').trim()).filter(Boolean));
 
   const allWeek = tasks.filter(t => t.viewScope === 'week' && !t.completed);
   const allMonth = tasks.filter(t => t.viewScope === 'month' && !t.completed);
@@ -125,16 +124,18 @@ export default function DailyBriefing({ visible, onClose, tasks }) {
           </View>
 
           {/* Owe Me */}
-          {(oweTasks.length > 0 || totalOweAmount > 0) && (
+          {oweTasks.length > 0 && (
             <View style={st.card}>
               <Text style={st.cardTitle}>Owe Me</Text>
               <Text style={st.oweTotal}>
-                {oweTasks.length} pending {totalOweAmount > 0 ? `· ${oweCurrencySymbol}${totalOweAmount.toFixed(2)} owed` : ''}
+                Waiting on {oweTasks.length} {oweTasks.length === 1 ? 'item' : 'items'}
+                {owePeople.size > 0
+                  ? ` from ${owePeople.size} ${owePeople.size === 1 ? 'person' : 'people'}`
+                  : ''}
               </Text>
               {oweTasks.slice(0, 3).map(t => (
                 <Text key={t.id} style={st.taskLine}>
-                  • {t.title} {t.owePerson ? `(${t.owePerson})` : ''}
-                  {t.oweAmount ? ` — $${t.oweAmount}` : ''}
+                  • {t.title}{t.owePerson ? ` — ${t.owePerson}` : ''}
                 </Text>
               ))}
             </View>

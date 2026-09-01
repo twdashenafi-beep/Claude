@@ -347,8 +347,6 @@ export default function AddTaskModal({ visible, onClose, onAdd, section = 'todo'
 
   // Owe Me fields
   const [owePerson, setOwePerson] = useState('');
-  const [oweAmount, setOweAmount] = useState('');
-  const [oweCurrency, setOweCurrency] = useState('USD');
 
   // Formatting helpers
   const displayTime = (() => {
@@ -398,8 +396,6 @@ export default function AddTaskModal({ visible, onClose, onAdd, section = 'todo'
       reminderTime: timeStr,
       owePerson: owePerson.trim(),
       oweDescription: '',
-      oweAmount: oweAmount.trim(),
-      oweCurrency,
       notes: notes.trim(),
       voiceNoteUri,
       attachments: [],
@@ -413,7 +409,7 @@ export default function AddTaskModal({ visible, onClose, onAdd, section = 'todo'
     setHour24(String(resetNow.getHours()));
     setMinute(String(resetNow.getMinutes()).padStart(2, '0'));
     setPriority('none');
-    setOwePerson(''); setOweAmount(''); setOweCurrency('USD');
+    setOwePerson('');
     onClose();
   };
 
@@ -518,32 +514,14 @@ export default function AddTaskModal({ visible, onClose, onAdd, section = 'todo'
             <View style={s.oweSection}>
               <TextInput
                 style={s.oweInput}
-                placeholder="Who owes you?"
+                placeholder="Who owes you this?"
                 placeholderTextColor="#C7C7CC"
                 value={owePerson}
                 onChangeText={setOwePerson}
               />
-              <View style={s.oweAmountRow}>
-                <TouchableOpacity
-                  onPress={() => {
-                    const c = ['USD', 'ETB', 'GBP', 'EUR'];
-                    setOweCurrency(c[(c.indexOf(oweCurrency) + 1) % c.length]);
-                  }}
-                  style={s.currencyBtn}
-                >
-                  <Text style={s.currencyText}>
-                    {oweCurrency === 'USD' ? '$' : oweCurrency === 'GBP' ? '£' : oweCurrency === 'EUR' ? '€' : 'Br'}
-                  </Text>
-                </TouchableOpacity>
-                <TextInput
-                  style={s.oweAmountInput}
-                  placeholder="Amount"
-                  placeholderTextColor="#C7C7CC"
-                  value={oweAmount}
-                  onChangeText={setOweAmount}
-                  keyboardType="decimal-pad"
-                />
-              </View>
+              <Text style={s.oweHint}>
+                Who you are waiting on. Add a date to remind yourself to chase it.
+              </Text>
             </View>
           )}
 
@@ -609,16 +587,10 @@ const s = StyleSheet.create({
   chipIcon: { fontSize: 13 },
   chipLabel: { fontSize: 14, color: COLORS.inkSoft },
   chipLabelOn: { color: COLORS.accent, fontWeight: '500' },
-  oweSection: { paddingHorizontal: 20, paddingTop: 8, gap: 8 },
+  oweSection: { paddingHorizontal: 20, paddingTop: 8, gap: 10 },
+  oweHint: { fontFamily: SERIF, fontSize: 13, fontStyle: 'italic', color: COLORS.inkFaint, lineHeight: 18 },
   oweInput: {
     fontSize: 15, color: COLORS.ink, borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: COLORS.rule, paddingBottom: 10,
-  },
-  oweAmountRow: { flexDirection: 'row', alignItems: 'center' },
-  currencyBtn: { paddingRight: 8 },
-  currencyText: { fontSize: 16, color: COLORS.accent, fontWeight: '600' },
-  oweAmountInput: {
-    flex: 1, fontSize: 15, color: COLORS.ink, borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: COLORS.rule, paddingBottom: 10,
   },
 });

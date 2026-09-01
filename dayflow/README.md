@@ -11,11 +11,12 @@ AI-powered task manager with end-to-end encryption. Built with React Native (Exp
 - **Voice Commands** — Speak naturally to create tasks (web speech recognition)
 - **Voice Notes** — Hold to record voice memos attached to tasks
 - **End-to-End Encryption** — Task titles, notes, amounts and names are encrypted with AES-256 before they touch storage. Only you have the key.
+- **One Page, Two Columns** — To Do and Owe Me sit side by side on a single A4-proportioned sheet, divided by a ruled line
 - **Day/Week/Month Views** — Tasks are scoped to their view for clear separation
 - **Daily Briefing** — Progress, high-priority items and owed totals at a glance, with an optional Claude-written summary
 - **Quick Actions** — Double-tap to complete, long-press for options, swipe to delete
 - **Calendar Sync** — Push any dated task to your device calendar from the quick-actions sheet
-- **Owe Me Tracking** — Track who owes you money with multi-currency support (USD/ETB/GBP/EUR)
+- **Owe Me** — A follow-up column for what other people owe *you*: the task, who you are waiting on, and when to chase it
 - **Reminders** — Local notifications at the due time, with early-reminder options
 - **Persistent Storage** — Tasks survive restarts via encrypted AsyncStorage
 - **Multi-Platform** — iPhone, iPad, Mac (Electron), and Web
