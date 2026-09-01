@@ -81,7 +81,7 @@ export default function UnlockScreen({ onUnlock }) {
         <ScrollView contentContainerStyle={s.scroll}>
           <View style={s.sheet}>
             <Text style={s.wordmark}>DayFlow</Text>
-            <Text style={s.title}>Your recovery code</Text>
+            <Text style={s.title} accessibilityRole="header">Your recovery code</Text>
             <View style={s.rule} />
 
             <Text style={s.blurb}>
@@ -91,7 +91,13 @@ export default function UnlockScreen({ onUnlock }) {
             </Text>
 
             <View style={s.codeBox}>
-              <Text style={s.code} selectable>{recovery.code}</Text>
+              <Text
+                style={s.code}
+                selectable
+                accessibilityLabel={`Recovery code: ${recovery.code.split('').join(' ')}`}
+              >
+                {recovery.code}
+              </Text>
             </View>
 
             <Text style={s.codeNote}>
@@ -103,6 +109,9 @@ export default function UnlockScreen({ onUnlock }) {
               style={s.checkRow}
               onPress={() => setWroteItDown(!wroteItDown)}
               activeOpacity={0.7}
+              accessibilityRole="checkbox"
+              aria-checked={wroteItDown}
+              accessibilityLabel="I have saved my recovery code"
             >
               <View style={[s.checkbox, wroteItDown && s.checkboxOn]}>
                 {wroteItDown ? <Text style={s.checkMark}>✓</Text> : null}
@@ -158,7 +167,9 @@ export default function UnlockScreen({ onUnlock }) {
         <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
           <View style={s.sheet}>
             <Text style={s.wordmark}>DayFlow</Text>
-            <Text style={s.title}>{isSignup ? 'Create your account' : 'Welcome back'}</Text>
+            <Text style={s.title} accessibilityRole="header">
+              {isSignup ? 'Create your account' : 'Welcome back'}
+            </Text>
             <View style={s.rule} />
 
             <Text style={s.blurb}>
@@ -168,6 +179,7 @@ export default function UnlockScreen({ onUnlock }) {
             </Text>
 
             <TextInput
+              accessibilityLabel="Email address"
               style={s.input}
               placeholder="Email"
               placeholderTextColor={COLORS.inkFaint}
@@ -179,6 +191,8 @@ export default function UnlockScreen({ onUnlock }) {
               textContentType="emailAddress"
             />
             <TextInput
+              accessibilityLabel="Master password"
+              accessibilityHint="Encrypts your tasks. Use the same one on every device."
               style={s.input}
               placeholder="Master password"
               placeholderTextColor={COLORS.inkFaint}
@@ -190,6 +204,7 @@ export default function UnlockScreen({ onUnlock }) {
             />
             {isSignup ? (
               <TextInput
+                accessibilityLabel="Confirm master password"
                 style={s.input}
                 placeholder="Confirm password"
                 placeholderTextColor={COLORS.inkFaint}
@@ -208,6 +223,9 @@ export default function UnlockScreen({ onUnlock }) {
               style={[s.button, busy && s.buttonBusy]}
               onPress={submit}
               disabled={busy}
+              accessibilityRole="button"
+              aria-busy={busy}
+              accessibilityLabel={isSignup ? 'Create account' : 'Unlock DayFlow'}
             >
               {busy ? (
                 <ActivityIndicator color={COLORS.sheet} />

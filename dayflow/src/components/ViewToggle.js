@@ -13,7 +13,7 @@ const VIEWS = [
 // as a line of document furniture, not an app widget.
 export default function ViewToggle({ activeView, onChangeView }) {
   return (
-    <View style={s.row}>
+    <View style={s.row} accessibilityRole="tablist">
       {VIEWS.map((v, i) => {
         const on = activeView === v.key;
         return (
@@ -22,6 +22,9 @@ export default function ViewToggle({ activeView, onChangeView }) {
             <TouchableOpacity
               onPress={() => onChangeView(v.key)}
               hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
+              accessibilityRole="tab"
+              aria-selected={on}
+              accessibilityLabel={`Show ${v.label.toLowerCase()} tasks`}
             >
               <Text style={[s.label, on && s.labelOn]}>{v.label}</Text>
             </TouchableOpacity>

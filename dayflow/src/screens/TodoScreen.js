@@ -68,17 +68,30 @@ function Column({
 
       {completed.length > 0 ? (
         <View style={s.columnFoot}>
-          <TouchableOpacity onPress={onToggleCompleted}>
+          <TouchableOpacity
+            onPress={onToggleCompleted}
+            accessibilityRole="button"
+            aria-expanded={showCompleted}
+            accessibilityLabel={`${showCompleted ? 'Hide' : 'Show'} ${completed.length} completed`}
+          >
             <Text style={s.footLink}>
               {showCompleted ? 'Hide' : 'Show'} {completed.length} done
             </Text>
           </TouchableOpacity>
           {showCompleted ? (
             <View style={s.footActions}>
-              <TouchableOpacity onPress={onReopenAll}>
+              <TouchableOpacity
+                onPress={onReopenAll}
+                accessibilityRole="button"
+                accessibilityLabel="Reopen all completed tasks"
+              >
                 <Text style={s.footLink}>Reopen all</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={onClearAll}>
+              <TouchableOpacity
+                onPress={onClearAll}
+                accessibilityRole="button"
+                accessibilityLabel="Permanently delete all completed tasks"
+              >
                 <Text style={[s.footLink, { color: COLORS.inkFaint }]}>Clear all</Text>
               </TouchableOpacity>
             </View>
@@ -169,18 +182,22 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
               <TouchableOpacity
                 onPress={() => setShowBriefing(true)}
                 hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel="Open the daily briefing"
               >
                 <Text style={s.briefing}>Briefing</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => setShowAccount(true)}
                 hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel="Account settings"
               >
                 <Text style={s.lock}>Account</Text>
               </TouchableOpacity>
             </View>
           </View>
-          <Text style={s.date}>{dateLabel}</Text>
+          <Text style={s.date} accessibilityRole="header">{dateLabel}</Text>
           <Text style={s.tally}>
             {inView.length === 0 ? 'Nothing on the page yet' : `${doneCount} of ${inView.length} done`}
             {SYNC_LABEL[syncState] ? `  ·  ${SYNC_LABEL[syncState]}` : ''}
@@ -192,10 +209,12 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
           {/* Column headings, side by side */}
           <View style={[s.headings, { marginTop: narrow ? 18 : 26 }]}>
             <View style={[s.headCell, { paddingRight: columnGap / 2 }]}>
-              <Text style={s.headText}>To Do</Text>
+              <Text style={s.headText} accessibilityRole="header">To Do</Text>
               <TouchableOpacity
                 onPress={() => setAddingTo('todo')}
                 hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                accessibilityRole="button"
+                accessibilityLabel="Add a task to To Do"
               >
                 <Text style={s.addGlyph}>+</Text>
               </TouchableOpacity>
@@ -204,10 +223,12 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
             <View style={s.headTick} />
 
             <View style={[s.headCell, { paddingLeft: columnGap / 2 }]}>
-              <Text style={s.headText}>Owe Me</Text>
+              <Text style={s.headText} accessibilityRole="header">Owe Me</Text>
               <TouchableOpacity
                 onPress={() => setAddingTo('done_for_me')}
                 hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                accessibilityRole="button"
+                accessibilityLabel="Add something you are waiting on to Owe Me"
               >
                 <Text style={s.addGlyph}>+</Text>
               </TouchableOpacity>

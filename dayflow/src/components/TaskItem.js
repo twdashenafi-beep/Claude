@@ -60,6 +60,9 @@ export default function TaskItem({ task, onToggle, onDelete, onPress, onLongPres
           onPress={() => onToggle(task.id)}
           activeOpacity={0.6}
           hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}
+          accessibilityRole="checkbox"
+          aria-checked={done}
+          accessibilityLabel={done ? `Mark ${task.title} as not done` : `Mark ${task.title} as done`}
         >
           {done && <Text style={st.checkMark}>✓</Text>}
         </TouchableOpacity>
@@ -70,6 +73,15 @@ export default function TaskItem({ task, onToggle, onDelete, onPress, onLongPres
           onLongPress={() => onLongPress && onLongPress(task)}
           delayLongPress={400}
           activeOpacity={0.6}
+          accessibilityRole="button"
+          accessibilityLabel={[
+            task.title,
+            task.owePerson ? `waiting on ${task.owePerson}` : null,
+            task.dueTime ? `due at ${task.dueTime}` : null,
+            task.priority === 'high' ? 'high priority' : null,
+            done ? 'completed' : null,
+          ].filter(Boolean).join(', ')}
+          accessibilityHint="Opens the task. Double tap and hold for actions including delete."
         >
           <Text style={[st.title, done && st.titleDone]} numberOfLines={2}>
             {!done && task.priority === 'high' ? (

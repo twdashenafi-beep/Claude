@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Privacy Policy — DayFlow</title>
+<link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+<main>
+  <p class="wordmark">DayFlow</p>
+  <h1>Privacy Policy</h1>
+  <p class="updated">Last updated 1 September 2026</p>
+  <hr />
+
+  <p class="lede">
+    DayFlow cannot read your tasks. Not because we promise not to, but because
+    everything is encrypted on your device with a key derived from a password we
+    never receive.
+  </p>
+
+  <h2>What is collected</h2>
+  <table>
+    <tr><th>Data</th><th>Why</th><th>Can we read it?</th></tr>
+    <tr><td>Email address</td><td>To identify your account and let your devices sync</td><td>Yes</td></tr>
+    <tr><td>Task content</td><td>To sync between your devices</td><td><strong>No</strong> — stored only as ciphertext</td></tr>
+    <tr><td>Timestamps</td><td>To decide which edit wins when two devices disagree</td><td>Yes</td></tr>
+  </table>
+
+  <p>
+    That is the complete list. There is no analytics, no advertising, no tracking,
+    no third-party SDK collecting anything, and no profile built about you.
+  </p>
+
+  <h2>How the encryption works</h2>
+  <p>
+    Your tasks are encrypted with AES-256 using a key that never leaves your
+    device. Your password is put through PBKDF2-SHA256 (210,000 iterations, your
+    email as the salt) to produce two separate values: an authentication hash,
+    which is the only thing the server receives, and a key-encrypting key, which
+    stays with you.
+  </p>
+  <p>
+    Because the authentication hash is a one-way function of your key material,
+    the server cannot work backwards from it to anything that decrypts your data.
+    A full database dump would reveal how many tasks you have and when they last
+    changed — not one word of what they say.
+  </p>
+
+  <h2>What we cannot do</h2>
+  <p>
+    We cannot reset your password, read your tasks, recover your data if you lose
+    both your password and your recovery code, or hand your task content to anyone
+    who asks — including in response to a legal demand, because we do not hold the
+    key. This is a consequence of the design, not a policy that could change.
+  </p>
+
+  <h2>Where data is stored</h2>
+  <p>
+    Task ciphertext and your email address are held by
+    <a href="https://supabase.com/privacy">Supabase</a>, which provides the
+    database and authentication. A copy of your encrypted tasks is also kept on
+    each of your devices so the app works offline.
+  </p>
+
+  <h2>Your rights</h2>
+  <p>
+    You can delete your account and everything in it at any time from
+    <strong>Account → Delete account</strong> inside the app. Deletion is immediate
+    and permanent: the tasks, the wrapped key and the account record are all
+    removed, from the server and from the device. There is no recovery window,
+    and no backup we could restore from.
+  </p>
+  <p>
+    Because we hold nothing readable, a request to export or correct your task
+    data is something only you can carry out — from within the app, where the key
+    is.
+  </p>
+
+  <h2>Children</h2>
+  <p>DayFlow is not directed at children under 13, and we do not knowingly collect their data.</p>
+
+  <h2>Changes</h2>
+  <p>
+    If this policy changes materially, the date above changes and the app will say
+    so before the change takes effect.
+  </p>
+
+  <h2>Contact</h2>
+  <p>Questions about privacy: <a href="mailto:t.ashenafi@pm.me">t.ashenafi@pm.me</a></p>
+
+  <footer>
+    <a href="./">DayFlow</a>
+    <a href="./support.html">Support</a>
+    <a href="./terms.html">Terms</a>
+  </footer>
+</main>
+</body>
+</html>
