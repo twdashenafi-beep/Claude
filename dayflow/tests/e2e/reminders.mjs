@@ -95,6 +95,22 @@ async function device(name) {
   // Record notifications instead of showing them, and answer the permission
   // prompt without a real one.
   await page.addInitScript(() => {
+    window.__tones = [];
+    const RealCtx = window.AudioContext || window.webkitAudioContext;
+    class RecordingContext extends RealCtx {
+      createOscillator() {
+        const osc = super.createOscillator();
+        const start = osc.start.bind(osc);
+        osc.start = (...args) => {
+          window.__tones.push({ hz: osc.frequency.value, type: osc.type });
+          return start(...args);
+        };
+        return osc;
+      }
+    }
+    window.AudioContext = RecordingContext;
+    window.webkitAudioContext = RecordingContext;
+
     window.__notes = [];
     const Fake = function (title, options) {
       window.__notes.push({ title, body: (options || {}).body });
@@ -215,6 +231,13 @@ ok('the task is listed with its time', text.includes(hhmm), text.slice(0, 200));
 ok('an overdue reminder raises an alert in the app', /due now/i.test(text), text.slice(0, 250));
 ok('the alert names the task', text.includes('take the medicine'));
 
+// The chime is armed by the first gesture; every click above counts as one.
+const tones = await A.page.evaluate(() => window.__tones || []);
+ok('the reminder makes a sound', tones.length === 2, JSON.stringify(tones));
+ok('the sound is two notes a fourth apart',
+   tones.length === 2 && Math.round(tones[1].hz / tones[0].hz * 100) === 133,
+   JSON.stringify(tones));
+
 const notes = await A.page.evaluate(() => window.__notes || []);
 ok('and a system notification is raised', notes.length >= 1, JSON.stringify(notes));
 ok('the notification names the task',
@@ -233,6 +256,8 @@ ok('a dismissed reminder does not come back', !/due now/i.test(await body(A.page
    (await body(A.page)).slice(0, 200));
 ok('and no second notification is raised',
    (await A.page.evaluate(() => (window.__notes || []).length)) === raised);
+ok('and it does not chime again',
+   (await A.page.evaluate(() => (window.__tones || []).length)) === 2);
 
 // ── Nor after a restart ──
 await A.page.reload({ waitUntil: 'networkidle' });
