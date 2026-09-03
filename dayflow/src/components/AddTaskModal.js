@@ -384,7 +384,9 @@ export default function AddTaskModal({ visible, onClose, onAdd, section = 'todo'
     onAdd({
       title: title.trim(),
       priority: mappedPriority,
-      section,
+      // Follows the type. TaskDetail reads either, and they disagreeing is how
+      // a task ends up looking like one kind and behaving like the other.
+      section: taskType === 'done_for_me' ? 'owe_me' : section,
       taskType,
       viewScope: viewMode || 'day',
       date: dateISO || fallbackDate,
@@ -414,21 +416,40 @@ export default function AddTaskModal({ visible, onClose, onAdd, section = 'todo'
   };
 
   const isHighPriority = priority === 'high';
+  const isOwe = taskType === 'done_for_me';
+  const canAdd = title.trim().length > 0;
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
       <View style={s.container}>
         <View style={s.header}>
-          <TouchableOpacity onPress={onClose}><Text style={s.cancel}>Cancel</Text></TouchableOpacity>
-          <Text style={s.headerTitle}>New Task</Text>
-          <View style={{ width: 50 }} />
+          <TouchableOpacity onPress={onClose} accessibilityRole="button">
+            <Text style={s.cancel}>Cancel</Text>
+          </TouchableOpacity>
+
+          {/* Which list this is going into. The two are different kinds of
+              thing — one is yours to do, the other is someone else's to
+              deliver — and the sheet used to say "New Task" for both. */}
+          <Text style={s.headerTitle}>{isOwe ? 'New Owe Me' : 'New To Do'}</Text>
+
+          {/* There was no way to commit but pressing Enter in the title, which
+              is invisible, and impossible once focus has moved to notes. */}
+          <TouchableOpacity
+            onPress={handleAdd}
+            disabled={!canAdd}
+            accessibilityRole="button"
+            accessibilityLabel={isOwe ? 'Add to Owe Me' : 'Add to To Do'}
+            aria-disabled={!canAdd}
+          >
+            <Text style={[s.save, !canAdd && s.saveOff]}>Add</Text>
+          </TouchableOpacity>
         </View>
 
         <ScrollView style={s.scroll} keyboardShouldPersistTaps="handled">
           {/* Title */}
           <TextInput
             style={s.titleInput}
-            placeholder="What needs to be done?"
+            placeholder={isOwe ? 'What are you waiting on?' : 'What needs to be done?'}
             placeholderTextColor="#C7C7CC"
             value={title}
             onChangeText={setTitle}
@@ -564,6 +585,8 @@ const s = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#F4F1EA',
   },
   cancel: { fontSize: 17, color: COLORS.accent },
+  save: { fontSize: 17, fontWeight: '600', color: COLORS.accent },
+  saveOff: { color: '#C4BEB0' },
   headerTitle: { fontFamily: SERIF, fontSize: 17, fontWeight: '600', color: COLORS.ink },
   scroll: { flex: 1 },
   titleInput: {
