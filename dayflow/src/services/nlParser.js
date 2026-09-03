@@ -46,8 +46,69 @@ function parseTime(hourStr, minStr, period) {
   return { hour, minute };
 }
 
+
+// ── Owe Me ──────────────────────────────────────────────────────────────────
+//
+// Owe Me is a follow-up list: something another person owes you and that you
+// need to chase. Nothing about it is financial. The phrasings people actually
+// use fall into a handful of shapes, and each puts the person somewhere
+// different, so the person is captured per pattern rather than guessed at.
+//
+// Each pattern keeps whatever came before it — "tomorrow Sarah owes me the
+// deck" still has to leave "tomorrow" behind for the date parser.
+
+const OWE_PATTERNS = [
+  // "Sarah owes me the Q3 numbers", "she owes me a call"
+  { regex: /\b([\w'’-]+)\s+owes?\s+me\b[:,]?\s*/i, person: 1 },
+  // "owe me: the signed lease"
+  { regex: /\bowe\s+me\b[:,]?\s*/i, person: null },
+  // "waiting on Tom for the deck", "waiting for Tom to send the deck"
+  { regex: /\bwaiting\s+(?:on|for)\s+([\w'’-]+)\s+(?:for|to)\s+/i, person: 1 },
+  // "chase Priya for the signature", "chase up Priya about the signature"
+  { regex: /\bchase(?:\s+up)?\s+([\w'’-]+)\s+(?:for|about|on)\s+/i, person: 1 },
+  // "follow up with James about the contract"
+  { regex: /\bfollow(?:ing)?\s+up\s+with\s+([\w'’-]+)\s+(?:about|on|for|re)\s+/i, person: 1 },
+];
+
+// Words that sit where a name would but are not one. Without this, "waiting on
+// the report" files itself under a person called "the".
+const NOT_A_NAME = new Set([
+  'the', 'a', 'an', 'my', 'our', 'your', 'his', 'her', 'their', 'its',
+  'this', 'that', 'these', 'those', 'you', 'they', 'he', 'she', 'it', 'we', 'i',
+  'someone', 'somebody', 'anyone', 'everyone', 'them', 'us',
+]);
+
+function cleanName(raw) {
+  const name = String(raw || '').trim().replace(/^[^\w]+|[^\w'’-]+$/g, '');
+  if (!name || NOT_A_NAME.has(name.toLowerCase())) return '';
+  // Dictation lowercases names as often as not, and this is shown as a name.
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
+// Returns whether this is something owed to you, who owes it, and the text
+// with the marker phrase taken out so the rest of the parsing still works.
+export function detectOwe(input) {
+  const text = String(input || '');
+
+  for (const { regex, person } of OWE_PATTERNS) {
+    const match = text.match(regex);
+    if (!match) continue;
+
+    const before = text.slice(0, match.index);
+    const after = text.slice(match.index + match[0].length);
+    return {
+      isOwe: true,
+      person: person ? cleanName(match[person]) : '',
+      text: `${before} ${after}`.replace(/\s+/g, ' ').trim(),
+    };
+  }
+
+  return { isOwe: false, person: '', text };
+}
+
 export function parseNaturalLanguage(input) {
-  let text = input.trim();
+  const owe = detectOwe(input.trim());
+  let text = owe.text || input.trim();
   let date = null;
   let time = null;
   let priority = 'medium';
@@ -118,12 +179,15 @@ export function parseNaturalLanguage(input) {
   }
 
   return {
-    title: title || input.trim(),
+    title: title || owe.text || input.trim(),
     date: dateISO,
     dueDate: dateISO,
     dueTime: timeStr,
     priority,
     viewScope,
+    // 'done_for_me' is what the Owe Me column filters on.
+    taskType: owe.isOwe ? 'done_for_me' : 'todo',
+    owePerson: owe.person,
     hasDate: !!date || !!time,
     hasTime: !!time,
     hasPriority: priority !== 'medium',
