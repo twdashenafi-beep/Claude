@@ -8,10 +8,23 @@ import { COLORS, SANS, SERIF } from '../utils/theme';
 // An entry in one of the two columns. The column is narrow, so the title takes
 // the full width and everything else — who owes, how much, when — sits on a
 // second line beneath it rather than competing for the same row.
-export default function TaskItem({ task, onToggle, onDelete, onPress, onLongPress }) {
+export default function TaskItem({
+  task, onToggle, onDelete, onPress, onLongPress,
+  onMeasure, onDragStart, onDragMove, onDragEnd, dragging, shift = 0,
+}) {
   const translateX = useRef(new Animated.Value(0)).current;
+  const dragY = useRef(new Animated.Value(0)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
   const lastTap = useRef(0);
+
+  // PanResponder.create runs once, so its handlers close over the props as they
+  // were at mount. Both of the callbacks below are rebuilt whenever the task
+  // list changes — reordering reads the list to find where a row currently sits,
+  // deleting reads it to remember what was removed — so calling the captured
+  // versions acts on a list that has since moved on. Reading them from a ref
+  // keeps the gesture on the current ones.
+  const latest = useRef({});
+  latest.current = { onDelete, onDragStart, onDragMove, onDragEnd };
 
   useEffect(() => {
     Animated.timing(opacityAnim, { toValue: 1, duration: 160, useNativeDriver: true }).start();
@@ -24,10 +37,40 @@ export default function TaskItem({ task, onToggle, onDelete, onPress, onLongPres
       onPanResponderRelease: (_, gs) => {
         if (gs.dx < -90) {
           Animated.timing(translateX, { toValue: -400, duration: 160, useNativeDriver: true })
-            .start(() => onDelete(task.id));
+            .start(() => latest.current.onDelete(task.id));
         } else {
           Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
         }
+      },
+    })
+  ).current;
+
+  // On the handle only. A drag responder across the whole row would take every
+  // vertical swipe from the page scroll, which on a phone makes the list
+  // unusable — and a row is exactly what you swipe to scroll.
+  const dragResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        dragY.setValue(0);
+        const { onDragStart: start } = latest.current;
+        start && start(task.id);
+      },
+      onPanResponderMove: (_, gs) => {
+        dragY.setValue(gs.dy);
+        const { onDragMove: move } = latest.current;
+        move && move(gs.dy);
+      },
+      onPanResponderRelease: () => {
+        dragY.setValue(0);
+        const { onDragEnd: end } = latest.current;
+        end && end();
+      },
+      onPanResponderTerminate: () => {
+        dragY.setValue(0);
+        const { onDragEnd: end } = latest.current;
+        end && end();
       },
     })
   ).current;
@@ -54,7 +97,32 @@ export default function TaskItem({ task, onToggle, onDelete, onPress, onLongPres
 
   return (
     <Animated.View style={{ opacity: opacityAnim }}>
-      <Animated.View style={[st.row, { transform: [{ translateX }] }]} {...panResponder.panHandlers}>
+      <Animated.View
+        onLayout={e => onMeasure && onMeasure(task.id, e.nativeEvent.layout.height)}
+        style={[
+          st.row,
+          // The row being dragged rides above the rest and follows the finger;
+          // the others slide by a whole row to show where it will land.
+          dragging && st.rowDragging,
+          { transform: [{ translateX }, { translateY: dragging ? dragY : shift }] },
+        ]}
+        {...panResponder.panHandlers}
+      >
+        <View
+          style={st.grip}
+          {...dragResponder.panHandlers}
+          accessibilityRole="button"
+          accessibilityLabel={`Reorder ${task.title}`}
+          accessibilityHint="Drag up or down to change where this sits."
+        >
+          {[0, 1, 2].map(i => (
+            <View key={i} style={st.gripRow}>
+              <View style={st.gripDot} />
+              <View style={st.gripDot} />
+            </View>
+          ))}
+        </View>
+
         <TouchableOpacity
           style={[st.check, done && st.checkDone]}
           onPress={() => onToggle(task.id)}
@@ -124,6 +192,21 @@ const st = StyleSheet.create({
     paddingVertical: 9,
     backgroundColor: COLORS.sheet,
   },
+  rowDragging: {
+    zIndex: 10,
+    shadowColor: '#3B3628', shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.16, shadowRadius: 10, elevation: 4,
+  },
+
+  // Six dots: the one part of the row that means "pick this up", kept faint
+  // enough not to compete with the checkbox.
+  grip: {
+    width: 14, paddingTop: 5, marginRight: 6,
+    justifyContent: 'center', alignItems: 'center', gap: 2,
+    cursor: 'grab',
+  },
+  gripRow: { flexDirection: 'row', gap: 2 },
+  gripDot: { width: 2, height: 2, borderRadius: 1, backgroundColor: '#CFC9BB' },
   check: {
     width: 15, height: 15, borderRadius: 2,
     borderWidth: 1, borderColor: '#B5AFA1',

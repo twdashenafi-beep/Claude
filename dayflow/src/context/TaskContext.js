@@ -6,6 +6,7 @@ import { scheduleTaskNotifications, cancelTaskNotifications } from '../services/
 import { createTaskEncryptor, decryptTask } from '../services/encryption';
 import { newId } from '../utils/id';
 import { pullTasks, pushTasks, mergeTasks, watchTasks } from '../services/sync';
+import { orderForNewTask } from '../services/ordering';
 
 const TaskContext = createContext();
 const STORAGE_KEY = '@dayflow_vault_v2';
@@ -218,6 +219,10 @@ export function TaskProvider({ children, encryptionKey, synced }) {
       attachments: taskData.attachments || [],
       createdAt: now,
       updatedAt: now,
+      // Top of its own column, above anything already placed there.
+      order: orderForNewTask(
+        tasksRef.current.filter(t => t.taskType === (taskData.taskType || 'todo'))
+      ),
     };
     setTasks(prev => [newTask, ...prev]);
 
@@ -256,6 +261,18 @@ export function TaskProvider({ children, encryptionKey, synced }) {
   // Undo for a delete. The tombstone has to go and the task come back stamped
   // now: the server still holds the tombstone, so only a newer timestamp keeps
   // it from being deleted again on the next sync.
+  // Applied together: a column that has never been ordered is numbered in one
+  // go, and doing that a task at a time would be as many renders as tasks.
+  const reorderTasks = useCallback(changes => {
+    if (!changes || changes.length === 0) return;
+    const byId = new Map(changes.map(c => [c.id, c.order]));
+    const now = stamp();
+    setTasks(prev => prev.map(t => (
+      byId.has(t.id) ? { ...t, order: byId.get(t.id), updatedAt: now } : t
+    )));
+    noteEdit();
+  }, [noteEdit]);
+
   const restoreTask = useCallback(task => {
     if (!task) return;
     tombstones.current = tombstones.current.filter(t => t.id !== task.id);
@@ -283,7 +300,10 @@ export function TaskProvider({ children, encryptionKey, synced }) {
 
   return (
     <TaskContext.Provider
-      value={{ tasks, addTask, toggleTask, deleteTask, restoreTask, updateTask, syncState, syncNow }}
+      value={{
+        tasks, addTask, toggleTask, deleteTask, restoreTask, updateTask,
+        reorderTasks, syncState, syncNow,
+      }}
     >
       {children}
     </TaskContext.Provider>

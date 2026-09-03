@@ -3,6 +3,7 @@ import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView, useWindowDimensions,
 } from 'react-native';
 import { useTasks } from '../context/TaskContext';
+import { sortForDisplay, targetIndex, shiftFor, moveWithin } from '../services/ordering';
 import TaskItem from '../components/TaskItem';
 import ViewToggle from '../components/ViewToggle';
 import AddTaskModal from '../components/AddTaskModal';
@@ -36,16 +37,47 @@ const SYNC_LABEL = {
 // layout is seeing what you owe and what you are owed side by side.
 function Column({
   tasks, showCompleted, onToggleCompleted, emptyText, total,
-  onToggle, onDelete, onPress, onLongPress, onReopenAll, onClearAll,
+  onToggle, onDelete, onPress, onLongPress, onReorder, onReopenAll, onClearAll,
 }) {
   const open = useMemo(
-    () => tasks.filter(t => !t.completed)
-      .sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]),
+    () => sortForDisplay(tasks.filter(t => !t.completed), t => PRIORITY_ORDER[t.priority]),
     [tasks]
   );
   const completed = useMemo(() => tasks.filter(t => t.completed), [tasks]);
 
-  const row = task => (
+  // Row heights, because they are not uniform — a two-line title is taller than
+  // a one-line one, so how far a drag has travelled cannot be counted in rows.
+  const heights = useRef({});
+  const measure = useCallback((id, height) => { heights.current[id] = height; }, []);
+
+  // Held in a ref as well as state: the release handler needs the latest target
+  // and would otherwise close over whatever it was when the drag began.
+  const [drag, setDrag] = useState(null);
+  const dragRef = useRef(null);
+  const setDragState = value => { dragRef.current = value; setDrag(value); };
+
+  const startDrag = useCallback(id => {
+    const from = open.findIndex(t => t.id === id);
+    if (from >= 0) setDragState({ id, from, to: from });
+  }, [open]);
+
+  const moveDrag = useCallback(dy => {
+    const current = dragRef.current;
+    if (!current) return;
+    const sizes = open.map(t => heights.current[t.id] || 0);
+    const to = targetIndex(sizes, current.from, dy);
+    if (to !== current.to) setDragState({ ...current, to });
+  }, [open]);
+
+  const endDrag = useCallback(() => {
+    const current = dragRef.current;
+    setDragState(null);
+    if (!current || current.to === current.from) return;
+    const changes = moveWithin(open, current.from, current.to);
+    if (changes.length) onReorder(changes);
+  }, [open, onReorder]);
+
+  const row = (task, index) => (
     <TaskItem
       key={task.id}
       task={task}
@@ -53,6 +85,12 @@ function Column({
       onDelete={onDelete}
       onPress={onPress}
       onLongPress={onLongPress}
+      onMeasure={measure}
+      onDragStart={startDrag}
+      onDragMove={moveDrag}
+      onDragEnd={endDrag}
+      dragging={!!drag && drag.id === task.id}
+      shift={drag ? shiftFor(index, drag.from, drag.to, heights.current[drag.id] || 0) : 0}
     />
   );
 
@@ -68,7 +106,20 @@ function Column({
         <Text style={s.empty}>All settled.</Text>
       ) : null}
 
-      {showCompleted ? completed.map(row) : null}
+      {/* Finished tasks keep no order — there is nothing left to prioritise —
+          so they render without a handle and outside the drag's indices. */}
+      {showCompleted
+        ? completed.map(task => (
+            <TaskItem
+              key={task.id}
+              task={task}
+              onToggle={onToggle}
+              onDelete={onDelete}
+              onPress={onPress}
+              onLongPress={onLongPress}
+            />
+          ))
+        : null}
 
       {completed.length > 0 ? (
         <View style={s.columnFoot}>
@@ -115,7 +166,9 @@ function Column({
 }
 
 export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
-  const { tasks, addTask, toggleTask, deleteTask, restoreTask, updateTask, syncState } = useTasks();
+  const {
+    tasks, addTask, toggleTask, deleteTask, restoreTask, updateTask, reorderTasks, syncState,
+  } = useTasks();
   const { width } = useWindowDimensions();
 
   const [viewMode, setViewMode] = useState(VIEW_MODES.DAY);
@@ -184,6 +237,7 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
     onDelete: removeTask,
     onPress: setDetailTask,
     onLongPress: setQuickTask,
+    onReorder: reorderTasks,
   };
 
   return (
