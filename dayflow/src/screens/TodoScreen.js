@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView, useWindowDimensions,
 } from 'react-native';
@@ -20,6 +20,10 @@ const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
 
 // Sync is background work; it earns one quiet word in the tally line, and says
 // nothing at all when there is nothing to report.
+// Long enough to notice the bar and reach for it, short enough that it is gone
+// before it becomes furniture.
+const UNDO_WINDOW_MS = 7000;
+
 const SYNC_LABEL = {
   syncing: 'syncing…',
   error: 'sync failed — will retry',
@@ -111,7 +115,7 @@ function Column({
 }
 
 export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
-  const { tasks, addTask, toggleTask, deleteTask, updateTask, syncState } = useTasks();
+  const { tasks, addTask, toggleTask, deleteTask, restoreTask, updateTask, syncState } = useTasks();
   const { width } = useWindowDimensions();
 
   const [viewMode, setViewMode] = useState(VIEW_MODES.DAY);
@@ -120,6 +124,7 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
   const [detailTask, setDetailTask] = useState(null);
   const [showBriefing, setShowBriefing] = useState(false);
   const [quickTask, setQuickTask] = useState(null);
+  const [undo, setUndo] = useState(null);
   const [showCompleted, setShowCompleted] = useState({ todo: false, done_for_me: false });
   const [celebrating, setCelebrating] = useState(false);
   const [showAccount, setShowAccount] = useState(false);
@@ -160,9 +165,23 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
   const gutter = narrow ? 16 : 44;
   const columnGap = narrow ? 16 : 26;
 
+  // Deleting asks nothing and offers a way back instead. A confirmation on
+  // every row would cost more, more often, than the occasional undo.
+  const removeTask = useCallback(id => {
+    const task = tasks.find(t => t.id === id);
+    deleteTask(id);
+    if (task) setUndo(task);
+  }, [tasks, deleteTask]);
+
+  useEffect(() => {
+    if (!undo) return undefined;
+    const handle = setTimeout(() => setUndo(null), UNDO_WINDOW_MS);
+    return () => clearTimeout(handle);
+  }, [undo]);
+
   const shared = {
     onToggle: toggleTask,
-    onDelete: deleteTask,
+    onDelete: removeTask,
     onPress: setDetailTask,
     onLongPress: setQuickTask,
   };
@@ -295,6 +314,22 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
         onSave={updateTask}
       />
 
+      {undo ? (
+        <View style={s.undoBar} accessibilityRole="alert">
+          <Text style={s.undoText} numberOfLines={1}>
+            Deleted “{undo.title}”
+          </Text>
+          <TouchableOpacity
+            onPress={() => { restoreTask(undo); setUndo(null); }}
+            accessibilityRole="button"
+            accessibilityLabel={`Undo deleting ${undo.title}`}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={s.undoAction}>UNDO</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
       <DailyBriefing visible={showBriefing} onClose={() => setShowBriefing(false)} tasks={tasks} />
       <ConfettiOverlay visible={celebrating} onDone={() => setCelebrating(false)} />
 
@@ -313,7 +348,7 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
         onClose={() => setQuickTask(null)}
         onComplete={toggleTask}
         onEdit={setDetailTask}
-        onDelete={deleteTask}
+        onDelete={removeTask}
         onPriority={(id, p) => updateTask(id, { priority: p })}
       />
     </SafeAreaView>
@@ -321,6 +356,17 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
 }
 
 const s = StyleSheet.create({
+  undoBar: {
+    position: 'absolute', left: 0, right: 0, bottom: 0,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    gap: 16, paddingHorizontal: 20, paddingVertical: 13,
+    backgroundColor: COLORS.ink,
+  },
+  undoText: { flex: 1, fontFamily: SERIF, fontSize: 13.5, color: COLORS.sheet },
+  undoAction: {
+    fontFamily: SANS, fontSize: 12, fontWeight: '700', letterSpacing: 1.2,
+    color: COLORS.sheet,
+  },
   desk: { flex: 1, backgroundColor: COLORS.desk },
   scroll: { flexGrow: 1, alignItems: 'center' },
 
