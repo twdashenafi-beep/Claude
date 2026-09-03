@@ -6,6 +6,56 @@ import { Platform } from 'react-native';
 // rather than rejecting into the caller.
 const SUPPORTED = Platform.OS !== 'web';
 
+// Web gets its own path. expo-notifications does not implement scheduling in a
+// browser, but the browser has its own notifications — and without them a
+// reminder set on the web build fired precisely nowhere.
+//
+// What a browser cannot do is wake itself at a future moment: scheduling needs
+// a push server, which this app does not have. So alerts are raised while the
+// app is open, and anything that came due while it was closed is raised on the
+// next launch. The in-app strip is the part that always works; a system
+// notification is the part that needs permission.
+const WEB_ALERTS = Platform.OS === 'web'
+  && typeof window !== 'undefined'
+  && 'Notification' in window;
+
+// 'granted' | 'denied' | 'default' — or 'unavailable' where there is nothing
+// to ask for, which includes iOS Safari before the app is on the Home Screen.
+export function alertPermission() {
+  if (!WEB_ALERTS) return 'unavailable';
+  return Notification.permission;
+}
+
+// Must be called from a tap: browsers refuse the prompt otherwise.
+export async function requestAlertPermission() {
+  if (!WEB_ALERTS) return 'unavailable';
+  try {
+    return await Notification.requestPermission();
+  } catch {
+    return Notification.permission;
+  }
+}
+
+export async function showSystemAlert(title, body, tag) {
+  if (!WEB_ALERTS || Notification.permission !== 'granted') return false;
+  try {
+    // iOS raises notifications only through the service worker registration;
+    // constructing one directly throws there.
+    if ('serviceWorker' in navigator) {
+      const registration = await navigator.serviceWorker.getRegistration();
+      if (registration && registration.showNotification) {
+        await registration.showNotification(title, { body, tag });
+        return true;
+      }
+    }
+    // eslint-disable-next-line no-new
+    new Notification(title, { body, tag });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // Configure how notifications appear when app is in foreground
 if (SUPPORTED) Notifications.setNotificationHandler({
   handleNotification: async () => ({

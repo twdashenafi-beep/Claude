@@ -4,6 +4,9 @@ import {
 } from 'react-native';
 import { useTasks } from '../context/TaskContext';
 import { sortForDisplay, targetIndex, shiftFor, moveWithin } from '../services/ordering';
+import { pendingAlerts, alertBody, pruneShown } from '../services/alerts';
+import { loadShown, saveShown } from '../services/alertStore';
+import { alertPermission, requestAlertPermission, showSystemAlert } from '../services/notifications';
 import TaskItem from '../components/TaskItem';
 import ViewToggle from '../components/ViewToggle';
 import AddTaskModal from '../components/AddTaskModal';
@@ -26,6 +29,9 @@ const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
 const UNDO_WINDOW_MS = 7000;
 
 const SCOPE_NAMES = { day: 'Day', week: 'Week', month: 'Month' };
+
+// Often enough that a reminder lands on the minute it is meant to.
+const ALERT_TICK_MS = 20000;
 
 const SYNC_LABEL = {
   syncing: 'syncing…',
@@ -180,6 +186,8 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
   const [showBriefing, setShowBriefing] = useState(false);
   const [quickTask, setQuickTask] = useState(null);
   const [banner, setBanner] = useState(null);
+  const [alerts, setAlerts] = useState([]);
+  const [askAlerts, setAskAlerts] = useState(false);
   const [showCompleted, setShowCompleted] = useState({ todo: false, done_for_me: false });
   const [celebrating, setCelebrating] = useState(false);
   const [showAccount, setShowAccount] = useState(false);
@@ -253,6 +261,67 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
     const handle = setTimeout(() => setBanner(null), UNDO_WINDOW_MS);
     return () => clearTimeout(handle);
   }, [banner]);
+
+  // ── Reminders ─────────────────────────────────────────────────────────────
+  //
+  // The check runs on a timer rather than off a render, and reads the task list
+  // from a ref, so an edit does not restart the clock and push a reminder late.
+  const alertTasks = useRef(tasks);
+  alertTasks.current = tasks;
+  const shownAlerts = useRef([]);
+  // Held so the list effect below can run the same check without restarting
+  // the timer, and without a second copy of it.
+  const checkAlerts = useRef(null);
+
+  useEffect(() => {
+    let stopped = false;
+
+    const tick = async () => {
+      const now = Date.now();
+      const due = pendingAlerts({
+        tasks: alertTasks.current,
+        now,
+        shown: shownAlerts.current,
+      });
+      if (stopped || due.length === 0) return;
+
+      // Recorded before they are raised: a notification that fails to appear is
+      // better than one that repeats every twenty seconds.
+      shownAlerts.current = pruneShown([...shownAlerts.current, ...due.map(a => a.key)], now);
+      saveShown(shownAlerts.current);
+
+      for (const alert of due) {
+        await showSystemAlert(alert.task.title, alertBody(alert), alert.key);
+      }
+      if (!stopped) setAlerts(prev => [...prev, ...due]);
+    };
+
+    checkAlerts.current = tick;
+
+    loadShown().then(keys => {
+      if (stopped) return;
+      shownAlerts.current = pruneShown(keys, Date.now());
+      tick();
+    });
+
+    const handle = setInterval(tick, ALERT_TICK_MS);
+    return () => { stopped = true; checkAlerts.current = null; clearInterval(handle); };
+  }, []);
+
+  // The check on mount runs before the vault has finished decrypting, so it
+  // sees no tasks. Without this, a reminder already overdue at launch waits out
+  // a whole tick before it is raised — and so does one you have just set.
+  useEffect(() => {
+    if (checkAlerts.current) checkAlerts.current();
+  }, [tasks]);
+
+  // Offered once, and only where there is something to be reminded about —
+  // asking on a first launch with an empty page is a prompt with no meaning.
+  useEffect(() => {
+    if (alertPermission() !== 'default') return;
+    if (!tasks.some(t => !t.completed && t.dueDate && t.dueTime)) return;
+    setAskAlerts(true);
+  }, [tasks]);
 
   const shared = {
     onToggle: toggleTask,
@@ -390,6 +459,38 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
         onSave={updateTask}
       />
 
+      {alerts.length > 0 ? (
+        <View style={s.alertBar} accessibilityRole="alert">
+          <Text style={s.alertText} numberOfLines={2}>
+            {alerts.length === 1
+              ? `${alertBody(alerts[0])} — ${alerts[0].task.title}`
+              : `${alerts.length} tasks due`}
+          </Text>
+          <TouchableOpacity
+            onPress={() => setAlerts([])}
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss reminders"
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={s.alertAction}>DISMISS</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
+      {askAlerts && alerts.length === 0 ? (
+        <View style={s.undoBar}>
+          <Text style={s.undoText} numberOfLines={1}>Alert me when a task is due</Text>
+          <TouchableOpacity
+            onPress={async () => { await requestAlertPermission(); setAskAlerts(false); }}
+            accessibilityRole="button"
+            accessibilityLabel="Turn on alerts for tasks that are due"
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={s.undoAction}>TURN ON</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
       {banner ? (
         <View style={s.undoBar} accessibilityRole="alert">
           <Text style={s.undoText} numberOfLines={1}>{banner.text}</Text>
@@ -431,6 +532,17 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
 }
 
 const s = StyleSheet.create({
+  alertBar: {
+    position: 'absolute', left: 0, right: 0, bottom: 0,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    gap: 16, paddingHorizontal: 20, paddingVertical: 13,
+    backgroundColor: COLORS.accent,
+  },
+  alertText: { flex: 1, fontFamily: SERIF, fontSize: 13.5, color: COLORS.sheet },
+  alertAction: {
+    fontFamily: SANS, fontSize: 12, fontWeight: '700', letterSpacing: 1.2,
+    color: COLORS.sheet,
+  },
   undoBar: {
     position: 'absolute', left: 0, right: 0, bottom: 0,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
