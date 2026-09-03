@@ -6,7 +6,7 @@ import {
   format, startOfMonth, getDay, getDaysInMonth, addMonths, subMonths,
   isSameDay, isToday as isDateToday,
 } from 'date-fns';
-import { COLORS, SERIF } from '../utils/theme';
+import { COLORS } from '../utils/theme';
 
 // Date and time, in one place.
 //
@@ -47,11 +47,21 @@ function InlineCalendar({ selectedDate, onSelectDate }) {
   return (
     <View style={calStyles.wrap}>
       <View style={calStyles.nav}>
-        <TouchableOpacity onPress={() => setViewMonth(subMonths(viewMonth, 1))} style={calStyles.navBtn}>
+        <TouchableOpacity
+          onPress={() => setViewMonth(subMonths(viewMonth, 1))}
+          style={calStyles.navBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Previous month"
+        >
           <Text style={calStyles.arrow}>‹</Text>
         </TouchableOpacity>
         <Text style={calStyles.navTitle}>{MONTH_NAMES[month]} {year}</Text>
-        <TouchableOpacity onPress={() => setViewMonth(addMonths(viewMonth, 1))} style={calStyles.navBtn}>
+        <TouchableOpacity
+          onPress={() => setViewMonth(addMonths(viewMonth, 1))}
+          style={calStyles.navBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Next month"
+        >
           <Text style={calStyles.arrow}>›</Text>
         </TouchableOpacity>
       </View>
@@ -73,6 +83,9 @@ function InlineCalendar({ selectedDate, onSelectDate }) {
                 style={[calStyles.cell, sel && calStyles.cellSel, !sel && today && calStyles.cellToday]}
                 onPress={() => onSelectDate(date)}
                 activeOpacity={0.6}
+                accessibilityRole="button"
+                accessibilityLabel={format(date, 'EEEE d MMMM yyyy')}
+                aria-selected={sel}
               >
                 <Text style={[calStyles.cText, sel && calStyles.cTextSel, !sel && today && calStyles.cTextToday]}>
                   {day}
@@ -143,8 +156,16 @@ function TimePickerModal({ visible, hour24, minute, onConfirm, onCancel }) {
 
   return (
     <Modal visible={visible} transparent animationType="fade">
-      <TouchableOpacity style={tp.overlay} activeOpacity={1} onPress={onCancel}>
-        <TouchableOpacity style={tp.sheet} activeOpacity={1} onPress={() => {}}>
+      {/* The backdrop is a dismiss target; the sheet inside it only swallows
+          taps, so it is not a control and should not be announced as one. */}
+      <TouchableOpacity
+        style={tp.overlay}
+        activeOpacity={1}
+        onPress={onCancel}
+        accessibilityRole="button"
+        accessibilityLabel="Close without choosing a time"
+      >
+        <TouchableOpacity style={tp.sheet} activeOpacity={1} onPress={() => {}} accessible={false}>
           <Text style={tp.preview} accessibilityRole="header" accessibilityLabel={
             `Chosen time ${hour}:${String(min).padStart(2, '0')} ${period}`
           }>

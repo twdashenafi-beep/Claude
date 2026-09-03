@@ -24,7 +24,13 @@ export default function QuickActions({
 
   return (
     <Modal visible={visible} transparent animationType="fade">
-      <TouchableOpacity style={st.overlay} activeOpacity={1} onPress={onClose}>
+      <TouchableOpacity
+        style={st.overlay}
+        activeOpacity={1}
+        onPress={onClose}
+        accessibilityRole="button"
+        accessibilityLabel="Close"
+      >
         <View style={st.sheet}>
           <Text style={st.title} numberOfLines={1}>{task.title}</Text>
 

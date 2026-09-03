@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, ScrollView, Switch,
+  View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, ScrollView,
 } from 'react-native';
 import { PRIORITY, PRIORITY_COLORS } from '../utils/constants';
 import { EARLY_REMINDER_OPTIONS } from '../services/notifications';
@@ -56,27 +56,6 @@ export default function TaskDetail({ task, visible, onClose, onSave }) {
     onClose();
   };
 
-  const formatDisplayDate = (dateStr) => {
-    if (!dateStr) return 'No date';
-    try {
-      const d = new Date(dateStr);
-      return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
-    } catch {
-      return dateStr;
-    }
-  };
-
-  const formatDisplayTime = (timeStr) => {
-    if (!timeStr) return 'No time';
-    try {
-      const [h, m] = timeStr.split(':').map(Number);
-      const p = h >= 12 ? 'PM' : 'AM';
-      const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-      return `${h12}:${String(m).padStart(2, '0')} ${p}`;
-    } catch {
-      return timeStr;
-    }
-  };
 
   const isOweMe = task.taskType === 'done_for_me' || task.section === 'owe_me';
 
@@ -118,6 +97,9 @@ export default function TaskDetail({ task, visible, onClose, onSave }) {
                     priority === p && { backgroundColor: PRIORITY_COLORS[p] + '20', borderColor: PRIORITY_COLORS[p] },
                   ]}
                   onPress={() => setPriority(p)}
+                  accessibilityRole="radio"
+                  accessibilityLabel={`${p} priority`}
+                  aria-checked={priority === p}
                 >
                   <View style={[styles.priorityDot, { backgroundColor: PRIORITY_COLORS[p] }]} />
                   <Text style={[
@@ -177,6 +159,9 @@ export default function TaskDetail({ task, visible, onClose, onSave }) {
                   key={opt.label}
                   style={[styles.reminderOption, earlyReminderIdx === i && styles.reminderOptionActive]}
                   onPress={() => setEarlyReminderIdx(i)}
+                  accessibilityRole="radio"
+                  accessibilityLabel={`Remind ${opt.label.toLowerCase()}`}
+                  aria-checked={earlyReminderIdx === i}
                 >
                   <Text style={[
                     styles.reminderOptionText,
@@ -353,34 +338,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '500',
     color: COLORS.inkSoft,
-  },
-  metaCard: {
-    backgroundColor: COLORS.sheet,
-    borderRadius: 12,
-    borderWidth: 0.5,
-    borderColor: COLORS.rule,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 14,
-    borderBottomWidth: 0.5,
-    borderBottomColor: '#F4F1EA',
-  },
-  metaLabel: {
-    fontSize: 14,
-    color: COLORS.inkSoft,
-  },
-  metaValue: {
-    fontSize: 14,
-    color: COLORS.ink,
-    fontWeight: '500',
-  },
-  switchRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
   },
   reminderOptions: {
     flexDirection: 'row',

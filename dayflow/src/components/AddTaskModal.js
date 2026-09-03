@@ -14,7 +14,7 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
   }
 }
 
-import { PRIORITY, PRIORITY_COLORS } from '../utils/constants';
+import { PRIORITY_COLORS } from '../utils/constants';
 import DateTimeFields from './DateTimeFields';
 import VoiceRecorder from './VoiceRecorder';
 import { COLORS, SERIF } from '../utils/theme';
@@ -94,12 +94,6 @@ const rs = StyleSheet.create({
 
 // ── Priority Picker Popup ────────────────────────────────────────────────────
 
-const PRIORITY_OPTIONS = [
-  { key: 'none', label: 'None', color: COLORS.inkSoft },
-  { key: 'low', label: 'Low', color: PRIORITY_COLORS.low },
-  { key: 'medium', label: 'Medium', color: PRIORITY_COLORS.medium },
-  { key: 'high', label: 'High', color: PRIORITY_COLORS.high },
-];
 
 
 // ── Main Component ───────────────────────────────────────────────────────────
@@ -265,19 +259,6 @@ export default function AddTaskModal({ visible, onClose, onAdd, section = 'todo'
   );
 }
 
-// ── Picker row styles ────────────────────────────────────────────────────────
-
-const pickS = StyleSheet.create({
-  opt: {
-    flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 54,
-  },
-  optSel: {
-    backgroundColor: '#F4F1EA',
-  },
-  optText: { flex: 1, fontSize: 16, color: COLORS.ink },
-  optTextSel: { fontWeight: '600', color: COLORS.accent },
-  check: { fontSize: 16, color: COLORS.accent, fontWeight: '600' },
-});
 
 // ── Main styles ──────────────────────────────────────────────────────────────
 
@@ -309,11 +290,9 @@ const s = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 8,
     backgroundColor: '#F4F1EA', borderRadius: 20,
   },
-  chipOn: { backgroundColor: '#F4F1EA' },
   chipHigh: { backgroundColor: '#F6EBE8' },
   chipIcon: { fontSize: 13 },
   chipLabel: { fontSize: 14, color: COLORS.inkSoft },
-  chipLabelOn: { color: COLORS.accent, fontWeight: '500' },
   oweSection: { paddingHorizontal: 20, paddingTop: 8, gap: 10 },
   oweHint: { fontFamily: SERIF, fontSize: 13, fontStyle: 'italic', color: COLORS.inkFaint, lineHeight: 18 },
   oweInput: {

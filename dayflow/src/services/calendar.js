@@ -1,5 +1,4 @@
 import * as Calendar from 'expo-calendar';
-import { Platform } from 'react-native';
 
 export async function requestCalendarPermissions() {
   const { status } = await Calendar.requestCalendarPermissionsAsync();
