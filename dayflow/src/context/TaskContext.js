@@ -114,8 +114,13 @@ export function TaskProvider({ children, encryptionKey, synced }) {
   useEffect(() => flush, [flush]);
 
   // ── Cloud sync ────────────────────────────────────────────────────────────
+  // Guards against a pile-up: a slow sync would otherwise have the next tick,
+  // and every change event that arrives meanwhile, start their own.
+  const syncing = useRef(false);
+
   const syncNow = useCallback(async () => {
-    if (!synced || !loaded) return;
+    if (!synced || !loaded || syncing.current) return;
+    syncing.current = true;
     setSyncState('syncing');
     try {
       const remoteRows = await pullTasks();
@@ -135,15 +140,20 @@ export function TaskProvider({ children, encryptionKey, synced }) {
       const outbound = result.pushIds.map(id => byId.get(id)).filter(Boolean);
 
       const rows = outbound.length ? encryptAll(outbound, encryptionKey) : [];
-      const tombRows = tombstones.current.map(t => ({
-        id: t.id, ciphertext: '', updatedAt: t.updatedAt, deleted: true,
-      }));
+      // Only the tombstones the server does not already hold. Re-sending the
+      // rest wrote on every sync, and every write brought another sync back.
+      const needed = new Set(result.tombstonePushIds);
+      const tombRows = tombstones.current
+        .filter(t => needed.has(t.id))
+        .map(t => ({ id: t.id, ciphertext: '', updatedAt: t.updatedAt, deleted: true }));
       if (rows.length || tombRows.length) await pushTasks([...rows, ...tombRows]);
 
       setSyncState('ok');
     } catch (e) {
       console.warn('Sync failed:', e.message);
       setSyncState('error');
+    } finally {
+      syncing.current = false;
     }
   }, [synced, loaded, encryptionKey, encryptAll]);
 
