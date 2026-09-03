@@ -1,0 +1,25 @@
+# Repository-wide. dayflow/ carries its own for the Expo app.
+
+# Dependencies
+node_modules/
+
+# Electron build output
+desktop/dist/
+desktop/release/
+
+# Secrets — never commit a real one; .env.example is the template
+.env
+.env.*
+!.env.example
+
+# Editors and OS
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Logs
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*

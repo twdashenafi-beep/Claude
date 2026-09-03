@@ -1,0 +1,39 @@
+appId: com.tewodros.dayflow.desktop
+productName: DayFlow
+copyright: © Tewodros Ashenafi
+
+directories:
+  output: dist
+
+files:
+  - main.js
+  - package.json
+
+mac:
+  category: public.app-category.productivity
+  # 1024×1024; electron-builder converts it to the .icns macOS wants.
+  icon: ../dayflow/assets/icon.png
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+  extendInfo:
+    NSHumanReadableCopyright: © Tewodros Ashenafi
+
+  # No signing settings here on purpose. With a Developer ID in the keychain
+  # electron-builder finds and uses it; without one it signs ad-hoc, which is
+  # what lets the app launch on Apple Silicon at all. Forcing identity to null
+  # would skip signing altogether and produce an app that cannot open.
+
+dmg:
+  title: DayFlow
+  window:
+    width: 540
+    height: 380
+  contents:
+    - x: 140
+      y: 190
+      type: file
+    - x: 400
+      y: 190
+      type: link
+      path: /Applications
