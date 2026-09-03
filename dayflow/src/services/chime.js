@@ -10,27 +10,28 @@
 // the first reminder of a session would be silent on iOS.
 
 let context = null;
-let ready = false;
 
-function AudioContextClass() {
+function ensureContext() {
   if (typeof window === 'undefined') return null;
-  return window.AudioContext || window.webkitAudioContext || null;
+  const Ctor = window.AudioContext || window.webkitAudioContext;
+  if (!Ctor) return null;
+  if (!context) {
+    try {
+      context = new Ctor();
+    } catch {
+      return null;
+    }
+  }
+  return context;
 }
 
 // Called from the first user gesture. Safe to call repeatedly.
 export function unlockChime() {
-  const Ctor = AudioContextClass();
-  if (!Ctor) return false;
-
-  try {
-    if (!context) context = new Ctor();
-    // Created before a gesture, a context starts suspended and stays that way.
-    if (context.state === 'suspended') context.resume().catch(() => {});
-    ready = true;
-    return true;
-  } catch {
-    return false;
-  }
+  const ctx = ensureContext();
+  if (!ctx) return false;
+  // Created before a gesture, a context starts suspended and stays that way.
+  if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+  return true;
 }
 
 // Two notes, a fourth apart, short and soft. Loud enough to notice across a
@@ -40,16 +41,12 @@ const NOTES = [
   { hz: 1174.7, at: 0.13, seconds: 0.28 },
 ];
 
-export function playChime() {
-  if (!context || !ready) return false;
-
+function schedule(ctx) {
   try {
-    if (context.state === 'suspended') context.resume().catch(() => {});
-    const now = context.currentTime;
-
+    const now = ctx.currentTime;
     for (const note of NOTES) {
-      const osc = context.createOscillator();
-      const gain = context.createGain();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
 
       osc.type = 'sine';
       osc.frequency.value = note.hz;
@@ -61,7 +58,7 @@ export function playChime() {
       gain.gain.exponentialRampToValueAtTime(0.0001, start + note.seconds);
 
       osc.connect(gain);
-      gain.connect(context.destination);
+      gain.connect(ctx.destination);
       osc.start(start);
       osc.stop(start + note.seconds + 0.02);
     }
@@ -70,4 +67,18 @@ export function playChime() {
     // A reminder you can see is still a reminder.
     return false;
   }
+}
+
+export function playChime() {
+  const ctx = ensureContext();
+  if (!ctx) return false;
+
+  // A context still suspended can be started from inside a gesture, but
+  // resuming is asynchronous — scheduling notes against a suspended clock
+  // plays them silently, or not at all. So wait for it.
+  if (ctx.state === 'suspended') {
+    ctx.resume().then(() => schedule(ctx)).catch(() => {});
+    return true;
+  }
+  return schedule(ctx);
 }
