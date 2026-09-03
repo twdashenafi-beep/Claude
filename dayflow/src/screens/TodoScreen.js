@@ -229,6 +229,45 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
   const gutter = narrow ? 16 : 44;
   const columnGap = narrow ? 16 : 26;
 
+  // The open tasks of one column, in the order they are shown. The same
+  // function the column itself sorts with, so moving by button and moving by
+  // hand agree about what "the one above" means.
+  const openInColumn = useCallback(
+    type => sortForDisplay(
+      inView.filter(t => t.taskType === type && !t.completed),
+      t => PRIORITY_ORDER[t.priority]
+    ),
+    [inView]
+  );
+
+  // Where a task sits in its column, so the sheet can grey out the moves that
+  // would do nothing.
+  const placeOf = useCallback(id => {
+    const task = tasks.find(t => t.id === id);
+    if (!task) return null;
+    const list = openInColumn(task.taskType);
+    const index = list.findIndex(t => t.id === id);
+    return index < 0 ? null : { index, total: list.length };
+  }, [tasks, openInColumn]);
+
+  // Reordering without dragging. On a phone a drag inside a scrolling list is
+  // fiddly at the best of times, and a finger held still on a row is how you
+  // select text everywhere else.
+  const moveTask = useCallback((id, to) => {
+    const task = tasks.find(t => t.id === id);
+    if (!task) return;
+    const list = openInColumn(task.taskType);
+    const from = list.findIndex(t => t.id === id);
+    if (from < 0) return;
+
+    const target = to === 'top' ? 0
+      : to === 'bottom' ? list.length - 1
+      : Math.max(0, Math.min(list.length - 1, from + to));
+
+    const changes = moveWithin(list, from, target);
+    if (changes.length) reorderTasks(changes);
+  }, [tasks, openInColumn, reorderTasks]);
+
   // Deleting asks nothing and offers a way back instead. A confirmation on
   // every row would cost more, more often, than the occasional undo.
   const removeTask = useCallback(id => {
@@ -531,6 +570,8 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
         onDelete={removeTask}
         onPriority={(id, p) => updateTask(id, { priority: p })}
         onScope={moveScope}
+        onMove={moveTask}
+        place={quickTask ? placeOf(quickTask.id) : null}
       />
     </SafeAreaView>
   );
