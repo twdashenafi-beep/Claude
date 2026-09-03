@@ -16,6 +16,7 @@ export default function TaskDetail({ task, visible, onClose, onSave }) {
   const [reminderEnabled, setReminderEnabled] = useState(false);
   const [earlyReminderIdx, setEarlyReminderIdx] = useState(0);
   const [owePerson, setOwePerson] = useState('');
+  const [viewScope, setViewScope] = useState('day');
 
   useEffect(() => {
     if (task) {
@@ -29,6 +30,7 @@ export default function TaskDetail({ task, visible, onClose, onSave }) {
       const idx = EARLY_REMINDER_OPTIONS.findIndex(o => o.minutes === mins);
       setEarlyReminderIdx(idx >= 0 ? idx : 0);
       setOwePerson(task.owePerson || '');
+      setViewScope(task.viewScope || 'day');
     }
   }, [task]);
 
@@ -45,6 +47,7 @@ export default function TaskDetail({ task, visible, onClose, onSave }) {
       reminderEnabled: reminderEnabled || earlyMinutes > 0,
       earlyReminderMinutes: earlyMinutes,
       owePerson,
+      viewScope,
     });
     onClose();
   };
@@ -136,6 +139,33 @@ export default function TaskDetail({ task, visible, onClose, onSave }) {
               value={{ dueDate, dueTime }}
               onChange={next => { setDueDate(next.dueDate); setDueTime(next.dueTime); }}
             />
+          </View>
+
+          {/* Which horizon it shows under. Fixed at creation until now, so a
+              task that turned out to be a this-month job was stuck on today. */}
+          <View style={styles.section}>
+            <Text style={styles.label}>Show under</Text>
+            <View style={styles.scopeRow}>
+              {[
+                { key: 'day', label: 'Day' },
+                { key: 'week', label: 'Week' },
+                { key: 'month', label: 'Month' },
+              ].map(scope => {
+                const on = viewScope === scope.key;
+                return (
+                  <TouchableOpacity
+                    key={scope.key}
+                    style={[styles.scopeBtn, on && styles.scopeBtnOn]}
+                    onPress={() => setViewScope(scope.key)}
+                    accessibilityRole="radio"
+                    aria-checked={on}
+                    accessibilityLabel={`Show under ${scope.label}`}
+                  >
+                    <Text style={[styles.scopeText, on && styles.scopeTextOn]}>{scope.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
 
           {/* Remind Me Early */}
@@ -253,6 +283,14 @@ const styles = StyleSheet.create({
   section: {
     marginBottom: 20,
   },
+  scopeRow: { flexDirection: 'row', gap: 8 },
+  scopeBtn: {
+    flex: 1, alignItems: 'center', paddingVertical: 10,
+    borderRadius: 8, borderWidth: 1, borderColor: '#E5E5EA',
+  },
+  scopeBtnOn: { backgroundColor: '#00000010', borderColor: '#C7C2B4' },
+  scopeText: { fontSize: 14, color: '#8E8E93' },
+  scopeTextOn: { color: '#3A362C', fontWeight: '600' },
   label: {
     fontSize: 13,
     fontWeight: '600',

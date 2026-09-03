@@ -25,6 +25,8 @@ const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
 // before it becomes furniture.
 const UNDO_WINDOW_MS = 7000;
 
+const SCOPE_NAMES = { day: 'Day', week: 'Week', month: 'Month' };
+
 const SYNC_LABEL = {
   syncing: 'syncing…',
   error: 'sync failed — will retry',
@@ -177,7 +179,7 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
   const [detailTask, setDetailTask] = useState(null);
   const [showBriefing, setShowBriefing] = useState(false);
   const [quickTask, setQuickTask] = useState(null);
-  const [undo, setUndo] = useState(null);
+  const [banner, setBanner] = useState(null);
   const [showCompleted, setShowCompleted] = useState({ todo: false, done_for_me: false });
   const [celebrating, setCelebrating] = useState(false);
   const [showAccount, setShowAccount] = useState(false);
@@ -223,14 +225,34 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
   const removeTask = useCallback(id => {
     const task = tasks.find(t => t.id === id);
     deleteTask(id);
-    if (task) setUndo(task);
-  }, [tasks, deleteTask]);
+    if (task) {
+      setBanner({
+        text: `Deleted “${task.title}”`,
+        action: 'UNDO',
+        label: `Undo deleting ${task.title}`,
+        run: () => restoreTask(task),
+      });
+    }
+  }, [tasks, deleteTask, restoreTask]);
+
+  // Moving a task to another scope takes it off the page you are looking at.
+  // Saying where it went, with a way to follow it, beats it just disappearing.
+  const moveScope = useCallback((id, scope) => {
+    updateTask(id, { viewScope: scope });
+    const name = SCOPE_NAMES[scope] || scope;
+    setBanner({
+      text: `Moved to ${name}`,
+      action: 'VIEW',
+      label: `Switch to ${name}`,
+      run: () => setViewMode(scope),
+    });
+  }, [updateTask]);
 
   useEffect(() => {
-    if (!undo) return undefined;
-    const handle = setTimeout(() => setUndo(null), UNDO_WINDOW_MS);
+    if (!banner) return undefined;
+    const handle = setTimeout(() => setBanner(null), UNDO_WINDOW_MS);
     return () => clearTimeout(handle);
-  }, [undo]);
+  }, [banner]);
 
   const shared = {
     onToggle: toggleTask,
@@ -368,18 +390,16 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
         onSave={updateTask}
       />
 
-      {undo ? (
+      {banner ? (
         <View style={s.undoBar} accessibilityRole="alert">
-          <Text style={s.undoText} numberOfLines={1}>
-            Deleted “{undo.title}”
-          </Text>
+          <Text style={s.undoText} numberOfLines={1}>{banner.text}</Text>
           <TouchableOpacity
-            onPress={() => { restoreTask(undo); setUndo(null); }}
+            onPress={() => { banner.run(); setBanner(null); }}
             accessibilityRole="button"
-            accessibilityLabel={`Undo deleting ${undo.title}`}
+            accessibilityLabel={banner.label}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Text style={s.undoAction}>UNDO</Text>
+            <Text style={s.undoAction}>{banner.action}</Text>
           </TouchableOpacity>
         </View>
       ) : null}
@@ -404,6 +424,7 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
         onEdit={setDetailTask}
         onDelete={removeTask}
         onPriority={(id, p) => updateTask(id, { priority: p })}
+        onScope={moveScope}
       />
     </SafeAreaView>
   );

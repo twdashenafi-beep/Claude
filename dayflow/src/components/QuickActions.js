@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal, Platform } from 'react-native';
 import { syncTaskToCalendar } from '../services/calendar';
 
-export default function QuickActions({ visible, task, onClose, onComplete, onEdit, onDelete, onPriority }) {
+export default function QuickActions({
+  visible, task, onClose, onComplete, onEdit, onDelete, onPriority, onScope,
+}) {
   const [calendarState, setCalendarState] = useState('idle');
 
   // The sheet is reused across tasks — clear the last result when it reopens.
@@ -77,6 +79,35 @@ export default function QuickActions({ visible, task, onClose, onComplete, onEdi
 
           <View style={st.divider} />
 
+          {/* Which horizon the task belongs to. It was fixed when the task was
+              made, so something that turned out to be a this-week job rather
+              than a today job had nowhere to go. */}
+          <Text style={st.sectionLabel}>SHOW UNDER</Text>
+          <View style={st.prioRow}>
+            {[
+              { key: 'day', label: 'Day' },
+              { key: 'week', label: 'Week' },
+              { key: 'month', label: 'Month' },
+            ].map(scope => {
+              const here = task.viewScope === scope.key;
+              return (
+                <TouchableOpacity
+                  key={scope.key}
+                  style={[st.prioBtn, here && st.scopeOn]}
+                  disabled={here}
+                  accessibilityRole="button"
+                  aria-disabled={here}
+                  accessibilityLabel={here ? `Already under ${scope.label}` : `Move to ${scope.label}`}
+                  onPress={() => { onScope(task.id, scope.key); onClose(); }}
+                >
+                  <Text style={[st.prioText, here && st.scopeOnText]}>{scope.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <View style={st.divider} />
+
           <TouchableOpacity style={st.action} onPress={() => { onDelete(task.id); onClose(); }}>
             <Text style={[st.actionIcon, { color: '#FF3B30' }]}>✕</Text>
             <Text style={[st.actionText, { color: '#FF3B30' }]}>Delete</Text>
@@ -111,4 +142,6 @@ const st = StyleSheet.create({
   },
   prioDot: { width: 6, height: 6, borderRadius: 3 },
   prioText: { fontSize: 13, color: '#8E8E93' },
+  scopeOn: { backgroundColor: '#00000010', borderColor: '#C7C2B4' },
+  scopeOnText: { color: '#3A362C', fontWeight: '600' },
 });
