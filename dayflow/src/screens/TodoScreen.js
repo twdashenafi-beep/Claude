@@ -7,6 +7,7 @@ import { sortForDisplay, targetIndex, shiftFor, moveWithin } from '../services/o
 import { pendingAlerts, alertBody, pruneShown } from '../services/alerts';
 import { loadShown, saveShown } from '../services/alertStore';
 import { alertPermission, requestAlertPermission, showSystemAlert } from '../services/notifications';
+import { playChime } from '../services/chime';
 import TaskItem from '../components/TaskItem';
 import ViewToggle from '../components/ViewToggle';
 import AddTaskModal from '../components/AddTaskModal';
@@ -289,6 +290,10 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
       // better than one that repeats every twenty seconds.
       shownAlerts.current = pruneShown([...shownAlerts.current, ...due.map(a => a.key)], now);
       saveShown(shownAlerts.current);
+
+      // Once for the batch: three tasks coming due together is one sound, not
+      // three overlapping ones.
+      playChime();
 
       for (const alert of due) {
         await showSystemAlert(alert.task.title, alertBody(alert), alert.key);

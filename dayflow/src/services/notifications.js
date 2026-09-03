@@ -37,6 +37,10 @@ export async function requestAlertPermission() {
 }
 
 export async function showSystemAlert(title, body, tag) {
+  // silent: false is the default, but stated because it is the whole point of
+  // a reminder. Whether a sound actually plays is then the operating system's
+  // to decide — macOS and iOS each have a per-app setting for it.
+  const options = { body, tag, silent: false };
   if (!WEB_ALERTS || Notification.permission !== 'granted') return false;
   try {
     // iOS raises notifications only through the service worker registration;
@@ -44,12 +48,12 @@ export async function showSystemAlert(title, body, tag) {
     if ('serviceWorker' in navigator) {
       const registration = await navigator.serviceWorker.getRegistration();
       if (registration && registration.showNotification) {
-        await registration.showNotification(title, { body, tag });
+        await registration.showNotification(title, options);
         return true;
       }
     }
     // eslint-disable-next-line no-new
-    new Notification(title, { body, tag });
+    new Notification(title, options);
     return true;
   } catch {
     return false;
