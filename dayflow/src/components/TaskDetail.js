@@ -5,6 +5,7 @@ import {
 import { PRIORITY, PRIORITY_COLORS } from '../utils/constants';
 import { EARLY_REMINDER_OPTIONS } from '../services/notifications';
 import { COLORS } from '../utils/theme';
+import DateTimeFields from './DateTimeFields';
 
 export default function TaskDetail({ task, visible, onClose, onSave }) {
   const [title, setTitle] = useState('');
@@ -127,19 +128,14 @@ export default function TaskDetail({ task, visible, onClose, onSave }) {
             </View>
           </View>
 
-          {/* Date & Time (read-only display) */}
+          {/* Date and time. These used to be printed and nothing more, so a
+              task's time could be set when it was created and never changed. */}
           <View style={styles.section}>
             <Text style={styles.label}>Date & Time</Text>
-            <View style={styles.metaCard}>
-              <View style={styles.metaRow}>
-                <Text style={styles.metaLabel}>Date</Text>
-                <Text style={styles.metaValue}>{formatDisplayDate(dueDate)}</Text>
-              </View>
-              <View style={[styles.metaRow, { borderBottomWidth: 0 }]}>
-                <Text style={styles.metaLabel}>Time</Text>
-                <Text style={styles.metaValue}>{formatDisplayTime(dueTime)}</Text>
-              </View>
-            </View>
+            <DateTimeFields
+              value={{ dueDate, dueTime }}
+              onChange={next => { setDueDate(next.dueDate); setDueTime(next.dueTime); }}
+            />
           </View>
 
           {/* Remind Me Early */}
