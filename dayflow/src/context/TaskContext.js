@@ -224,6 +224,9 @@ export function TaskProvider({ children, encryptionKey, synced }) {
         tasksRef.current.filter(t => t.taskType === (taskData.taskType || 'todo'))
       ),
     };
+    // Kept current here as well as in the effect below, so a second task added
+    // in the same breath is placed above this one rather than beside it.
+    tasksRef.current = [newTask, ...tasksRef.current];
     setTasks(prev => [newTask, ...prev]);
 
     if (newTask.dueDate && newTask.dueTime) {

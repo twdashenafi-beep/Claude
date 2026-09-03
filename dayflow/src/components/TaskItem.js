@@ -24,7 +24,9 @@ export default function TaskItem({
   // versions acts on a list that has since moved on. Reading them from a ref
   // keeps the gesture on the current ones.
   const latest = useRef({});
-  latest.current = { onDelete, onDragStart, onDragMove, onDragEnd };
+  useEffect(() => {
+    latest.current = { onDelete, onDragStart, onDragMove, onDragEnd };
+  });
 
   useEffect(() => {
     Animated.timing(opacityAnim, { toValue: 1, duration: 160, useNativeDriver: true }).start();

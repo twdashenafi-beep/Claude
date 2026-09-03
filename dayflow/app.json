@@ -60,6 +60,7 @@
           "microphonePermission": "DayFlow needs microphone access for voice notes."
         }
       ]
-    ]
+    ],
+    "scheme": "dayflow"
   }
 }

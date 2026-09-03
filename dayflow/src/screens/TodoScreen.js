@@ -267,7 +267,7 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
   // The check runs on a timer rather than off a render, and reads the task list
   // from a ref, so an edit does not restart the clock and push a reminder late.
   const alertTasks = useRef(tasks);
-  alertTasks.current = tasks;
+  useEffect(() => { alertTasks.current = tasks; }, [tasks]);
   const shownAlerts = useRef([]);
   // Held so the list effect below can run the same check without restarting
   // the timer, and without a second copy of it.
