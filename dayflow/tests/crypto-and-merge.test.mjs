@@ -112,5 +112,37 @@ m = mergeTasks({
 });
 ok('task the server has not seen is queued to push', m.pushIds.includes('h'));
 
+
+// ── Undo: a local edit newer than a remote tombstone ──
+//
+// The server still holds the tombstone, so keeping the task locally is only
+// half of it — unless the revival is pushed back, the next pull deletes it
+// again.
+{
+  const revived = { id: 'r1', title: 'back', updatedAt: '2026-01-02T00:00:00.000Z' };
+  const result = mergeTasks({
+    localTasks: [revived],
+    localTombstones: [],
+    remoteRows: [{ id: 'r1', ciphertext: '', updatedAt: '2026-01-01T00:00:00.000Z', deleted: true }],
+    decryptRow: () => null,
+  });
+  ok('a restored task outlives an older tombstone',
+     result.tasks.some(t => t.id === 'r1'));
+  ok('a restored task is pushed back so the tombstone is overwritten',
+     result.pushIds.includes('r1'));
+}
+
+// A tombstone newer than the local copy still wins.
+{
+  const result = mergeTasks({
+    localTasks: [{ id: 'r2', title: 'stale', updatedAt: '2026-01-01T00:00:00.000Z' }],
+    localTombstones: [],
+    remoteRows: [{ id: 'r2', ciphertext: '', updatedAt: '2026-01-02T00:00:00.000Z', deleted: true }],
+    decryptRow: () => null,
+  });
+  ok('a newer tombstone still deletes', !result.tasks.some(t => t.id === 'r2'));
+  ok('a newer tombstone is not pushed back as a revival', !result.pushIds.includes('r2'));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

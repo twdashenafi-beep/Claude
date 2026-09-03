@@ -22,7 +22,13 @@ export function mergeTasks({ localTasks, localTombstones, remoteRows, decryptRow
 
     if (row.deleted) {
       const local = merged.get(row.id);
-      if (local && (Date.parse(local.updatedAt) || 0) > remoteAt) continue; // local edit wins
+      if (local && (Date.parse(local.updatedAt) || 0) > remoteAt) {
+        // A local edit newer than the tombstone wins — but the server still
+        // holds the tombstone, so unless this goes back up the task is deleted
+        // again on the next sync. That is the path an undo takes.
+        toPush.push(local.id);
+        continue;
+      }
       merged.delete(row.id);
       tombstones.set(row.id, { id: row.id, updatedAt: row.updatedAt });
       continue;

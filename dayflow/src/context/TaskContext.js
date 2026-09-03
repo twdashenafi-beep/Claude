@@ -243,6 +243,20 @@ export function TaskProvider({ children, encryptionKey, synced }) {
     noteEdit();
   }, [noteEdit]);
 
+  // Undo for a delete. The tombstone has to go and the task come back stamped
+  // now: the server still holds the tombstone, so only a newer timestamp keeps
+  // it from being deleted again on the next sync.
+  const restoreTask = useCallback(task => {
+    if (!task) return;
+    tombstones.current = tombstones.current.filter(t => t.id !== task.id);
+    const revived = { ...task, updatedAt: stamp() };
+    setTasks(prev => (prev.some(t => t.id === task.id) ? prev : [revived, ...prev]));
+    if (!revived.completed && revived.dueDate && revived.dueTime) {
+      scheduleTaskNotifications(revived).catch(() => {});
+    }
+    noteEdit();
+  }, [noteEdit]);
+
   const updateTask = useCallback((id, updates) => {
     setTasks(prev =>
       prev.map(t => {
@@ -259,7 +273,7 @@ export function TaskProvider({ children, encryptionKey, synced }) {
 
   return (
     <TaskContext.Provider
-      value={{ tasks, addTask, toggleTask, deleteTask, updateTask, syncState, syncNow }}
+      value={{ tasks, addTask, toggleTask, deleteTask, restoreTask, updateTask, syncState, syncNow }}
     >
       {children}
     </TaskContext.Provider>

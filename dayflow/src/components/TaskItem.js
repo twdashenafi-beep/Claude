@@ -81,7 +81,7 @@ export default function TaskItem({ task, onToggle, onDelete, onPress, onLongPres
             task.priority === 'high' ? 'high priority' : null,
             done ? 'completed' : null,
           ].filter(Boolean).join(', ')}
-          accessibilityHint="Opens the task. Double tap and hold for actions including delete."
+          accessibilityHint="Opens the task. Double tap to mark it done."
         >
           <Text style={[st.title, done && st.titleDone]} numberOfLines={2}>
             {!done && task.priority === 'high' ? (
@@ -98,6 +98,20 @@ export default function TaskItem({ task, onToggle, onDelete, onPress, onLongPres
         </TouchableOpacity>
 
         {task.voiceNoteUri ? <VoicePlayButton uri={task.voiceNoteUri} /> : null}
+
+        {/* Removing something you are no longer going to do is not the same as
+            finishing it, and it was only reachable by swiping or holding —
+            neither of which a mouse discovers. */}
+        <TouchableOpacity
+          style={st.remove}
+          onPress={() => onDelete(task.id)}
+          hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}
+          accessibilityRole="button"
+          accessibilityLabel={`Delete ${task.title}`}
+          accessibilityHint="Removes the task without marking it done. Can be undone."
+        >
+          <Text style={st.removeMark}>×</Text>
+        </TouchableOpacity>
       </Animated.View>
     </Animated.View>
   );
@@ -128,4 +142,12 @@ const st = StyleSheet.create({
     marginTop: 2, fontVariant: ['tabular-nums'],
   },
   metaDone: { color: COLORS.done },
+
+  // Faint until reached for: present on every row, but the checkbox is what
+  // the eye should land on.
+  remove: {
+    width: 20, alignItems: 'center', justifyContent: 'center',
+    marginLeft: 4, marginTop: 1, alignSelf: 'flex-start', paddingTop: 1,
+  },
+  removeMark: { fontFamily: SANS, fontSize: 17, lineHeight: 19, color: '#C4BEB0' },
 });
