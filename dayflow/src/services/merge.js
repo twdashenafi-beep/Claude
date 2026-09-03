@@ -30,7 +30,12 @@ export function mergeTasks({ localTasks, localTombstones, remoteRows, decryptRow
         continue;
       }
       merged.delete(row.id);
-      tombstones.set(row.id, { id: row.id, updatedAt: row.updatedAt });
+      // Keep the later of the two stamps. Taking the remote one unconditionally
+      // would age a newer local delete backwards, and it would then look like
+      // the server already knew about it.
+      const held = tombstones.get(row.id);
+      const heldAt = held ? Date.parse(held.updatedAt) || 0 : -1;
+      if (remoteAt > heldAt) tombstones.set(row.id, { id: row.id, updatedAt: row.updatedAt });
       continue;
     }
 
@@ -54,14 +59,28 @@ export function mergeTasks({ localTasks, localTombstones, remoteRows, decryptRow
   }
 
   // Anything local the server has not seen also needs pushing.
-  const remoteIds = new Set(remoteRows.map(r => r.id));
+  const remoteById = new Map(remoteRows.map(r => [r.id, r]));
   for (const task of merged.values()) {
-    if (!remoteIds.has(task.id)) toPush.push(task.id);
+    if (!remoteById.has(task.id)) toPush.push(task.id);
+  }
+
+  // Which tombstones the server has not already recorded.
+  //
+  // Sending all of them every time meant every sync wrote to the server, every
+  // write raised a change event, and every change event asked for another sync
+  // — so a single delete left the app syncing in a loop for good.
+  const tombstonesToPush = [];
+  for (const tomb of tombstones.values()) {
+    const row = remoteById.get(tomb.id);
+    const tombAt = Date.parse(tomb.updatedAt) || 0;
+    const known = row && row.deleted && (Date.parse(row.updatedAt) || 0) >= tombAt;
+    if (!known) tombstonesToPush.push(tomb.id);
   }
 
   return {
     tasks: [...merged.values()],
     tombstones: [...tombstones.values()],
     pushIds: [...new Set(toPush)],
+    tombstonePushIds: [...new Set(tombstonesToPush)],
   };
 }

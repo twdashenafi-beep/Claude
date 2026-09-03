@@ -144,5 +144,44 @@ ok('task the server has not seen is queued to push', m.pushIds.includes('h'));
   ok('a newer tombstone is not pushed back as a revival', !result.pushIds.includes('r2'));
 }
 
+
+// ── Tombstones are pushed once, not on every sync ──
+//
+// Re-sending every tombstone each time meant every sync wrote, every write
+// raised a change event, and every event asked for another sync. One delete
+// was enough to leave the app syncing forever.
+{
+  const tomb = [{ id: 'g1', updatedAt: '2026-01-02T00:00:00.000Z' }];
+  const already = mergeTasks({
+    localTasks: [], localTombstones: tomb,
+    remoteRows: [{ id: 'g1', ciphertext: '', updatedAt: '2026-01-02T00:00:00.000Z', deleted: true }],
+    decryptRow: () => null,
+  });
+  ok('a tombstone the server already holds is not pushed again',
+     already.tombstonePushIds.length === 0, JSON.stringify(already.tombstonePushIds));
+
+  const unknown = mergeTasks({
+    localTasks: [], localTombstones: tomb, remoteRows: [], decryptRow: () => null,
+  });
+  ok('a tombstone the server has never seen is pushed',
+     unknown.tombstonePushIds.includes('g1'));
+
+  const live = mergeTasks({
+    localTasks: [], localTombstones: tomb,
+    remoteRows: [{ id: 'g1', ciphertext: 'x', updatedAt: '2026-01-01T00:00:00.000Z', deleted: false }],
+    decryptRow: () => null,
+  });
+  ok('a delete the server has not applied yet is pushed',
+     live.tombstonePushIds.includes('g1'));
+
+  const stale = mergeTasks({
+    localTasks: [], localTombstones: tomb,
+    remoteRows: [{ id: 'g1', ciphertext: '', updatedAt: '2026-01-01T00:00:00.000Z', deleted: true }],
+    decryptRow: () => null,
+  });
+  ok('a tombstone newer than the server copy is pushed',
+     stale.tombstonePushIds.includes('g1'));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

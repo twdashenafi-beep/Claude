@@ -51,6 +51,7 @@ const SESSION = {
 let vault = null;
 const rows = new Map();
 let pushes = 0;
+let writes = 0;
 const hits = [];
 
 async function route(r) {
@@ -75,6 +76,7 @@ async function route(r) {
   if (p.startsWith('/rest/v1/tasks')) {
     if (req.method() === 'GET') return json([...rows.values()]);
     pushes += 1;
+    writes += 1;
     for (const row of JSON.parse(req.postData() || '[]')) rows.set(row.id, row);
     return json([], 201);
   }
@@ -170,6 +172,23 @@ await A.page.waitForTimeout(7500);
 ok('the undo bar clears itself', !/UNDO/.test(await body(A.page)));
 ok('the task stays deleted once the window passes',
    !(await body(A.page)).includes('renew the passport'));
+
+// ── The traffic has to stop ──
+//
+// Every sync used to re-send every tombstone. The write raised a change event,
+// the event asked for another sync, and that sync wrote again — so one delete
+// left the app syncing for good. Arriving data was never the problem; the
+// absence of a resting state was.
+// The window has to outlast the polling interval, or a loop driven by polling
+// simply does not get a turn inside it and the check passes for the wrong
+// reason. Realtime is not connected here, so polling is the driver.
+await A.page.waitForTimeout(4000);
+const settled = writes;
+await A.page.waitForTimeout(45000);
+ok('writes stop once a delete has been recorded', writes === settled,
+   `${settled} -> ${writes} over 45s`);
+ok('the app is not left saying it is syncing', !/syncing/i.test(await body(A.page)),
+   (await body(A.page)).slice(0, 120));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();
