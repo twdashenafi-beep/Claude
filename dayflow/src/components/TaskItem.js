@@ -3,7 +3,35 @@ import {
   View, Text, TouchableOpacity, StyleSheet, Animated, PanResponder,
 } from 'react-native';
 import { VoicePlayButton } from './VoiceRecorder';
+import { Platform } from 'react-native';
 import { COLORS, SANS, SERIF } from '../utils/theme';
+
+// Holding a finger on the handle otherwise selects the text beside it and
+// raises the callout menu, which is what a long press means everywhere else on
+// a page. touch-action tells the browser this element's touches are ours, so it
+// stops trying to scroll or select with them.
+if (Platform.OS === 'web' && typeof document !== 'undefined') {
+  const id = 'dayflow-drag-style';
+  if (!document.getElementById(id)) {
+    const style = document.createElement('style');
+    style.id = id;
+    style.textContent = `
+      [data-grip] {
+        touch-action: none;
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-touch-callout: none;
+        cursor: grab;
+      }
+      [data-grip]:active { cursor: grabbing; }
+      [data-taskrow] {
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-touch-callout: none;
+      }`;
+    document.head.appendChild(style);
+  }
+}
 
 // An entry in one of the two columns. The column is narrow, so the title takes
 // the full width and everything else — who owes, how much, when — sits on a
@@ -100,6 +128,7 @@ export default function TaskItem({
   return (
     <Animated.View style={{ opacity: opacityAnim }}>
       <Animated.View
+        dataSet={{ taskrow: 'true' }}
         onLayout={e => onMeasure && onMeasure(task.id, e.nativeEvent.layout.height)}
         style={[
           st.row,
@@ -112,6 +141,7 @@ export default function TaskItem({
       >
         <View
           style={st.grip}
+          dataSet={{ grip: 'true' }}
           {...dragResponder.panHandlers}
           accessibilityRole="button"
           accessibilityLabel={`Reorder ${task.title}`}

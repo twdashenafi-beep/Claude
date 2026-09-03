@@ -4,6 +4,7 @@ import { syncTaskToCalendar } from '../services/calendar';
 
 export default function QuickActions({
   visible, task, onClose, onComplete, onEdit, onDelete, onPriority, onScope,
+  onMove, place,
 }) {
   const [calendarState, setCalendarState] = useState('idle');
 
@@ -85,6 +86,41 @@ export default function QuickActions({
 
           <View style={st.divider} />
 
+          {/* Reordering by tapping. Dragging a row is fine with a mouse, but on
+              a phone it competes with scrolling the list, and a finger held on
+              a row is how you select text everywhere else. */}
+          <Text style={st.sectionLabel}>ORDER</Text>
+          <View style={st.prioRow}>
+            {[
+              { key: 'top', to: 'top', label: '⤒ Top', can: place && place.index > 0 },
+              { key: 'up', to: -1, label: '↑ Up', can: place && place.index > 0 },
+              { key: 'down', to: 1, label: '↓ Down', can: place && place.index < place.total - 1 },
+            ].map(move => (
+              <TouchableOpacity
+                key={move.key}
+                style={[st.prioBtn, !move.can && st.moveOff]}
+                disabled={!move.can}
+                accessibilityRole="button"
+                aria-disabled={!move.can}
+                accessibilityLabel={{
+                  top: 'Move to the top of the list',
+                  up: 'Move up one place',
+                  down: 'Move down one place',
+                }[move.key]}
+                onPress={() => { onMove(task.id, move.to); onClose(); }}
+              >
+                <Text style={[st.prioText, move.can && st.moveOnText]}>{move.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          {place ? (
+            <Text style={st.placeNote}>
+              {place.index + 1} of {place.total} in this list
+            </Text>
+          ) : null}
+
+          <View style={st.divider} />
+
           {/* Which horizon the task belongs to. It was fixed when the task was
               made, so something that turned out to be a this-week job rather
               than a today job had nowhere to go. */}
@@ -149,5 +185,8 @@ const st = StyleSheet.create({
   prioDot: { width: 6, height: 6, borderRadius: 3 },
   prioText: { fontSize: 13, color: '#8E8E93' },
   scopeOn: { backgroundColor: '#00000010', borderColor: '#C7C2B4' },
+  moveOff: { opacity: 0.4 },
+  moveOnText: { color: '#3A362C', fontWeight: '600' },
+  placeNote: { fontSize: 12, color: '#8E8E93', marginTop: 8, marginBottom: 4 },
   scopeOnText: { color: '#3A362C', fontWeight: '600' },
 });
