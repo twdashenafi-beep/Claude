@@ -13,9 +13,19 @@ const STORAGE_KEY = '@dayflow_vault_v2';
 // this only covers a dropped socket or a device that was asleep.
 const SYNC_BACKSTOP_MS = 300000;
 
+// When Realtime is not running — not enabled on the project, or a socket that
+// will not open — polling is the only thing left, so it has to be brisk enough
+// that the app still feels synced.
+const SYNC_FALLBACK_MS = 20000;
+
 // Realtime fires once per row, so a device saving twenty tasks would otherwise
 // trigger twenty merges. Coalesce them.
 const SYNC_DEBOUNCE_MS = 800;
+
+// How long an edit waits before going up. Long enough that ticking off four
+// things in a row is one push, short enough to feel immediate on the device
+// watching.
+const PUSH_DEBOUNCE_MS = 1200;
 
 // Every mutation stamps updatedAt. Merging across devices has nothing else to
 // go on — the server cannot read the task — so the timestamp is what decides
@@ -28,6 +38,19 @@ export function TaskProvider({ children, encryptionKey, synced }) {
   const [syncState, setSyncState] = useState(synced ? 'idle' : 'off');
   const tombstones = useRef([]);
   const encryptAll = useMemo(() => createTaskEncryptor(), []);
+
+  // Bumped by every local mutation, so an edit can go up as soon as it is made.
+  // Deliberately a counter rather than a watch on `tasks`: syncing itself sets
+  // tasks, so watching that would have each sync schedule the next one forever.
+  const [localEdits, setLocalEdits] = useState(0);
+  const noteEdit = useCallback(() => setLocalEdits(n => n + 1), []);
+  const [realtimeLive, setRealtimeLive] = useState(false);
+
+  // The current task list, readable synchronously. Merging needs the list as it
+  // stands and has to act on the result in the same breath; reading it out of a
+  // setTasks updater instead means waiting on React to render, which is not
+  // something a push can be sequenced against.
+  const tasksRef = useRef([]);
 
   // ── Local vault ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -45,7 +68,7 @@ export function TaskProvider({ children, encryptionKey, synced }) {
               return task ? { ...task, id: row.id, updatedAt: row.updatedAt } : null;
             })
             .filter(Boolean);
-          if (!cancelled) setTasks(decrypted);
+            if (!cancelled) { tasksRef.current = decrypted; setTasks(decrypted); }
         }
       } catch (e) {
         console.warn('Failed to load vault:', e.message);
@@ -78,6 +101,10 @@ export function TaskProvider({ children, encryptionKey, synced }) {
   }, [persist]);
 
   useEffect(() => {
+    tasksRef.current = tasks;
+  }, [tasks]);
+
+  useEffect(() => {
     if (!loaded) return;
     pending.current = tasks;
     const handle = setTimeout(flush, 250);
@@ -94,22 +121,18 @@ export function TaskProvider({ children, encryptionKey, synced }) {
       const remoteRows = await pullTasks();
       if (!remoteRows) { setSyncState('off'); return; }
 
-      let outbound = [];
-      setTasks(current => {
-        const result = mergeTasks({
-          localTasks: current,
-          localTombstones: tombstones.current,
-          remoteRows,
-          decryptRow: ciphertext => decryptTask(ciphertext, encryptionKey),
-        });
-        tombstones.current = result.tombstones;
-        const byId = new Map(result.tasks.map(t => [t.id, t]));
-        outbound = result.pushIds.map(id => byId.get(id)).filter(Boolean);
-        return result.tasks;
+      const result = mergeTasks({
+        localTasks: tasksRef.current,
+        localTombstones: tombstones.current,
+        remoteRows,
+        decryptRow: ciphertext => decryptTask(ciphertext, encryptionKey),
       });
+      tombstones.current = result.tombstones;
+      tasksRef.current = result.tasks;
+      setTasks(result.tasks);
 
-      // setTasks batches, so give React a tick to apply before encrypting.
-      await Promise.resolve();
+      const byId = new Map(result.tasks.map(t => [t.id, t]));
+      const outbound = result.pushIds.map(id => byId.get(id)).filter(Boolean);
 
       const rows = outbound.length ? encryptAll(outbound, encryptionKey) : [];
       const tombRows = tombstones.current.map(t => ({
@@ -135,17 +158,33 @@ export function TaskProvider({ children, encryptionKey, synced }) {
       debounce = setTimeout(syncNow, SYNC_DEBOUNCE_MS);
     };
 
-    const unwatch = watchTasks(nudge);
-    // Without Realtime there is nothing pushing changes, so fall back to the
-    // old cadence rather than syncing only on launch.
-    const backstop = setInterval(syncNow, unwatch ? SYNC_BACKSTOP_MS : 60000);
+    const unwatch = watchTasks(nudge, setRealtimeLive);
 
     return () => {
       clearTimeout(debounce);
-      clearInterval(backstop);
       if (unwatch) unwatch();
+      setRealtimeLive(false);
     };
   }, [synced, loaded, syncNow]);
+
+  // Polling, paced by whether Realtime is actually delivering. Kept apart from
+  // the subscription above so that changing pace does not tear the channel down
+  // and build it again.
+  useEffect(() => {
+    if (!synced || !loaded) return undefined;
+    const handle = setInterval(syncNow, realtimeLive ? SYNC_BACKSTOP_MS : SYNC_FALLBACK_MS);
+    return () => clearInterval(handle);
+  }, [synced, loaded, syncNow, realtimeLive]);
+
+  // Nothing else pushes a local change. Without this an edit waited for the
+  // backstop, so a task added on one device took minutes to appear on another
+  // — and since Realtime only fires once a write lands, the other device had
+  // nothing to react to in the meantime.
+  useEffect(() => {
+    if (!synced || !loaded || localEdits === 0) return undefined;
+    const handle = setTimeout(syncNow, PUSH_DEBOUNCE_MS);
+    return () => clearTimeout(handle);
+  }, [localEdits, synced, loaded, syncNow]);
 
   // ── Mutations ─────────────────────────────────────────────────────────────
   const addTask = useCallback(taskData => {
@@ -175,8 +214,9 @@ export function TaskProvider({ children, encryptionKey, synced }) {
     if (newTask.dueDate && newTask.dueTime) {
       scheduleTaskNotifications(newTask).catch(() => {});
     }
+    noteEdit();
     return newTask;
-  }, []);
+  }, [noteEdit]);
 
   const toggleTask = useCallback(id => {
     setTasks(prev =>
@@ -188,7 +228,8 @@ export function TaskProvider({ children, encryptionKey, synced }) {
         return updated;
       })
     );
-  }, []);
+    noteEdit();
+  }, [noteEdit]);
 
   const deleteTask = useCallback(id => {
     cancelTaskNotifications(id);
@@ -199,7 +240,8 @@ export function TaskProvider({ children, encryptionKey, synced }) {
       { id, updatedAt: stamp() },
     ];
     setTasks(prev => prev.filter(t => t.id !== id));
-  }, []);
+    noteEdit();
+  }, [noteEdit]);
 
   const updateTask = useCallback((id, updates) => {
     setTasks(prev =>
@@ -212,7 +254,8 @@ export function TaskProvider({ children, encryptionKey, synced }) {
         return updated;
       })
     );
-  }, []);
+    noteEdit();
+  }, [noteEdit]);
 
   return (
     <TaskContext.Provider
