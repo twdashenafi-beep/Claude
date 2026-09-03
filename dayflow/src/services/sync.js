@@ -67,7 +67,7 @@ export { mergeTasks } from './merge';
 //
 // Returns an unsubscribe function, and null when Realtime is unavailable so the
 // caller knows to keep polling instead.
-export function watchTasks(onChange) {
+export function watchTasks(onChange, onLive) {
   const supabase = getSupabase();
   if (!supabase) return null;
 
@@ -77,7 +77,12 @@ export function watchTasks(onChange) {
     .on('postgres_changes', { event: '*', schema: 'public', table: TABLE }, () => {
       if (active) onChange();
     })
-    .subscribe();
+    // Whether the channel actually came up is reported only here. Returning an
+    // unsubscribe function regardless says nothing about it, and a caller that
+    // reads that as "Realtime is running" will wait on a stream that is not.
+    .subscribe(status => {
+      if (active && onLive) onLive(status === 'SUBSCRIBED');
+    });
 
   return () => {
     active = false;
