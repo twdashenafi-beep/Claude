@@ -43,11 +43,16 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo' }) {
     const parsed = parseNaturalLanguage(t);
     setTimeout(() => {
       const now = new Date();
+      // What was said decides which list it lands in. activeTab is only the
+      // fallback: before this, "Sarah owes me the deck" was filed under To Do
+      // because the tab was the only thing consulted.
+      const taskType = parsed.taskType || activeTab;
       onAddTask({
         title: parsed.title,
         priority: parsed.priority,
-        section: 'todo',
-        taskType: activeTab,
+        section: taskType === 'done_for_me' ? 'owe_me' : 'todo',
+        taskType,
+        owePerson: parsed.owePerson || '',
         viewScope: parsed.viewScope || viewMode || 'day',
         date: parsed.date || now.toISOString(),
         dueDate: parsed.dueDate || now.toISOString(),
@@ -153,6 +158,13 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo' }) {
       {preview && !listening && !processing && text.trim().length > 2 && (
         <View style={st.previewRow}>
           <Text style={st.previewText} numberOfLines={1}>{preview.title}</Text>
+          {/* Which list this is heading for, before it is committed — the
+              routing is inferred from the wording, so it has to be visible. */}
+          {preview.taskType === 'done_for_me' && (
+            <Text style={st.tag}>
+              {preview.owePerson ? `Owe Me · ${preview.owePerson}` : 'Owe Me'}
+            </Text>
+          )}
           {preview.hasDate && <Text style={st.tag}>{preview.viewScope}</Text>}
           {preview.hasTime && <Text style={st.tag}>{preview.dueTime}</Text>}
           {preview.priority === 'high' && <Text style={[st.tag, { color: COLORS.accent, fontWeight: '700' }]}>High</Text>}
