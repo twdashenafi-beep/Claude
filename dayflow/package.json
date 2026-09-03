@@ -16,7 +16,7 @@
     "build:pages": "EXPO_PUBLIC_BUILD_ID=$(date -u +%Y%m%d-%H%M) EXPO_BASE_URL=/Claude expo export --clear --platform web --output-dir web-build && node scripts/make-pwa.js web-build /Claude",
     "preview:web": "npx serve web-build",
     "test": "node tests/crypto-and-merge.test.mjs && node tests/vault.test.mjs && node tests/error-report.test.mjs && node tests/sync-config.test.mjs && node tests/parser.test.mjs",
-    "test:e2e": "node tests/e2e/two-device-sync.mjs && node tests/e2e/voice-routing.mjs && node tests/e2e/delete-and-undo.mjs"
+    "test:e2e": "node tests/e2e/two-device-sync.mjs && node tests/e2e/voice-routing.mjs && node tests/e2e/delete-and-undo.mjs && node tests/e2e/add-sheet.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",
