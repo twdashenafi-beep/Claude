@@ -1,0 +1,23 @@
+{
+  "name": "dayflow-desktop",
+  "productName": "DayFlow",
+  "version": "1.0.0",
+  "private": true,
+  "description": "DayFlow as a Mac application",
+  "author": "Tewodros Ashenafi",
+  "license": "MIT",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dmg": "electron-builder --mac dmg --publish never",
+    "dmg:universal": "electron-builder --mac dmg --universal --publish never"
+  },
+  "devDependencies": {
+    "electron": "^38.4.0",
+    "electron-builder": "^26.0.12"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/twdashenafi-beep/Claude.git"
+  }
+}
