@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { EVERYTHING, cleanProjectName } from '../services/projects';
+import { ARCHIVE } from '../services/archive';
 import { COLORS, SANS, SERIF } from '../utils/theme';
 
 // The row of projects, like tabs on a folder.
@@ -9,7 +10,7 @@ import { COLORS, SANS, SERIF } from '../utils/theme';
 // the main list, and the main list is the leftmost tab. One mental model, and
 // nowhere for a task to fall between the two.
 export default function ProjectBar({
-  projects, active, onSelect, onCreate, onRename, onDelete,
+  projects, active, onSelect, onCreate, onRename, onDelete, archivedCount = 0,
 }) {
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
@@ -93,6 +94,21 @@ export default function ProjectBar({
           {tab(EVERYTHING, 'Everything')}
           {projects.map(p => tab(p.id, p.name))}
 
+          {/* Not a project: a place finished work is kept. Sitting at the end
+              and set apart, so it is not mistaken for somewhere to work. */}
+          <View style={s.spacer} />
+          <TouchableOpacity
+            onPress={() => onSelect(ARCHIVE)}
+            style={[s.tab, s.archiveTab, active === ARCHIVE && s.tabOn]}
+            accessibilityRole="tab"
+            aria-selected={active === ARCHIVE}
+            accessibilityLabel={`Archive, ${archivedCount} kept`}
+          >
+            <Text style={[s.tabText, active === ARCHIVE && s.tabTextOn]}>
+              Archive{archivedCount ? ` ${archivedCount}` : ''}
+            </Text>
+          </TouchableOpacity>
+
           {adding ? (
             <View style={s.editRow}>
               <TextInput
@@ -144,6 +160,8 @@ const s = StyleSheet.create({
   tabText: { fontFamily: SANS, fontSize: 13, color: COLORS.inkSoft },
   tabTextOn: { color: COLORS.sheet, fontWeight: '600' },
   add: { fontFamily: SANS, fontSize: 13, color: COLORS.inkFaint },
+  spacer: { width: 10 },
+  archiveTab: { borderWidth: 1, borderColor: COLORS.rule, borderStyle: 'dashed' },
 
   editRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 2 },
   input: {
