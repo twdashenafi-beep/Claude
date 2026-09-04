@@ -6,11 +6,13 @@ import { useTasks } from '../context/TaskContext';
 import { sortForDisplay, targetIndex, shiftFor, moveWithin } from '../services/ordering';
 import { pendingAlerts, alertBody, pruneShown } from '../services/alerts';
 import { EVERYTHING, projectOf, projectName } from '../services/projects';
+import { ARCHIVE, deletionOf, groupByDay } from '../services/archive';
 import { loadShown, saveShown } from '../services/alertStore';
 import { alertPermission, requestAlertPermission, showSystemAlert } from '../services/notifications';
 import { playChime } from '../services/chime';
 import TaskItem from '../components/TaskItem';
 import ProjectBar from '../components/ProjectBar';
+import ArchiveSheet from '../components/ArchiveSheet';
 import ViewToggle from '../components/ViewToggle';
 import AddTaskModal from '../components/AddTaskModal';
 import TaskDetail from '../components/TaskDetail';
@@ -180,6 +182,7 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
   const {
     tasks, addTask, toggleTask, deleteTask, restoreTask, updateTask, reorderTasks, syncState,
     projects, addProject, renameProject, deleteProject, moveTaskToProject,
+    archived, archiveTask, archiveTasks, unarchiveTask,
   } = useTasks();
   const { width } = useWindowDimensions();
 
@@ -283,16 +286,42 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
   // every row would cost more, more often, than the occasional undo.
   const removeTask = useCallback(id => {
     const task = tasks.find(t => t.id === id);
-    deleteTask(id);
-    if (task) {
+    if (!task) return;
+
+    // One button, two meanings — so the bar afterwards says which one happened
+    // rather than leaving you to guess whether the record survived.
+    if (deletionOf(task) === 'archive') {
+      archiveTask(id);
       setBanner({
-        text: `Deleted “${task.title}”`,
+        text: `Archived “${task.title}”`,
         action: 'UNDO',
-        label: `Undo deleting ${task.title}`,
-        run: () => restoreTask(task),
+        label: `Put ${task.title} back on the page`,
+        run: () => unarchiveTask(id),
       });
+      return;
     }
-  }, [tasks, deleteTask, restoreTask]);
+
+    deleteTask(id);
+    setBanner({
+      text: `Deleted “${task.title}”`,
+      action: 'UNDO',
+      label: `Undo deleting ${task.title}`,
+      run: () => restoreTask(task),
+    });
+  }, [tasks, deleteTask, restoreTask, archiveTask, unarchiveTask]);
+
+  // Clearing a column files its finished work rather than destroying it.
+  const clearCompleted = useCallback(type => {
+    const done = inView.filter(t => t.taskType === type && t.completed);
+    if (done.length === 0) return;
+    archiveTasks(done.map(t => t.id));
+    setBanner({
+      text: `Archived ${done.length} finished ${done.length === 1 ? 'task' : 'tasks'}`,
+      action: 'VIEW',
+      label: 'Open the archive',
+      run: () => { setProject(ARCHIVE); setShowProjects(true); },
+    });
+  }, [inView, archiveTasks]);
 
   // Moving a task to another scope takes it off the page you are looking at.
   // Saying where it went, with a way to follow it, beats it just disappearing.
@@ -439,6 +468,7 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
               active={project}
               onSelect={setProject}
               onCreate={name => { const made = addProject(name); setProject(made.id); }}
+              archivedCount={archived.length}
               onRename={renameProject}
               onDelete={id => {
                 deleteProject(id);
@@ -460,79 +490,127 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
             {SYNC_LABEL[syncState] ? `  ·  ${SYNC_LABEL[syncState]}` : ''}
           </Text>
 
-          <ViewToggle activeView={viewMode} onChangeView={setViewMode} />
-          <AIInput onAddTask={addHere} viewMode={viewMode} activeTab="todo" />
+          {/* The archive answers a different question from the rest of the app —
+              what got done, and when — so it does not carry scopes, columns or
+              an input for adding to it. */}
+          {project === ARCHIVE ? null : (
+            <ViewToggle activeView={viewMode} onChangeView={setViewMode} />
+          )}
+          {project === ARCHIVE ? null : (
+            <AIInput onAddTask={addHere} viewMode={viewMode} activeTab="todo" />
+          )}
 
-          {/* Column headings, side by side */}
-          <View style={[s.headings, { marginTop: narrow ? 18 : 26 }]}>
-            <View style={[s.headCell, { paddingRight: columnGap / 2 }]}>
-              <Text style={s.headText} accessibilityRole="header">To Do</Text>
-              <TouchableOpacity
-                onPress={() => setAddingTo('todo')}
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                accessibilityRole="button"
-                accessibilityLabel="Add a task to To Do"
-              >
-                <Text style={s.addGlyph}>+</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={s.headTick} />
-
-            <View style={[s.headCell, { paddingLeft: columnGap / 2 }]}>
-              <Text style={s.headText} accessibilityRole="header">Owe Me</Text>
-              <TouchableOpacity
-                onPress={() => setAddingTo('done_for_me')}
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                accessibilityRole="button"
-                accessibilityLabel="Add something you are waiting on to Owe Me"
-              >
-                <Text style={s.addGlyph}>+</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* The rule under both headings */}
-          <View style={s.headRule} />
-
-          {/* The two columns, split by the vertical rule */}
-          <View style={s.columns}>
-            <View style={[s.columnWrap, { paddingRight: columnGap / 2 }]}>
-              <Column
-                tasks={todo}
-                emptyText={
-                  viewMode === VIEW_MODES.DAY
-                    ? 'Nothing due today.'
-                    : viewMode === VIEW_MODES.WEEK
-                    ? 'Nothing this week.'
-                    : 'A clear month.'
+          {project === ARCHIVE ? (
+            <ArchiveSheet
+              tasks={archived}
+              projects={projects}
+              onRestore={id => {
+                unarchiveTask(id);
+                setBanner({
+                  text: 'Put back on the page',
+                  action: 'OK',
+                  label: 'Dismiss',
+                  run: () => {},
+                });
+              }}
+              onDelete={id => {
+                const task = archived.find(t => t.id === id);
+                deleteTask(id);
+                if (task) {
+                  setBanner({
+                    text: `Deleted “${task.title}” for good`,
+                    action: 'UNDO',
+                    label: `Undo deleting ${task.title}`,
+                    run: () => restoreTask(task),
+                  });
                 }
-                showCompleted={showCompleted.todo}
-                onToggleCompleted={() => setShowCompleted(p => ({ ...p, todo: !p.todo }))}
-                onReopenAll={() => todo.filter(t => t.completed).forEach(t => toggleTask(t.id))}
-                onClearAll={() => todo.filter(t => t.completed).forEach(t => deleteTask(t.id))}
-                {...shared}
-              />
+              }}
+              onEmpty={() => {
+                const all = [...archived];
+                all.forEach(t => deleteTask(t.id));
+                setBanner({
+                  text: `Emptied the archive — ${all.length} deleted`,
+                  action: 'UNDO',
+                  label: 'Put the archive back',
+                  run: () => all.forEach(t => restoreTask(t)),
+                });
+              }}
+            />
+          ) : (
+            <>
+            {/* Column headings, side by side */}
+            <View style={[s.headings, { marginTop: narrow ? 18 : 26 }]}>
+              <View style={[s.headCell, { paddingRight: columnGap / 2 }]}>
+                <Text style={s.headText} accessibilityRole="header">To Do</Text>
+                <TouchableOpacity
+                  onPress={() => setAddingTo('todo')}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Add a task to To Do"
+                >
+                  <Text style={s.addGlyph}>+</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={s.headTick} />
+
+              <View style={[s.headCell, { paddingLeft: columnGap / 2 }]}>
+                <Text style={s.headText} accessibilityRole="header">Owe Me</Text>
+                <TouchableOpacity
+                  onPress={() => setAddingTo('done_for_me')}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Add something you are waiting on to Owe Me"
+                >
+                  <Text style={s.addGlyph}>+</Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
-            <View style={s.columnRule} />
+            {/* The rule under both headings */}
+            <View style={s.headRule} />
 
-            <View style={[s.columnWrap, { paddingLeft: columnGap / 2 }]}>
-              <Column
-                tasks={oweMe}
-                total={oweSummary}
-                emptyText="Not waiting on anyone."
-                showCompleted={showCompleted.done_for_me}
-                onToggleCompleted={() =>
-                  setShowCompleted(p => ({ ...p, done_for_me: !p.done_for_me }))
-                }
-                onReopenAll={() => oweMe.filter(t => t.completed).forEach(t => toggleTask(t.id))}
-                onClearAll={() => oweMe.filter(t => t.completed).forEach(t => deleteTask(t.id))}
-                {...shared}
-              />
+            {/* The two columns, split by the vertical rule */}
+            <View style={s.columns}>
+              <View style={[s.columnWrap, { paddingRight: columnGap / 2 }]}>
+                <Column
+                  tasks={todo}
+                  emptyText={
+                    viewMode === VIEW_MODES.DAY
+                      ? 'Nothing due today.'
+                      : viewMode === VIEW_MODES.WEEK
+                      ? 'Nothing this week.'
+                      : 'A clear month.'
+                  }
+                  showCompleted={showCompleted.todo}
+                  onToggleCompleted={() => setShowCompleted(p => ({ ...p, todo: !p.todo }))}
+                  onReopenAll={() => todo.filter(t => t.completed).forEach(t => toggleTask(t.id))}
+                  onClearAll={() => clearCompleted('todo')}
+                  {...shared}
+                />
+              </View>
+
+              <View style={s.columnRule} />
+
+              <View style={[s.columnWrap, { paddingLeft: columnGap / 2 }]}>
+                <Column
+                  tasks={oweMe}
+                  total={oweSummary}
+                  emptyText="Not waiting on anyone."
+                  showCompleted={showCompleted.done_for_me}
+                  onToggleCompleted={() =>
+                    setShowCompleted(p => ({ ...p, done_for_me: !p.done_for_me }))
+                  }
+                  onReopenAll={() => oweMe.filter(t => t.completed).forEach(t => toggleTask(t.id))}
+                  onClearAll={() => clearCompleted('done_for_me')}
+                  {...shared}
+                />
+              </View>
             </View>
-          </View>
+            </>
+          )}
         </View>
+
       </ScrollView>
 
       <AddTaskModal
@@ -553,7 +631,7 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
       />
 
       {alerts.length > 0 ? (
-        <View style={s.alertBar} accessibilityRole="alert">
+        <View style={s.alertBar} dataSet={{ notice: 'true' }} accessibilityRole="alert">
           <Text style={s.alertText} numberOfLines={2}>
             {alerts.length === 1
               ? `${alertBody(alerts[0])} — ${alerts[0].task.title}`
@@ -585,7 +663,7 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
       ) : null}
 
       {banner ? (
-        <View style={s.undoBar} accessibilityRole="alert">
+        <View style={s.undoBar} dataSet={{ notice: 'true' }} accessibilityRole="alert">
           <Text style={s.undoText} numberOfLines={1}>{banner.text}</Text>
           <TouchableOpacity
             onPress={() => { banner.run(); setBanner(null); }}

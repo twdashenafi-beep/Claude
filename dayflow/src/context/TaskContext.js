@@ -11,6 +11,7 @@ import {
   PROJECT_KIND, EVERYTHING, projectOf, isTask, isProject,
   sortProjects, orderForNewProject,
 } from '../services/projects';
+import { isArchived } from '../services/archive';
 
 const TaskContext = createContext();
 const STORAGE_KEY = '@dayflow_vault_v2';
@@ -313,7 +314,9 @@ export function TaskProvider({ children, encryptionKey, synced }) {
   // One list underneath, two things on top. Everything that syncs, merges or
   // persists works on the whole list; everything that renders wants one or the
   // other.
-  const visibleTasks = useMemo(() => tasks.filter(isTask), [tasks]);
+  const allTasks = useMemo(() => tasks.filter(isTask), [tasks]);
+  const visibleTasks = useMemo(() => allTasks.filter(t => !isArchived(t)), [allTasks]);
+  const archived = useMemo(() => allTasks.filter(isArchived), [allTasks]);
   const projects = useMemo(() => sortProjects(tasks.filter(isProject)), [tasks]);
 
   const addProject = useCallback(name => {
@@ -356,6 +359,35 @@ export function TaskProvider({ children, encryptionKey, synced }) {
 
   // Moving a task between projects, which is the only way one made in the wrong
   // place gets to the right one.
+  // Filed rather than destroyed. The task stays exactly where it was — same
+  // list, same row, same encryption — and gains the date it was put away, which
+  // is what every view then filters on.
+  const archiveTask = useCallback(id => {
+    const now = stamp();
+    setTasks(prev => prev.map(t => (
+      t.id === id ? { ...t, archivedAt: now, updatedAt: now } : t
+    )));
+    noteEdit();
+  }, [noteEdit]);
+
+  const archiveTasks = useCallback(ids => {
+    if (!ids || ids.length === 0) return;
+    const now = stamp();
+    const wanted = new Set(ids);
+    setTasks(prev => prev.map(t => (
+      wanted.has(t.id) ? { ...t, archivedAt: now, updatedAt: now } : t
+    )));
+    noteEdit();
+  }, [noteEdit]);
+
+  // Back out of the archive, and back onto the page it came from.
+  const unarchiveTask = useCallback(id => {
+    setTasks(prev => prev.map(t => (
+      t.id === id ? { ...t, archivedAt: '', updatedAt: stamp() } : t
+    )));
+    noteEdit();
+  }, [noteEdit]);
+
   const moveTaskToProject = useCallback((taskId, projectId) => {
     setTasks(prev => prev.map(t => (
       t.id === taskId ? { ...t, projectId: projectId || EVERYTHING, updatedAt: stamp() } : t
@@ -369,6 +401,7 @@ export function TaskProvider({ children, encryptionKey, synced }) {
         tasks: visibleTasks, addTask, toggleTask, deleteTask, restoreTask, updateTask,
         reorderTasks, syncState, syncNow,
         projects, addProject, renameProject, deleteProject, moveTaskToProject,
+        archived, archiveTask, archiveTasks, unarchiveTask,
       }}
     >
       {children}
