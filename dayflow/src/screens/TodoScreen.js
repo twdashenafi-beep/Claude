@@ -408,17 +408,13 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
   }, [tasks]);
 
   const tally = useMemo(() => {
-    if (project === ARCHIVE) {
-      return archived.length === 0
-        ? 'Archive  ·  nothing kept yet'
-        : `Archive  ·  ${archived.length} kept`;
-    }
+    if (project === ARCHIVE) return 'Archive';
     const where = project !== EVERYTHING ? `${projectName(projects, project)}  ·  ` : '';
     const count = inView.length === 0
       ? 'Nothing on the page yet'
       : `${doneCount} of ${inView.length} done`;
     return `${where}${count}`;
-  }, [project, archived.length, projects, inView.length, doneCount]);
+  }, [project, projects, inView.length, doneCount]);
 
   const addHere = useCallback(
     data => addTask({ ...data, projectId: project }),
@@ -481,7 +477,6 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
               active={project}
               onSelect={setProject}
               onCreate={name => { const made = addProject(name); setProject(made.id); }}
-              archivedCount={archived.length}
               onRename={renameProject}
               onDelete={id => {
                 deleteProject(id);

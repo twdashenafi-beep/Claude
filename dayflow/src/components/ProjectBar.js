@@ -10,7 +10,7 @@ import { COLORS, SANS, SERIF } from '../utils/theme';
 // the main list, and the main list is the leftmost tab. One mental model, and
 // nowhere for a task to fall between the two.
 export default function ProjectBar({
-  projects, active, onSelect, onCreate, onRename, onDelete, archivedCount = 0,
+  projects, active, onSelect, onCreate, onRename, onDelete,
 }) {
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
@@ -102,11 +102,9 @@ export default function ProjectBar({
             style={[s.tab, s.archiveTab, active === ARCHIVE && s.tabOn]}
             accessibilityRole="tab"
             aria-selected={active === ARCHIVE}
-            accessibilityLabel={`Archive, ${archivedCount} kept`}
+            accessibilityLabel="Archive"
           >
-            <Text style={[s.tabText, active === ARCHIVE && s.tabTextOn]}>
-              Archive{archivedCount ? ` ${archivedCount}` : ''}
-            </Text>
+            <Text style={[s.tabText, active === ARCHIVE && s.tabTextOn]}>Archive</Text>
           </TouchableOpacity>
 
           {adding ? (
