@@ -6,7 +6,7 @@ import { useTasks } from '../context/TaskContext';
 import { sortForDisplay, targetIndex, shiftFor, moveWithin } from '../services/ordering';
 import { pendingAlerts, alertBody, pruneShown } from '../services/alerts';
 import { EVERYTHING, projectOf, projectName } from '../services/projects';
-import { ARCHIVE, deletionOf, groupByDay } from '../services/archive';
+import { ARCHIVE, deletionOf } from '../services/archive';
 import { loadShown, saveShown } from '../services/alertStore';
 import { alertPermission, requestAlertPermission, showSystemAlert } from '../services/notifications';
 import { playChime } from '../services/chime';
@@ -182,7 +182,7 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
   const {
     tasks, addTask, toggleTask, deleteTask, restoreTask, updateTask, reorderTasks, syncState,
     projects, addProject, renameProject, deleteProject, moveTaskToProject,
-    archived, archiveTask, archiveTasks, unarchiveTask,
+    archived, archiveTask, archiveTasks, unarchiveTask, deleteTasks, restoreTasks,
   } = useTasks();
   const { width } = useWindowDimensions();
 
@@ -407,6 +407,19 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
     setAskAlerts(true);
   }, [tasks]);
 
+  const tally = useMemo(() => {
+    if (project === ARCHIVE) {
+      return archived.length === 0
+        ? 'Archive  ·  nothing kept yet'
+        : `Archive  ·  ${archived.length} kept`;
+    }
+    const where = project !== EVERYTHING ? `${projectName(projects, project)}  ·  ` : '';
+    const count = inView.length === 0
+      ? 'Nothing on the page yet'
+      : `${doneCount} of ${inView.length} done`;
+    return `${where}${count}`;
+  }, [project, archived.length, projects, inView.length, doneCount]);
+
   const addHere = useCallback(
     data => addTask({ ...data, projectId: project }),
     [addTask, project]
@@ -483,10 +496,13 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
             />
           ) : null}
 
-          <Text style={s.date} accessibilityRole="header">{dateLabel}</Text>
+          {/* The archive is not a day's page: today's date above a record of
+              past work says nothing, and the archive carries its own dates. */}
+          {project === ARCHIVE ? null : (
+            <Text style={s.date} accessibilityRole="header">{dateLabel}</Text>
+          )}
           <Text style={s.tally}>
-            {project !== EVERYTHING ? `${projectName(projects, project)}  ·  ` : ''}
-            {inView.length === 0 ? 'Nothing on the page yet' : `${doneCount} of ${inView.length} done`}
+            {tally}
             {SYNC_LABEL[syncState] ? `  ·  ${SYNC_LABEL[syncState]}` : ''}
           </Text>
 
@@ -527,12 +543,12 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
               }}
               onEmpty={() => {
                 const all = [...archived];
-                all.forEach(t => deleteTask(t.id));
+                deleteTasks(all.map(t => t.id));
                 setBanner({
                   text: `Emptied the archive — ${all.length} deleted`,
                   action: 'UNDO',
                   label: 'Put the archive back',
-                  run: () => all.forEach(t => restoreTask(t)),
+                  run: () => restoreTasks(all),
                 });
               }}
             />

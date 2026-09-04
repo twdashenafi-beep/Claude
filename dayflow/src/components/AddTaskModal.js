@@ -14,7 +14,6 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
   }
 }
 
-import { PRIORITY_COLORS } from '../utils/constants';
 import DateTimeFields from './DateTimeFields';
 import VoiceRecorder from './VoiceRecorder';
 import { COLORS, SERIF } from '../utils/theme';

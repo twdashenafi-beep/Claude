@@ -308,6 +308,30 @@ ok('both are in the archive', (await shows('first job')) && (await shows('second
 ok('the count includes them', /\d+ tasks kept/i.test(await body(A.page)),
    (await body(A.page)).slice(0, 200));
 
+// ── Emptying, and taking it back ──
+await openArchive();
+const heldBefore = (await page()).match(/(\d+) tasks? kept/i);
+ok('the archive holds something to empty', !!heldBefore, (await page()).slice(0, 160));
+
+await A.page.getByLabel('Empty the archive permanently').click();
+await A.page.waitForTimeout(1200);
+
+text = await body(A.page);
+ok('emptying says how many went', /Emptied the archive — \d+ deleted/.test(text), text.slice(0, 200));
+ok('and the archive is empty', /Nothing archived yet/.test(await page()));
+
+await A.page.getByLabel('Put the archive back').click();
+await A.page.waitForTimeout(1200);
+ok('undo brings the whole archive back',
+   !/Nothing archived yet/.test(await page()), (await page()).slice(0, 200));
+ok('with the same count as before',
+   (await page()).includes(heldBefore[0]), (await page()).slice(0, 200));
+ok('and the tasks themselves', (await shows('first job')) && (await shows('second job')));
+
+// It has to stick, not just look right until the next sync.
+await A.page.waitForTimeout(3000);
+ok('the restored archive survives a sync', (await shows('first job')));
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();
 server.close();
