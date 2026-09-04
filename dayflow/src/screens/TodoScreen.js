@@ -5,10 +5,12 @@ import {
 import { useTasks } from '../context/TaskContext';
 import { sortForDisplay, targetIndex, shiftFor, moveWithin } from '../services/ordering';
 import { pendingAlerts, alertBody, pruneShown } from '../services/alerts';
+import { EVERYTHING, projectOf, projectName } from '../services/projects';
 import { loadShown, saveShown } from '../services/alertStore';
 import { alertPermission, requestAlertPermission, showSystemAlert } from '../services/notifications';
 import { playChime } from '../services/chime';
 import TaskItem from '../components/TaskItem';
+import ProjectBar from '../components/ProjectBar';
 import ViewToggle from '../components/ViewToggle';
 import AddTaskModal from '../components/AddTaskModal';
 import TaskDetail from '../components/TaskDetail';
@@ -177,6 +179,7 @@ function Column({
 export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
   const {
     tasks, addTask, toggleTask, deleteTask, restoreTask, updateTask, reorderTasks, syncState,
+    projects, addProject, renameProject, deleteProject, moveTaskToProject,
   } = useTasks();
   const { width } = useWindowDimensions();
 
@@ -187,13 +190,21 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
   const [showBriefing, setShowBriefing] = useState(false);
   const [quickTask, setQuickTask] = useState(null);
   const [banner, setBanner] = useState(null);
+
+  // Which project's sheet is on screen. Empty is the main list, and the bar
+  // stays open while you are inside a project so it always says where you are.
+  const [project, setProject] = useState(EVERYTHING);
+  const [showProjects, setShowProjects] = useState(false);
   const [alerts, setAlerts] = useState([]);
   const [askAlerts, setAskAlerts] = useState(false);
   const [showCompleted, setShowCompleted] = useState({ todo: false, done_for_me: false });
   const [celebrating, setCelebrating] = useState(false);
   const [showAccount, setShowAccount] = useState(false);
 
-  const inView = useMemo(() => tasks.filter(t => t.viewScope === viewMode), [tasks, viewMode]);
+  const inView = useMemo(
+    () => tasks.filter(t => t.viewScope === viewMode && projectOf(t) === project),
+    [tasks, viewMode, project]
+  );
   const todo = useMemo(() => inView.filter(t => t.taskType === 'todo'), [inView]);
   const oweMe = useMemo(() => inView.filter(t => t.taskType === 'done_for_me'), [inView]);
 
@@ -367,6 +378,11 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
     setAskAlerts(true);
   }, [tasks]);
 
+  const addHere = useCallback(
+    data => addTask({ ...data, projectId: project }),
+    [addTask, project]
+  );
+
   const shared = {
     onToggle: toggleTask,
     onDelete: removeTask,
@@ -396,6 +412,15 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
                 <Text style={s.briefing}>Briefing</Text>
               </TouchableOpacity>
               <TouchableOpacity
+                onPress={() => setShowProjects(v => !v)}
+                hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+                accessibilityRole="button"
+                aria-expanded={showProjects || project !== EVERYTHING}
+                accessibilityLabel="Projects"
+              >
+                <Text style={s.briefing}>Projects</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
                 onPress={() => setShowAccount(true)}
                 hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
                 accessibilityRole="button"
@@ -405,14 +430,38 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
               </TouchableOpacity>
             </View>
           </View>
+          {/* Shown on request, and kept open while you are inside a project —
+              a sheet holding one project's tasks and no way to tell is worse
+              than the row taking a little room. */}
+          {showProjects || project !== EVERYTHING ? (
+            <ProjectBar
+              projects={projects}
+              active={project}
+              onSelect={setProject}
+              onCreate={name => { const made = addProject(name); setProject(made.id); }}
+              onRename={renameProject}
+              onDelete={id => {
+                deleteProject(id);
+                setProject(EVERYTHING);
+                setBanner({
+                  text: 'Project deleted — its tasks are back in Everything',
+                  action: 'OK',
+                  label: 'Dismiss',
+                  run: () => {},
+                });
+              }}
+            />
+          ) : null}
+
           <Text style={s.date} accessibilityRole="header">{dateLabel}</Text>
           <Text style={s.tally}>
+            {project !== EVERYTHING ? `${projectName(projects, project)}  ·  ` : ''}
             {inView.length === 0 ? 'Nothing on the page yet' : `${doneCount} of ${inView.length} done`}
             {SYNC_LABEL[syncState] ? `  ·  ${SYNC_LABEL[syncState]}` : ''}
           </Text>
 
           <ViewToggle activeView={viewMode} onChangeView={setViewMode} />
-          <AIInput onAddTask={addTask} viewMode={viewMode} activeTab="todo" />
+          <AIInput onAddTask={addHere} viewMode={viewMode} activeTab="todo" />
 
           {/* Column headings, side by side */}
           <View style={[s.headings, { marginTop: narrow ? 18 : 26 }]}>
@@ -489,7 +538,7 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
       <AddTaskModal
         visible={!!addingTo}
         onClose={() => setAddingTo(null)}
-        onAdd={addTask}
+        onAdd={addHere}
         section="todo"
         defaultTaskType={addingTo || 'todo'}
         viewMode={viewMode}
@@ -571,6 +620,9 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
         onPriority={(id, p) => updateTask(id, { priority: p })}
         onScope={moveScope}
         onMove={moveTask}
+        projects={projects}
+        onProject={moveTaskToProject}
+        currentProject={quickTask ? projectOf(quickTask) : EVERYTHING}
         place={quickTask ? placeOf(quickTask.id) : null}
       />
     </SafeAreaView>

@@ -7,6 +7,10 @@ import { createTaskEncryptor, decryptTask } from '../services/encryption';
 import { newId } from '../utils/id';
 import { pullTasks, pushTasks, mergeTasks, watchTasks } from '../services/sync';
 import { orderForNewTask } from '../services/ordering';
+import {
+  PROJECT_KIND, EVERYTHING, projectOf, isTask, isProject,
+  sortProjects, orderForNewProject,
+} from '../services/projects';
 
 const TaskContext = createContext();
 const STORAGE_KEY = '@dayflow_vault_v2';
@@ -219,9 +223,14 @@ export function TaskProvider({ children, encryptionKey, synced }) {
       attachments: taskData.attachments || [],
       createdAt: now,
       updatedAt: now,
-      // Top of its own column, above anything already placed there.
+      projectId: taskData.projectId || EVERYTHING,
+      // Top of its own column, in its own project: ordering is per column per
+      // project, or a task made in one would be placed against another's.
       order: orderForNewTask(
-        tasksRef.current.filter(t => t.taskType === (taskData.taskType || 'todo'))
+        tasksRef.current.filter(t =>
+          isTask(t)
+          && t.taskType === (taskData.taskType || 'todo')
+          && projectOf(t) === (taskData.projectId || EVERYTHING))
       ),
     };
     // Kept current here as well as in the effect below, so a second task added
@@ -301,11 +310,65 @@ export function TaskProvider({ children, encryptionKey, synced }) {
     noteEdit();
   }, [noteEdit]);
 
+  // One list underneath, two things on top. Everything that syncs, merges or
+  // persists works on the whole list; everything that renders wants one or the
+  // other.
+  const visibleTasks = useMemo(() => tasks.filter(isTask), [tasks]);
+  const projects = useMemo(() => sortProjects(tasks.filter(isProject)), [tasks]);
+
+  const addProject = useCallback(name => {
+    const now = stamp();
+    const record = {
+      id: newId(),
+      kind: PROJECT_KIND,
+      name,
+      order: orderForNewProject(tasksRef.current.filter(isProject)),
+      createdAt: now,
+      updatedAt: now,
+    };
+    tasksRef.current = [...tasksRef.current, record];
+    setTasks(prev => [...prev, record]);
+    noteEdit();
+    return record;
+  }, [noteEdit]);
+
+  const renameProject = useCallback((id, name) => {
+    setTasks(prev => prev.map(r => (
+      r.id === id && isProject(r) ? { ...r, name, updatedAt: stamp() } : r
+    )));
+    noteEdit();
+  }, [noteEdit]);
+
+  // The project goes; its tasks come back to the main list rather than going
+  // with it. Losing a project by accident should not lose the work in it, and
+  // anything genuinely finished can be deleted task by task.
+  const deleteProject = useCallback(id => {
+    const now = stamp();
+    tombstones.current = [
+      ...tombstones.current.filter(t => t.id !== id),
+      { id, updatedAt: now },
+    ];
+    setTasks(prev => prev
+      .filter(r => r.id !== id)
+      .map(r => (projectOf(r) === id ? { ...r, projectId: EVERYTHING, updatedAt: now } : r)));
+    noteEdit();
+  }, [noteEdit]);
+
+  // Moving a task between projects, which is the only way one made in the wrong
+  // place gets to the right one.
+  const moveTaskToProject = useCallback((taskId, projectId) => {
+    setTasks(prev => prev.map(t => (
+      t.id === taskId ? { ...t, projectId: projectId || EVERYTHING, updatedAt: stamp() } : t
+    )));
+    noteEdit();
+  }, [noteEdit]);
+
   return (
     <TaskContext.Provider
       value={{
-        tasks, addTask, toggleTask, deleteTask, restoreTask, updateTask,
+        tasks: visibleTasks, addTask, toggleTask, deleteTask, restoreTask, updateTask,
         reorderTasks, syncState, syncNow,
+        projects, addProject, renameProject, deleteProject, moveTaskToProject,
       }}
     >
       {children}
