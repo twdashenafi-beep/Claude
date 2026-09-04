@@ -297,6 +297,38 @@ export function TaskProvider({ children, encryptionKey, synced }) {
     noteEdit();
   }, [noteEdit]);
 
+  // Deleting many at once. Doing it one at a time rebuilds the tombstone list
+  // per task, which is quadratic on exactly the thing built to grow large — an
+  // archive of a few thousand would stall the app when emptied.
+  const deleteTasks = useCallback(ids => {
+    if (!ids || ids.length === 0) return;
+    const wanted = new Set(ids);
+    const now = stamp();
+    ids.forEach(id => cancelTaskNotifications(id));
+    tombstones.current = [
+      ...tombstones.current.filter(t => !wanted.has(t.id)),
+      ...ids.map(id => ({ id, updatedAt: now })),
+    ];
+    setTasks(prev => prev.filter(t => !wanted.has(t.id)));
+    noteEdit();
+  }, [noteEdit]);
+
+  // And undoing that, in one pass for the same reason.
+  const restoreTasks = useCallback(list => {
+    if (!list || list.length === 0) return;
+    const ids = new Set(list.map(t => t.id));
+    const now = stamp();
+    tombstones.current = tombstones.current.filter(t => !ids.has(t.id));
+    setTasks(prev => {
+      const present = new Set(prev.map(t => t.id));
+      const revived = list
+        .filter(t => !present.has(t.id))
+        .map(t => ({ ...t, updatedAt: now }));
+      return [...revived, ...prev];
+    });
+    noteEdit();
+  }, [noteEdit]);
+
   const updateTask = useCallback((id, updates) => {
     setTasks(prev =>
       prev.map(t => {
@@ -402,6 +434,7 @@ export function TaskProvider({ children, encryptionKey, synced }) {
         reorderTasks, syncState, syncNow,
         projects, addProject, renameProject, deleteProject, moveTaskToProject,
         archived, archiveTask, archiveTasks, unarchiveTask,
+        deleteTasks, restoreTasks,
       }}
     >
       {children}

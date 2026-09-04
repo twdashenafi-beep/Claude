@@ -77,6 +77,9 @@ export default function QuickActions({
                 key={p.key}
                 style={[st.prioBtn, task.priority === p.key && { backgroundColor: p.color + '18', borderColor: p.color }]}
                 onPress={() => { onPriority(task.id, p.key); onClose(); }}
+                accessibilityRole="radio"
+                accessibilityLabel={`${p.label} priority`}
+                aria-checked={task.priority === p.key}
               >
                 <View style={[st.prioDot, { backgroundColor: p.color }]} />
                 <Text style={[st.prioText, task.priority === p.key && { color: p.color, fontWeight: '600' }]}>{p.label}</Text>
