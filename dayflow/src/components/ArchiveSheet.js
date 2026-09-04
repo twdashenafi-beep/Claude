@@ -39,9 +39,6 @@ export default function ArchiveSheet({ tasks, projects, onRestore, onDelete, onE
   return (
     <View style={s.wrap}>
       <View style={s.headRow}>
-        <Text style={s.count}>
-          {tasks.length} {tasks.length === 1 ? 'task' : 'tasks'} kept
-        </Text>
         <TouchableOpacity
           onPress={onEmpty}
           accessibilityRole="button"
@@ -96,13 +93,7 @@ export default function ArchiveSheet({ tasks, projects, onRestore, onDelete, onE
 
 const s = StyleSheet.create({
   wrap: { marginTop: 20 },
-  headRow: {
-    flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between',
-  },
-  count: {
-    fontFamily: SANS, fontSize: 11, letterSpacing: 1.4,
-    textTransform: 'uppercase', color: COLORS.inkSoft,
-  },
+  headRow: { flexDirection: 'row', justifyContent: 'flex-end' },
   emptyAction: {
     fontFamily: SANS, fontSize: 11, fontWeight: '700', letterSpacing: 1.2,
     color: COLORS.accent,

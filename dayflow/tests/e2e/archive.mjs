@@ -180,7 +180,7 @@ const openArchive = async () => {
     await A.page.getByLabel('Projects').click();
     await A.page.waitForTimeout(500);
   }
-  await A.page.getByLabel(/^Archive,/).click();
+  await A.page.getByLabel('Archive', { exact: true }).click();
   await A.page.waitForTimeout(800);
 };
 
@@ -218,7 +218,8 @@ ok('it leaves the page', !(await shows('write the report')));
 await openArchive();
 ok('and is kept in the archive', await shows('write the report'));
 console.log('ARCHIVE PAGE:', JSON.stringify((await body(A.page)).replace(/\n+/g, ' | ').slice(0, 400)));
-ok('the archive counts what it holds', /1 task kept/i.test(await body(A.page)));
+ok('the archive lists only what it holds',
+   (await shows('write the report')) && !(await shows('cancel the gym')));
 ok('and says which list it came from', /To Do/.test(await body(A.page)));
 
 // ── Undo puts it back rather than losing it ──
@@ -237,7 +238,7 @@ ok('undo brings an archived task back to the page', await shows('second thing'))
 
 await openArchive();
 ok('and it is no longer in the archive', !(await shows('second thing')));
-ok('the count follows', /1 task kept/i.test(await body(A.page)));
+ok('and the other is gone from it', !(await shows('second thing')));
 
 // ── Restoring from inside the archive ──
 await A.page.getByLabel(/^Put write the report back/).click();
@@ -305,13 +306,12 @@ ok('and the tasks leave the page',
 
 await openArchive();
 ok('both are in the archive', (await shows('first job')) && (await shows('second job')));
-ok('the count includes them', /\d+ tasks kept/i.test(await body(A.page)),
-   (await body(A.page)).slice(0, 200));
+ok('and no count is shown for them', !/tasks? kept/i.test(await page()),
+   (await page()).slice(0, 200));
 
 // ── Emptying, and taking it back ──
 await openArchive();
-const heldBefore = (await page()).match(/(\d+) tasks? kept/i);
-ok('the archive holds something to empty', !!heldBefore, (await page()).slice(0, 160));
+ok('the archive holds something to empty', await shows('first job'), (await page()).slice(0, 160));
 
 await A.page.getByLabel('Empty the archive permanently').click();
 await A.page.waitForTimeout(1200);
@@ -324,8 +324,6 @@ await A.page.getByLabel('Put the archive back').click();
 await A.page.waitForTimeout(1200);
 ok('undo brings the whole archive back',
    !/Nothing archived yet/.test(await page()), (await page()).slice(0, 200));
-ok('with the same count as before',
-   (await page()).includes(heldBefore[0]), (await page()).slice(0, 200));
 ok('and the tasks themselves', (await shows('first job')) && (await shows('second job')));
 
 // It has to stick, not just look right until the next sync.
