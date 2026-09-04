@@ -4,7 +4,7 @@ import { syncTaskToCalendar } from '../services/calendar';
 
 export default function QuickActions({
   visible, task, onClose, onComplete, onEdit, onDelete, onPriority, onScope,
-  onMove, place,
+  onMove, place, projects, onProject, currentProject,
 }) {
   const [calendarState, setCalendarState] = useState('idle');
 
@@ -83,6 +83,38 @@ export default function QuickActions({
               </TouchableOpacity>
             ))}
           </View>
+
+          {/* Without this, a project only ever holds tasks made inside it, and
+              anything put in the wrong place has to be retyped. */}
+          {projects && projects.length > 0 ? (
+            <>
+              <View style={st.divider} />
+              <Text style={st.sectionLabel}>PROJECT</Text>
+              <View style={st.wrapRow}>
+                {[{ id: '', name: 'Everything' }, ...projects].map(p => {
+                  const here = (currentProject || '') === p.id;
+                  return (
+                    <TouchableOpacity
+                      key={p.id || 'everything'}
+                      style={[st.chip, here && st.scopeOn]}
+                      disabled={here}
+                      accessibilityRole="button"
+                      aria-disabled={here}
+                      accessibilityLabel={here ? `Already in ${p.name}` : `Move to ${p.name}`}
+                      onPress={() => { onProject(task.id, p.id); onClose(); }}
+                    >
+                      <Text
+                        style={[st.prioText, here && st.scopeOnText]}
+                        numberOfLines={1}
+                      >
+                        {p.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </>
+          ) : null}
 
           <View style={st.divider} />
 
@@ -187,6 +219,11 @@ const st = StyleSheet.create({
   scopeOn: { backgroundColor: '#00000010', borderColor: '#C7C2B4' },
   moveOff: { opacity: 0.4 },
   moveOnText: { color: '#3A362C', fontWeight: '600' },
+  wrapRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
+  chip: {
+    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8,
+    borderWidth: 1, borderColor: '#E5E5EA', maxWidth: 160,
+  },
   placeNote: { fontSize: 12, color: '#8E8E93', marginTop: 8, marginBottom: 4 },
   scopeOnText: { color: '#3A362C', fontWeight: '600' },
 });
