@@ -75,5 +75,19 @@ ok('detectOwe leaves a plain task text alone', detectOwe('call the bank').text =
 ok('detectOwe survives an empty input', detectOwe('').isOwe === false);
 ok('detectOwe survives undefined', detectOwe(undefined).isOwe === false);
 
+// ── Which scope a task lands in ──
+//
+// The parser only knows the scope when the words carry a date. Claiming 'day'
+// otherwise is not a harmless default: the caller falls back to the page you
+// are on, and a default here wins that fallback, so anything typed while on
+// Week or Month quietly lands on Day.
+ok('no date phrase means no opinion about the scope',
+   parse('sink survey').viewScope === null);
+ok('a plain task offers no scope either', parse('call the bank').viewScope === null);
+ok('a bare time is still no scope', parse('call the bank at 3pm').viewScope === null);
+ok('a day phrase says day', parse('call the bank tomorrow').viewScope === 'day');
+ok('a week phrase says week', parse('call the bank next week').viewScope === 'week');
+ok('a month phrase says month', parse('call the bank next month').viewScope === 'month');
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -112,7 +112,10 @@ export function parseNaturalLanguage(input) {
   let date = null;
   let time = null;
   let priority = 'medium';
-  let viewScope = 'day';
+  // Null rather than 'day' until a date phrase names one. The caller falls back
+  // to the page you are looking at, and a default here would silently win that
+  // fallback — everything typed while on Week or Month would land on Day.
+  let viewScope = null;
   const removeParts = [];
 
   // Extract priority

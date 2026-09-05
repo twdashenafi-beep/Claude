@@ -13,6 +13,7 @@ import { playChime } from '../services/chime';
 import TaskItem from '../components/TaskItem';
 import ProjectBar from '../components/ProjectBar';
 import ArchiveSheet from '../components/ArchiveSheet';
+import SearchSheet from '../components/SearchSheet';
 import ViewToggle from '../components/ViewToggle';
 import AddTaskModal from '../components/AddTaskModal';
 import TaskDetail from '../components/TaskDetail';
@@ -198,6 +199,10 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
   // stays open while you are inside a project so it always says where you are.
   const [project, setProject] = useState(EVERYTHING);
   const [showProjects, setShowProjects] = useState(false);
+  // Search sits over everything rather than beside it: it is the one part of
+  // the app that ignores which page you are on.
+  const [searching, setSearching] = useState(false);
+  const [query, setQuery] = useState('');
   const [alerts, setAlerts] = useState([]);
   const [askAlerts, setAskAlerts] = useState(false);
   const [showCompleted, setShowCompleted] = useState({ todo: false, done_for_me: false });
@@ -408,13 +413,35 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
   }, [tasks]);
 
   const tally = useMemo(() => {
+    if (searching) return 'Search';
     if (project === ARCHIVE) return 'Archive';
     const where = project !== EVERYTHING ? `${projectName(projects, project)}  ·  ` : '';
     const count = inView.length === 0
       ? 'Nothing on the page yet'
       : `${doneCount} of ${inView.length} done`;
     return `${where}${count}`;
-  }, [project, projects, inView.length, doneCount]);
+  }, [searching, project, projects, inView.length, doneCount]);
+
+  // Search reaches past the current page by design, so it is handed the
+  // archive as well as what is on screen — the whole point is not having to
+  // remember which of the two a task ended up in.
+  const searchable = useMemo(() => [...tasks, ...archived], [tasks, archived]);
+
+  // Opening a result does not just show the task: it takes you to where the
+  // task lives, so closing the sheet leaves you somewhere that makes sense
+  // rather than back on the page you searched from.
+  const openResult = useCallback(task => {
+    setSearching(false);
+    setQuery('');
+    if (task.archivedAt) {
+      setProject(ARCHIVE);
+      setShowProjects(true);
+    } else {
+      setProject(projectOf(task));
+      if (task.viewScope) setViewMode(task.viewScope);
+    }
+    setDetailTask(task);
+  }, []);
 
   const addHere = useCallback(
     data => addTask({ ...data, projectId: project }),
@@ -459,6 +486,15 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
                 <Text style={s.briefing}>Projects</Text>
               </TouchableOpacity>
               <TouchableOpacity
+                onPress={() => { setSearching(v => !v); setQuery(''); }}
+                hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+                accessibilityRole="button"
+                aria-expanded={searching}
+                accessibilityLabel="Search"
+              >
+                <Text style={s.briefing}>Search</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
                 onPress={() => setShowAccount(true)}
                 hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
                 accessibilityRole="button"
@@ -471,7 +507,7 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
           {/* Shown on request, and kept open while you are inside a project —
               a sheet holding one project's tasks and no way to tell is worse
               than the row taking a little room. */}
-          {showProjects || project !== EVERYTHING ? (
+          {!searching && (showProjects || project !== EVERYTHING) ? (
             <ProjectBar
               projects={projects}
               active={project}
@@ -493,7 +529,7 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
 
           {/* The archive is not a day's page: today's date above a record of
               past work says nothing, and the archive carries its own dates. */}
-          {project === ARCHIVE ? null : (
+          {searching || project === ARCHIVE ? null : (
             <Text style={s.date} accessibilityRole="header">{dateLabel}</Text>
           )}
           <Text style={s.tally}>
@@ -504,14 +540,23 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
           {/* The archive answers a different question from the rest of the app —
               what got done, and when — so it does not carry scopes, columns or
               an input for adding to it. */}
-          {project === ARCHIVE ? null : (
+          {searching || project === ARCHIVE ? null : (
             <ViewToggle activeView={viewMode} onChangeView={setViewMode} />
           )}
-          {project === ARCHIVE ? null : (
+          {searching || project === ARCHIVE ? null : (
             <AIInput onAddTask={addHere} viewMode={viewMode} activeTab="todo" />
           )}
 
-          {project === ARCHIVE ? (
+          {searching ? (
+            <SearchSheet
+              query={query}
+              onQuery={setQuery}
+              tasks={searchable}
+              projects={projects}
+              onOpen={openResult}
+              onClose={() => { setSearching(false); setQuery(''); }}
+            />
+          ) : project === ARCHIVE ? (
             <ArchiveSheet
               tasks={archived}
               projects={projects}
@@ -762,7 +807,12 @@ const s = StyleSheet.create({
   },
 
   mastheadRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-  mastheadActions: { flexDirection: 'row', gap: 16 },
+  // Four actions now. On a narrow phone the row wraps rather than pushing the
+  // wordmark off the edge, so it has to be allowed to shrink first.
+  mastheadActions: {
+    flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end',
+    flexShrink: 1, gap: 14, rowGap: 6,
+  },
   lock: {
     fontFamily: SANS, fontSize: 11.5, letterSpacing: 0.6,
     textTransform: 'uppercase', color: COLORS.inkSoft, fontWeight: '600',
