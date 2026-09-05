@@ -1,6 +1,7 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { format, parseISO, isToday, isYesterday } from 'date-fns';
+import { VoicePlayButton } from './VoiceRecorder';
 import { groupByDay } from '../services/archive';
 import { projectName } from '../services/projects';
 import { COLORS, SANS, SERIF } from '../utils/theme';
@@ -22,8 +23,21 @@ function dayLabel(day) {
   }
 }
 
+// Long enough that clamping it would hide something. Measuring the rendered
+// height would be exact, but text layout is not reliably reported on the web,
+// and a note this long is worth a tap either way.
+const LONG_NOTE = 140;
+
 export default function ArchiveSheet({ tasks, projects, onRestore, onDelete, onEmpty }) {
   const groups = useMemo(() => groupByDay(tasks, dayLabel), [tasks]);
+  const [opened, setOpened] = useState(() => new Set());
+
+  const toggleNote = id => setOpened(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    return next;
+  });
 
   if (tasks.length === 0) {
     return (
@@ -65,6 +79,42 @@ export default function ArchiveSheet({ tasks, projects, onRestore, onDelete, onE
                     task.owePerson || null,
                   ].filter(Boolean).join('  ·  ')}
                 </Text>
+
+                {/* What you wrote against the task. The point of keeping a
+                    record is the detail, so a long note clamps rather than
+                    truncates and opens on a tap. */}
+                {task.notes ? (
+                  <>
+                    <Text
+                      style={s.notes}
+                      numberOfLines={opened.has(task.id) ? undefined : 4}
+                    >
+                      {task.notes}
+                    </Text>
+                    {task.notes.length > LONG_NOTE ? (
+                      <TouchableOpacity
+                        onPress={() => toggleNote(task.id)}
+                        accessibilityRole="button"
+                        accessibilityLabel={
+                          opened.has(task.id)
+                            ? `Collapse the note on ${task.title}`
+                            : `Read the whole note on ${task.title}`
+                        }
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Text style={s.more}>
+                          {opened.has(task.id) ? 'Less' : 'More'}
+                        </Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </>
+                ) : null}
+
+                {task.voiceNoteUri ? (
+                  <View style={s.voice}>
+                    <VoicePlayButton uri={task.voiceNoteUri} />
+                  </View>
+                ) : null}
               </View>
 
               <TouchableOpacity
@@ -116,6 +166,15 @@ const s = StyleSheet.create({
     fontFamily: SERIF, fontSize: 12, fontStyle: 'italic',
     color: COLORS.inkFaint, marginTop: 2,
   },
+  notes: {
+    fontFamily: SERIF, fontSize: 13, lineHeight: 19,
+    color: COLORS.inkSoft, marginTop: 6,
+  },
+  more: {
+    fontFamily: SANS, fontSize: 10.5, fontWeight: '700', letterSpacing: 1,
+    color: COLORS.inkFaint, marginTop: 4,
+  },
+  voice: { marginTop: 8, alignSelf: 'flex-start' },
   action: {
     fontFamily: SANS, fontSize: 10.5, fontWeight: '700', letterSpacing: 1,
     color: COLORS.inkSoft, marginTop: 3,
