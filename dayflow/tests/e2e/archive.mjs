@@ -330,6 +330,84 @@ ok('and the tasks themselves', (await shows('first job')) && (await shows('secon
 await A.page.waitForTimeout(3000);
 ok('the restored archive survives a sync', (await shows('first job')));
 
+// ── A note written against a task is part of the record ──
+await A.page.getByLabel('All tasks not in a project').click();
+await A.page.waitForTimeout(600);
+
+const SHORT = 'ring the plumber back on Tuesday';
+const LONG = 'The valve under the sink was the problem all along, not the tap itself. '
+  + 'Replaced with a quarter-turn one from the shop on the corner, which cost eleven pounds '
+  + 'and took twenty minutes. Worth remembering that the stopcock is behind the panel, not '
+  + 'under the stairs where the survey said it was.';
+
+await A.page.getByLabel('Add a task to To Do').click();
+await A.page.waitForTimeout(400);
+await A.page.getByPlaceholder('What needs to be done?').fill('mend the sink');
+await A.page.getByPlaceholder('Notes').fill(SHORT);
+await A.page.getByLabel('Add to To Do').click();
+await A.page.waitForTimeout(900);
+
+await A.page.getByLabel('Add a task to To Do').click();
+await A.page.waitForTimeout(400);
+await A.page.getByPlaceholder('What needs to be done?').fill('the long one');
+await A.page.getByPlaceholder('Notes').fill(LONG);
+await A.page.getByLabel('Add to To Do').click();
+await A.page.waitForTimeout(900);
+
+await A.page.getByLabel('Mark mend the sink as done').click();
+await A.page.waitForTimeout(400);
+await A.page.getByLabel('Mark the long one as done').click();
+await A.page.waitForTimeout(600);
+// The column may already be expanded from an earlier step, in which case the
+// toggle reads Hide and there is nothing to open.
+const showDone = A.page.getByLabel(/^Show \d+ completed/).first();
+if (await showDone.count()) { await showDone.click(); await A.page.waitForTimeout(400); }
+await A.page.getByLabel('Permanently delete all completed').first().click();
+await A.page.waitForTimeout(1000);
+
+await openArchive();
+ok('a note is kept with the task it belonged to', await shows(SHORT),
+   (await page()).slice(0, 300));
+ok('the task it belonged to is there too', await shows('mend the sink'));
+
+// A long note is clamped rather than cut, and opens on a tap.
+ok('a long note offers to be read in full',
+   (await A.page.getByLabel('Read the whole note on the long one').count()) === 1);
+ok('a short one does not need the offer',
+   (await A.page.getByLabel('Read the whole note on mend the sink').count()) === 0);
+
+await A.page.getByLabel('Read the whole note on the long one').click();
+await A.page.waitForTimeout(400);
+ok('opening it shows the end of the note',
+   (await page()).includes('under the stairs where the survey said it was'),
+   (await page()).slice(0, 300));
+ok('and offers to close it again',
+   (await A.page.getByLabel('Collapse the note on the long one').count()) === 1);
+
+// The note has to survive the round trip, not just the render.
+await A.page.reload({ waitUntil: 'networkidle' });
+await A.page.waitForTimeout(1200);
+await A.page.locator('input, textarea').nth(0).fill(USER.email);
+await A.page.locator('input, textarea').nth(1).fill('a strong master password');
+await A.page.getByText('UNLOCK', { exact: false }).first().click();
+await A.page.waitForTimeout(3500);
+await openArchive();
+ok('the note is still there after a reload', await shows(SHORT));
+
+// And restoring puts the note back on the task, not just the title.
+await A.page.getByLabel(/^Put mend the sink back/).click();
+await A.page.waitForTimeout(900);
+await A.page.getByLabel('All tasks not in a project').click();
+await A.page.waitForTimeout(700);
+const revealed = A.page.getByLabel(/^Show \d+ completed/).first();
+if (await revealed.count()) { await revealed.click(); await A.page.waitForTimeout(400); }
+await A.page.locator('text=mend the sink').first().click();
+await A.page.waitForTimeout(900);
+// The note sits in a field's value, which is not part of the page's text —
+// reading innerText here would find nothing and prove nothing.
+const restoredNote = await A.page.getByPlaceholder('Add notes...').inputValue();
+ok('a restored task keeps its note', restoredNote === SHORT, JSON.stringify(restoredNote));
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();
 server.close();
