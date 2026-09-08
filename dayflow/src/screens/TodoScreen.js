@@ -377,8 +377,10 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
       saveShown(shownAlerts.current);
 
       // Once for the batch: three tasks coming due together is one sound, not
-      // three overlapping ones.
-      playChime();
+      // three overlapping ones. Nothing waits on it — the alert strip and the
+      // system notification are the reminder; the sound is how it announces
+      // itself, and a device that will not play it must not hold them up.
+      playChime().catch(() => {});
 
       for (const alert of due) {
         await showSystemAlert(alert.task.title, alertBody(alert), alert.key);

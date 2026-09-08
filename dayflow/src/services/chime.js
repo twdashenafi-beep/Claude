@@ -40,7 +40,9 @@ export function unlockChime() {
   const ctx = ensureContext();
   if (!ctx) return false;
   // Created before a gesture, a context starts suspended and stays that way.
-  if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+  if (ctx.state === 'suspended' || ctx.state === 'interrupted') {
+    ctx.resume().catch(() => {});
+  }
   return true;
 }
 
@@ -79,16 +81,34 @@ function schedule(ctx) {
   }
 }
 
-export function playChime() {
+// Plays, and says what happened.
+//
+// Returns a promise for one of:
+//   'played'       the notes were scheduled against a running clock
+//   'unavailable'  this platform has no Web Audio at all
+//   'blocked'      the context would not start — no gesture has reached it yet
+//   'failed'       scheduling threw
+//
+// It used to return true the moment it had asked a suspended context to
+// resume, before knowing whether it had. A caller cannot tell the user
+// anything useful from an answer given before the fact.
+export async function playChime() {
   const ctx = ensureContext();
-  if (!ctx) return false;
+  if (!ctx) return 'unavailable';
 
-  // A context still suspended can be started from inside a gesture, but
-  // resuming is asynchronous — scheduling notes against a suspended clock
-  // plays them silently, or not at all. So wait for it.
-  if (ctx.state === 'suspended') {
-    ctx.resume().then(() => schedule(ctx)).catch(() => {});
-    return true;
+  // 'suspended' is the ordinary state before a gesture. 'interrupted' is
+  // Safari's, entered after a phone call or when the page loses the audio
+  // session, and it is not in the spec — the old code checked only for
+  // 'suspended', so an interrupted context fell through to scheduling notes
+  // against a clock that was not running, and played nothing.
+  if (ctx.state === 'suspended' || ctx.state === 'interrupted') {
+    try {
+      await ctx.resume();
+    } catch {
+      return 'blocked';
+    }
+    if (ctx.state !== 'running') return 'blocked';
   }
-  return schedule(ctx);
+
+  return schedule(ctx) ? 'played' : 'failed';
 }
