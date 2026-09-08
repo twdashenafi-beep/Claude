@@ -39,8 +39,15 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo' }) {
   const doSubmit = useCallback((inputText) => {
     const t = inputText || text;
     if (!t.trim()) return;
-    setProcessing(true);
+
+    // A routing command with no task after it — "Owe me", and nothing else —
+    // parses to an empty title. Adding that would put a task called "Owe me"
+    // in the list, which is what a command is precisely not. The words stay in
+    // the box instead, so the sentence can simply be finished.
     const parsed = parseNaturalLanguage(t);
+    if (!parsed.title.trim()) return;
+
+    setProcessing(true);
     setTimeout(() => {
       const now = new Date();
       // What was said decides which list it lands in. activeTab is only the

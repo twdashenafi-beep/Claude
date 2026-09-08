@@ -4,7 +4,7 @@
 // it — so the wording has to decide the list, not whichever tab happened to be
 // open. Pure logic. Run with `npm test`.
 
-import { parseNaturalLanguage, detectOwe } from '../src/services/nlParser.js';
+import { parseNaturalLanguage, detectColumn } from '../src/services/nlParser.js';
 
 let pass = 0, fail = 0;
 const ok = (label, cond, extra = '') => {
@@ -66,14 +66,22 @@ ok('priority does not stop Owe Me routing', urgent.taskType === OWE);
 const timed = parse('waiting on Tom for the deck at 3pm');
 ok('a time after the marker is still read', timed.dueTime === '15:00', String(timed.dueTime));
 
-// ── Never an empty title ──
-ok('a bare marker still produces a title', parse('owe me').title.length > 0);
+// ── A command with no task in it produces no task ──
+//
+// This used to assert the opposite — that a bare marker still produced a title —
+// on the reasoning that an empty title was worse than a strange one. It is not:
+// the strange one was a task called "owe me" sitting in the list, which is what
+// a routing word is precisely not. The caller declines an empty title instead
+// and leaves the words in the box to be finished.
+ok('a bare marker produces no title', parse('owe me').title === '');
+ok('and a marker with a real task after it does', parse('owe me the deck').title === 'the deck');
 
-// ── detectOwe on its own ──
-ok('detectOwe reports a plain task as not owed', detectOwe('call the bank').isOwe === false);
-ok('detectOwe leaves a plain task text alone', detectOwe('call the bank').text === 'call the bank');
-ok('detectOwe survives an empty input', detectOwe('').isOwe === false);
-ok('detectOwe survives undefined', detectOwe(undefined).isOwe === false);
+// ── detectColumn on its own ──
+ok('a plain task is not owed', detectColumn('call the bank').isOwe === false);
+ok('a plain task text is left alone', detectColumn('call the bank').text === 'call the bank');
+ok('a plain task names no column', detectColumn('call the bank').commanded === false);
+ok('an empty input survives', detectColumn('').isOwe === false);
+ok('undefined survives', detectColumn(undefined).isOwe === false);
 
 // ── Which scope a task lands in ──
 //
@@ -88,6 +96,55 @@ ok('a bare time is still no scope', parse('call the bank at 3pm').viewScope === 
 ok('a day phrase says day', parse('call the bank tomorrow').viewScope === 'day');
 ok('a week phrase says week', parse('call the bank next week').viewScope === 'week');
 ok('a month phrase says month', parse('call the bank next month').viewScope === 'month');
+
+// ── The column named out loud does not become part of the task ──
+//
+// Saying "Owe me call Mekdi" is an instruction about where the task goes
+// followed by the task. Leaving the instruction in fills the list with entries
+// called "Owe Me call Mekdi", which is what this is all for.
+const title = t => parse(t).title;
+const isOwe = t => parse(t).taskType === 'done_for_me';
+
+ok('Owe Me routes and does not appear in the title',
+   isOwe('Owe me call Mekdi about the deposit')
+   && title('Owe me call Mekdi about the deposit') === 'call Mekdi about the deposit');
+ok('however it is capitalised', title('Owe Me call Mekdi') === 'call Mekdi');
+ok('and hyphenated', title('Owe-me call Mekdi') === 'call Mekdi');
+
+ok('To Do routes and does not appear either',
+   !isOwe('To do buy milk') && title('To do buy milk') === 'buy milk');
+ok('To Do hyphenated', title('To-do buy milk') === 'buy milk');
+ok('To Do run together', title('Todo buy milk') === 'buy milk');
+ok('and pluralised, as dictation sometimes does', title('To-dos buy milk') === 'buy milk');
+
+// Dictation punctuates whether you want it to or not.
+ok('a colon after the command goes with it', title('Owe me: the signed lease') === 'the signed lease');
+ok('a comma too', title('Owe me, call the bank') === 'call the bank');
+ok('and a full stop', title('Owe me. Call the bank') === 'Call the bank');
+ok('a full stop after To Do too', title('To do. Buy milk') === 'Buy milk');
+
+// The run-up before the column name is part of the instruction.
+ok('"add to" is consumed with the command', title('Add to owe me the deposit') === 'the deposit');
+ok('"put in" as well', title('Put in owe me the deposit') === 'the deposit');
+ok('and a longer run-up', title('Add a task to to do buy milk') === 'buy milk');
+ok('the run-up does not change where it goes', isOwe('Add to owe me the deposit'));
+
+// A command and nothing else is not a task.
+ok('saying only Owe Me makes no title', title('Owe me') === '');
+ok('saying only To Do makes no title', title('To do') === '');
+ok('nor with its punctuation', title('Owe me:') === '');
+
+// ── And ordinary English is left alone ──
+//
+// "to do" is a phrase people use. Only the opening of a line is an instruction.
+ok('to do mid-sentence is part of the task',
+   title('the shopping I need to do tomorrow') === 'the shopping I need to do');
+ok('a to-do inside a task survives', title('Buy a to-do notebook') === 'Buy a to-do notebook');
+ok('and owes me mid-sentence still finds the person',
+   parse('Sarah owes me the deck').owePerson === 'Sarah');
+ok('with the marker out of the title', title('Sarah owes me the deck') === 'the deck');
+ok('waiting on still works', title('waiting on Tom for the deck') === 'the deck');
+ok('a plain task is untouched', title('call the bank') === 'call the bank');
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -1,11 +1,14 @@
-// Which column a spoken or typed phrase ends up in, driven through the real
-// app rather than the parser alone.
+// What the app does when the device stops accepting writes.
 //
-// Owe Me is a follow-up list: someone owes you a thing and you need to chase
-// it. The wording has to decide the list — before this, everything from the
-// AI box went to To Do because only the open tab was consulted.
+// A browser refuses a localStorage write once the origin's quota is spent —
+// around seven thousand tasks here, and immediately in a private window. That
+// failure used to be caught and dropped on the floor, so the app went on
+// looking like it was saving while nothing reached the disk, and the next
+// reload lost everything since.
 //
-// Dictation and typing take the same path: speech only fills this field in.
+// Storage is stubbed to refuse rather than filled for real: writing five
+// megabytes through the UI would take longer than the rest of the suite put
+// together, and what is under test is the response to the refusal.
 //
 // Needs a build and a browser:
 //   npm i -D playwright && npx playwright install chromium
@@ -38,7 +41,7 @@ const server = http.createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': TYPES[path.extname(file)] || 'application/octet-stream' });
   fs.createReadStream(file).pipe(res);
 });
-await new Promise(r => server.listen(4601, r));
+await new Promise(r => server.listen(4713, r));
 
 // ── the fake project ──
 const PROJECT = 'https://stubproject.supabase.co';
@@ -93,7 +96,7 @@ async function device(name) {
   page.on('pageerror', e => console.log(`  [${name}] page error: ${e}`));
   page.on('console', m => { if (/sync|Sync|fail/i.test(m.text())) console.log(`  [${name}] ${m.text()}`); });
   await page.route(u => u.hostname === 'stubproject.supabase.co', route);
-  await page.goto('http://localhost:4601/Claude/', { waitUntil: 'networkidle' });
+  await page.goto('http://localhost:4713/Claude/', { waitUntil: 'networkidle' });
   await page.waitForTimeout(900);
   const inputs = page.locator('input, textarea');
   await inputs.nth(0).fill(PROJECT);
@@ -103,9 +106,7 @@ async function device(name) {
   return { ctx, page };
 }
 
-const body = page => page.evaluate(() => document.body.innerText);
 
-// ── One device: what the wording does to the routing ──
 const A = await device('A');
 await A.page.getByText('Create an account').click();
 await A.page.waitForTimeout(300);
@@ -121,98 +122,59 @@ const cont = A.page.locator('text=/continue|done|open/i').first();
 if (await cont.count()) await cont.click();
 await A.page.waitForTimeout(1500);
 
-// The AI/voice box is the first field on the sheet. Typed text takes exactly
-// the same path as dictation — speech only fills this in.
-async function say(phrase) {
+const body = () => A.page.evaluate(() => document.body.innerText);
+async function add(title) {
   const box = A.page.locator('input, textarea').first();
-  await box.fill(phrase);
+  await box.fill(title);
   await box.press('Enter');
-  await A.page.waitForTimeout(900);
+  await A.page.waitForTimeout(800);
 }
 
-// Which column a title is under.
-//
-// By DOM containment, not by position in the page text: the two columns sit
-// side by side, so innerText emits both headings and only then the items, and
-// anything inferred from ordering says whatever the layout happens to do.
-async function columnOf(title) {
-  return A.page.evaluate(t => {
-    const leafRect = label => {
-      // Not just div: the column headings render as h1.
-      const el = [...document.querySelectorAll('*')]
-        .find(e => e.children.length === 0 && (e.innerText || '').trim() === label);
-      return el ? el.getBoundingClientRect() : null;
-    };
+await add('before the disk fills');
+ok('nothing is said while saving works', !/out of storage|failed/i.test(await body()),
+   (await body()).slice(0, 240));
 
-    // Geometry, because neither of the obvious alternatives holds here. The two
-    // headings share one row above both columns — that is what the single rule
-    // across the top is — so no column element contains its own heading; and
-    // page-text order emits both headings before either column's items, so
-    // ordering says nothing either. Which side of the divider it is on does.
-    const todo = leafRect('TO DO');
-    const owe = leafRect('OWE ME');
-    const item = leafRect(t);
-    if (!item) return 'missing';
-    if (!todo || !owe) return 'no headings found';
-
-    const divider = (todo.left + owe.left) / 2;
-    return item.left < divider ? 'todo' : 'owe';
-  }, title);
-}
-
-await say('Sarah owes me the Q3 numbers');
-ok('"Sarah owes me…" lands in Owe Me', (await columnOf('the Q3 numbers')) === 'owe',
-   await columnOf('the Q3 numbers'));
-ok('the person is captured', (await body(A.page)).includes('Sarah'));
-ok('the person is shown in the Owe Me column',
-   (await columnOf('Sarah')) === 'owe');
-
-await say('owe me the signed lease');
-ok('"owe me…" lands in Owe Me', (await columnOf('the signed lease')) === 'owe',
-   await columnOf('the signed lease'));
-
-await say('call the bank tomorrow');
-ok('an ordinary task still lands in To Do', (await columnOf('call the bank')) === 'todo',
-   await columnOf('call the bank'));
-
-// ── The words that chose the column do not end up in the task ──
-//
-// Saying "Owe me call Mekdi" is an instruction followed by a task. The
-// instruction was landing in the title, so the list filled up with entries
-// called "Owe Me call Mekdi" — routed correctly and named wrongly.
-const page = async () => A.page.evaluate(() => {
-  const notices = [...document.querySelectorAll('[data-notice]')].map(el => el.innerText);
-  return notices.reduce((text, n) => text.split(n).join(''), document.body.innerText);
+// From here the vault write is refused, exactly as a full origin refuses it.
+await A.page.evaluate(() => {
+  const real = Storage.prototype.setItem;
+  Storage.prototype.setItem = function (key, value) {
+    if (String(key).includes('dayflow_vault')) {
+      const err = new Error("Failed to execute 'setItem' on 'Storage': the quota has been exceeded.");
+      err.name = 'QuotaExceededError';
+      throw err;
+    }
+    return real.call(this, key, value);
+  };
 });
 
-await say('Owe me call Mekdi about the deposit');
-ok('a spoken Owe Me still routes',
-   (await columnOf('call Mekdi about the deposit')) === 'owe',
-   await columnOf('call Mekdi about the deposit'));
-ok('and the words Owe Me are not in the task',
-   !(await page()).includes('Owe me call Mekdi'), (await page()).slice(0, 300));
+await add('after the disk fills');
+await A.page.waitForTimeout(1200);
+let text = await body();
+console.log('AFTER QUOTA:', JSON.stringify(text.replace(/\n+/g, ' | ').slice(0, 400)));
 
-await say('To do collect the parcel');
-ok('a spoken To Do routes to To Do',
-   (await columnOf('collect the parcel')) === 'todo',
-   await columnOf('collect the parcel'));
-ok('and the words To Do are not in the task',
-   !(await page()).includes('To do collect'), (await page()).slice(0, 300));
+ok('the app says the device is out of storage', /out of storage/i.test(text), text.slice(0, 300));
+ok('and says it plainly, not as a sync problem', !/sync failed/i.test(text));
+ok('and says what to do about it', /archive|other devices/i.test(text), text.slice(0, 300));
 
-// Dictation punctuates. The full stop belongs to the command it followed.
-await say('Owe me. The signed contract');
-ok('a full stop after the command goes with it',
-   (await page()).includes('The signed contract')
-   && !(await page()).includes('. The signed contract'),
-   (await page()).slice(0, 300));
+// The warning has to be an alert, or a screen reader passes straight over the
+// one message that matters.
+ok('it is announced rather than just drawn',
+   (await A.page.locator('[role="alert"]').count()) > 0);
 
-// A command with nothing after it is not a task at all.
-const before = await page();
-await say('Owe me');
-const after = await page();
-ok('saying only the command adds nothing',
-   !after.includes('\nOwe me\n') && after.length <= before.length + 40,
-   after.slice(0, 300));
+// The app keeps working — the task is on the page, it is only the disk that
+// refused. Losing the session as well would make a bad situation worse.
+ok('the task is still added to the page', text.includes('after the disk fills'));
+ok('and the earlier one is still there', text.includes('before the disk fills'));
+
+// And it goes away by itself once writing works again, rather than needing a
+// reload to clear a warning that is no longer true.
+await A.page.evaluate(() => { delete Storage.prototype.setItem; });
+await add('once there is room again');
+await A.page.waitForTimeout(1500);
+text = await body();
+ok('the warning clears when saving works again', !/out of storage/i.test(text),
+   text.slice(0, 300));
+ok('and the task went in', text.includes('once there is room again'));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();

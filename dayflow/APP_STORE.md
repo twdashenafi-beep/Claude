@@ -186,6 +186,25 @@ already have two ways of getting.
 
 ---
 
+## Known limitation: tombstones are never pruned
+
+Every deletion leaves a permanent record — `{id, updatedAt}`, about 54 bytes —
+so that a device which was offline at the time learns the task is gone rather
+than resurrecting it on its next sync. Nothing ever removes them.
+
+At the scale of one person this is slow-moving: 10,000 deletions is about
+540 KB, against a browser storage quota of roughly 5 MB that the tasks
+themselves fill first (a task costs around 600–750 bytes encrypted, so the
+ceiling is somewhere near 7,000). It is written down rather than fixed because
+the fix has a real cost: dropping tombstones older than, say, 90 days means a
+device left unused for longer than that resurrects everything deleted while it
+slept.
+
+The app now says so when the ceiling is actually reached, rather than silently
+failing to save, which was the more urgent half of the problem.
+
+---
+
 ## Known limitation: voice notes do not travel
 
 A voice note is stored as a file path on the device that recorded it
