@@ -1,4 +1,5 @@
 import { addDays, nextMonday, nextFriday, startOfMonth, endOfMonth, setHours, setMinutes } from 'date-fns';
+import { capitalizeTitle } from '../utils/text.js';
 
 // Natural language task parser
 // Extracts title, date, time, priority, and view scope from free-form text
@@ -248,7 +249,7 @@ export function parseNaturalLanguage(input) {
   const fallback = owe.commanded ? '' : input.trim();
 
   return {
-    title: title || owe.text || fallback,
+    title: capitalizeTitle(title || owe.text || fallback),
     date: dateISO,
     dueDate: dateISO,
     dueTime: timeStr,

@@ -179,13 +179,13 @@ const scope = async name => {
 // looked past the page it was opened from.
 const NOTE = 'the stopcock is behind the panel, not under the stairs';
 
-await addDetailed('To Do', 'mend the sink', { notes: NOTE });
-await addDetailed('Owe Me', 'the deposit back', { person: 'Marchetti Lettings' });
-await add('buy milk');
+await addDetailed('To Do', 'Mend the sink', { notes: NOTE });
+await addDetailed('Owe Me', 'The deposit back', { person: 'Marchetti Lettings' });
+await add('Buy milk');
 
 await scope('Week');
-await add('sink survey for the week');
-ok('a task typed on the Week page lands on the Week page', await shows('sink survey for the week'),
+await add('Sink survey for the week');
+ok('a task typed on the Week page lands on the Week page', await shows('Sink survey for the week'),
    (await page()).slice(0, 300));
 await scope('Day');
 
@@ -197,17 +197,17 @@ await A.page.waitForTimeout(400);
 await A.page.getByLabel('New project name').fill('Flat');
 await A.page.getByLabel('Create the project').click();
 await A.page.waitForTimeout(900);
-await add('sink taps for the flat');
+await add('Sink taps for the flat');
 
 // And one in the archive.
 await A.page.getByLabel('All tasks not in a project').click();
 await A.page.waitForTimeout(700);
-await add('the old sink quote');
-await A.page.getByLabel('Mark the old sink quote as done').click();
+await add('The old sink quote');
+await A.page.getByLabel('Mark The old sink quote as done').click();
 await A.page.waitForTimeout(500);
 const reveal = A.page.getByLabel(/^Show \d+ completed/).first();
 if (await reveal.count()) { await reveal.click(); await A.page.waitForTimeout(400); }
-await A.page.getByLabel('Delete the old sink quote').click();
+await A.page.getByLabel('Delete The old sink quote').click();
 await A.page.waitForTimeout(900);
 
 // ── It exists, and it says what it is for before you type ──
@@ -222,7 +222,7 @@ ok('and names the archive as somewhere it looks',
 // One letter is not a search — it is the first letter of one.
 await type('s');
 ok('one letter returns nothing rather than everything',
-   /at least two letters/i.test(await page()) && !(await shows('mend the sink')),
+   /at least two letters/i.test(await page()) && !(await shows('Mend the sink')),
    (await page()).slice(0, 240));
 
 // ── The reach: everywhere at once ──
@@ -230,11 +230,11 @@ await type('sink');
 const found = await page();
 console.log('RESULTS:', JSON.stringify(found.replace(/\n+/g, ' | ').slice(0, 500)));
 
-ok('a task on the current page is found', found.includes('mend the sink'));
-ok('a task in another scope is found', found.includes('sink survey for the week'));
-ok('a task in a project is found', found.includes('sink taps for the flat'));
-ok('a task in the archive is found', found.includes('the old sink quote'));
-ok('an unrelated task is not', !found.includes('buy milk'));
+ok('a task on the current page is found', found.includes('Mend the sink'));
+ok('a task in another scope is found', found.includes('Sink survey for the week'));
+ok('a task in a project is found', found.includes('Sink taps for the flat'));
+ok('a task in the archive is found', found.includes('The old sink quote'));
+ok('an unrelated task is not', !found.includes('Buy milk'));
 ok('it counts what it found', /\d+ results/.test(found), found.slice(0, 200));
 
 // ── And says where each one lives ──
@@ -244,24 +244,24 @@ ok('a result in the archive says so', /Archive/.test(found), found.slice(0, 400)
 
 // ── Notes and people, not just titles ──
 await type('stopcock');
-ok('a word only in a note finds the task', await shows('mend the sink'),
+ok('a word only in a note finds the task', await shows('Mend the sink'),
    (await page()).slice(0, 300));
 ok('and shows the part of the note that matched',
    /stopcock is behind the panel/.test(await page()), (await page()).slice(0, 300));
 
 await type('marchetti');
-ok('the person on an Owe Me is searched', await shows('the deposit back'),
+ok('the person on an Owe Me is searched', await shows('The deposit back'),
    (await page()).slice(0, 300));
 ok('and the result says it is an Owe Me', /Owe Me/.test(await page()));
 
 // ── Case, and nothing found ──
 await type('SINK');
-ok('capitals find the same things', await shows('mend the sink'));
+ok('capitals find the same things', await shows('Mend the sink'));
 
 await type('aardvark');
 ok('nothing found says so plainly', /Nothing matches/.test(await page()),
    (await page()).slice(0, 200));
-ok('and does not leave old results on the page', !(await shows('mend the sink')));
+ok('and does not leave old results on the page', !(await shows('Mend the sink')));
 
 // ── Getting back out ──
 await type('sink');
@@ -273,7 +273,7 @@ ok('clearing empties the field',
 await A.page.getByLabel('Close search').click();
 await A.page.waitForTimeout(700);
 ok('closing returns to the page',
-   (await shows('buy milk')) && (await A.page.getByLabel('Search tasks and notes').count()) === 0,
+   (await shows('Buy milk')) && (await A.page.getByLabel('Search tasks and notes').count()) === 0,
    (await page()).slice(0, 200));
 
 // ── Opening a result goes to where the task is ──
@@ -283,26 +283,26 @@ ok('closing returns to the page',
 // location a label rather than an answer.
 await openSearch();
 await type('sink survey');
-await A.page.getByLabel('Open sink survey for the week').click();
+await A.page.getByLabel('Open Sink survey for the week').click();
 await A.page.waitForTimeout(1000);
 let text = await body(A.page);
-ok('opening a result opens the task', /sink survey for the week/.test(text));
+ok('opening a result opens the task', /Sink survey for the week/.test(text));
 
 // Close the sheet and look at the page behind it.
 await closeDetail();
 ok('and leaves you in the scope the task was in',
-   (await shows('sink survey for the week')) && !(await shows('buy milk')),
+   (await shows('Sink survey for the week')) && !(await shows('Buy milk')),
    (await page()).slice(0, 300));
 
 // A result in a project takes you into that project.
 await scope('Day');
 await openSearch();
 await type('sink taps');
-await A.page.getByLabel('Open sink taps for the flat').click();
+await A.page.getByLabel('Open Sink taps for the flat').click();
 await A.page.waitForTimeout(1000);
 await closeDetail();
 ok('a result in a project takes you into that project',
-   (await shows('sink taps for the flat')) && !(await shows('buy milk')),
+   (await shows('Sink taps for the flat')) && !(await shows('Buy milk')),
    (await page()).slice(0, 300));
 
 // ── Nothing typed is not a state you get stuck in ──
@@ -326,7 +326,7 @@ await A.page.getByText('UNLOCK', { exact: false }).first().click();
 await A.page.waitForTimeout(3500);
 await openSearch();
 await type('sink');
-ok('search still reaches the archive after a reload', await shows('the old sink quote'),
+ok('search still reaches the archive after a reload', await shows('The old sink quote'),
    (await page()).slice(0, 300));
 
 console.log(`\n${pass} passed, ${fail} failed`);

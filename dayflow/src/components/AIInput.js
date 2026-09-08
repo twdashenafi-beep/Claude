@@ -3,6 +3,10 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Animated, Platform
 import { parseNaturalLanguage } from '../services/nlParser';
 import { COLORS, SANS, SERIF } from '../utils/theme';
 
+// How long a pause means the sentence is over. Long enough to think of the
+// next word, short enough that finishing does not need a second tap.
+const SILENCE_MS = 3000;
+
 const SpeechRecognition =
   Platform.OS === 'web' && typeof window !== 'undefined'
     ? window.SpeechRecognition || window.webkitSpeechRecognition
@@ -88,7 +92,15 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo' }) {
     recognitionRef.current = r;
     let final = '';
 
-    r.onstart = () => { setListening(true); final = ''; };
+    // Armed here as well as on each result. Tapping the mic and then saying
+    // nothing at all produces no result event, so a timer set only there was
+    // never set — and the mic stayed on until it was tapped a second time.
+    const armSilence = () => {
+      clearTimeout(silenceTimer.current);
+      silenceTimer.current = setTimeout(() => r.stop(), SILENCE_MS);
+    };
+
+    r.onstart = () => { setListening(true); final = ''; armSilence(); };
     r.onresult = (e) => {
       let interim = '';
       for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -98,8 +110,7 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo' }) {
       const display = final + interim;
       setText(display);
       if (display.trim().length > 2) setPreview(parseNaturalLanguage(display));
-      clearTimeout(silenceTimer.current);
-      silenceTimer.current = setTimeout(() => r.stop(), 2000);
+      armSilence();
     };
     r.onerror = () => { setListening(false); clearTimeout(silenceTimer.current); };
     r.onend = () => {

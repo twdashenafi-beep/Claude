@@ -161,19 +161,19 @@ async function columnOf(title) {
 }
 
 await say('Sarah owes me the Q3 numbers');
-ok('"Sarah owes me…" lands in Owe Me', (await columnOf('the Q3 numbers')) === 'owe',
-   await columnOf('the Q3 numbers'));
+ok('"Sarah owes me…" lands in Owe Me', (await columnOf('The Q3 numbers')) === 'owe',
+   await columnOf('The Q3 numbers'));
 ok('the person is captured', (await body(A.page)).includes('Sarah'));
 ok('the person is shown in the Owe Me column',
    (await columnOf('Sarah')) === 'owe');
 
 await say('owe me the signed lease');
-ok('"owe me…" lands in Owe Me', (await columnOf('the signed lease')) === 'owe',
-   await columnOf('the signed lease'));
+ok('"owe me…" lands in Owe Me', (await columnOf('The signed lease')) === 'owe',
+   await columnOf('The signed lease'));
 
 await say('call the bank tomorrow');
-ok('an ordinary task still lands in To Do', (await columnOf('call the bank')) === 'todo',
-   await columnOf('call the bank'));
+ok('an ordinary task still lands in To Do', (await columnOf('Call the bank')) === 'todo',
+   await columnOf('Call the bank'));
 
 // ── The words that chose the column do not end up in the task ──
 //
@@ -187,17 +187,31 @@ const page = async () => A.page.evaluate(() => {
 
 await say('Owe me call Mekdi about the deposit');
 ok('a spoken Owe Me still routes',
-   (await columnOf('call Mekdi about the deposit')) === 'owe',
-   await columnOf('call Mekdi about the deposit'));
+   (await columnOf('Call Mekdi about the deposit')) === 'owe',
+   await columnOf('Call Mekdi about the deposit'));
 ok('and the words Owe Me are not in the task',
    !(await page()).includes('Owe me call Mekdi'), (await page()).slice(0, 300));
 
 await say('To do collect the parcel');
 ok('a spoken To Do routes to To Do',
-   (await columnOf('collect the parcel')) === 'todo',
-   await columnOf('collect the parcel'));
+   (await columnOf('Collect the parcel')) === 'todo',
+   await columnOf('Collect the parcel'));
 ok('and the words To Do are not in the task',
    !(await page()).includes('To do collect'), (await page()).slice(0, 300));
+
+// ── And what is left starts with a capital ──
+//
+// Taking the marker out leaves the sentence starting mid-flow, so without this
+// every dictated task would be the lowercase one in a list of capitals.
+ok('a dictated task is capitalised',
+   (await page()).includes('Collect the parcel'), (await page()).slice(0, 300));
+ok('and not left as it was said',
+   !(await page()).includes('collect the parcel'), (await page()).slice(0, 300));
+
+await say('to do iPhone repair');
+ok('a deliberate spelling is left alone',
+   (await page()).includes('iPhone repair') && !(await page()).includes('IPhone repair'),
+   (await page()).slice(0, 300));
 
 // Dictation punctuates. The full stop belongs to the command it followed.
 await say('Owe me. The signed contract');

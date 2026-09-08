@@ -16,16 +16,19 @@ const parse = t => parseNaturalLanguage(t);
 const OWE = 'done_for_me';
 
 // ── The phrasings that mean "someone owes me this" ──
+// Titles come back capitalised: taking the marker out leaves the sentence
+// starting wherever it happened to continue, and a list of lowercase entries
+// reads as though something went wrong.
 const owed = {
-  'owe me the signed lease': ['', 'the signed lease'],
-  'Owe me: the signed lease': ['', 'the signed lease'],
-  'Sarah owes me the Q3 numbers': ['Sarah', 'the Q3 numbers'],
-  'sarah owes me the q3 numbers': ['Sarah', 'the q3 numbers'],
-  'waiting on Tom for the deck': ['Tom', 'the deck'],
-  'waiting for Tom to send the deck': ['Tom', 'send the deck'],
-  'chase Priya for the signature': ['Priya', 'the signature'],
-  'chase up Priya about the signature': ['Priya', 'the signature'],
-  'follow up with James about the contract': ['James', 'the contract'],
+  'owe me the signed lease': ['', 'The signed lease'],
+  'Owe me: the signed lease': ['', 'The signed lease'],
+  'Sarah owes me the Q3 numbers': ['Sarah', 'The Q3 numbers'],
+  'sarah owes me the q3 numbers': ['Sarah', 'The q3 numbers'],
+  'waiting on Tom for the deck': ['Tom', 'The deck'],
+  'waiting for Tom to send the deck': ['Tom', 'Send the deck'],
+  'chase Priya for the signature': ['Priya', 'The signature'],
+  'chase up Priya about the signature': ['Priya', 'The signature'],
+  'follow up with James about the contract': ['James', 'The contract'],
 };
 
 for (const [input, [person, title]] of Object.entries(owed)) {
@@ -56,7 +59,7 @@ ok('"you owe me the numbers" is still Owe Me',
 // ── Dates and priority still work through the marker ──
 const dated = parse('Sarah owes me the deck tomorrow');
 ok('a date after the marker is still read', !!dated.dueDate);
-ok('the date is taken out of the title', dated.title === 'the deck', JSON.stringify(dated.title));
+ok('the date is taken out of the title', dated.title === 'The deck', JSON.stringify(dated.title));
 ok('the person survives date extraction', dated.owePerson === 'Sarah');
 
 const urgent = parse('urgent: chase Tom for the invoice');
@@ -74,7 +77,7 @@ ok('a time after the marker is still read', timed.dueTime === '15:00', String(ti
 // a routing word is precisely not. The caller declines an empty title instead
 // and leaves the words in the box to be finished.
 ok('a bare marker produces no title', parse('owe me').title === '');
-ok('and a marker with a real task after it does', parse('owe me the deck').title === 'the deck');
+ok('and a marker with a real task after it does', parse('owe me the deck').title === 'The deck');
 
 // ── detectColumn on its own ──
 ok('a plain task is not owed', detectColumn('call the bank').isOwe === false);
@@ -107,26 +110,26 @@ const isOwe = t => parse(t).taskType === 'done_for_me';
 
 ok('Owe Me routes and does not appear in the title',
    isOwe('Owe me call Mekdi about the deposit')
-   && title('Owe me call Mekdi about the deposit') === 'call Mekdi about the deposit');
-ok('however it is capitalised', title('Owe Me call Mekdi') === 'call Mekdi');
-ok('and hyphenated', title('Owe-me call Mekdi') === 'call Mekdi');
+   && title('Owe me call Mekdi about the deposit') === 'Call Mekdi about the deposit');
+ok('however the command is capitalised', title('Owe Me call Mekdi') === 'Call Mekdi');
+ok('and hyphenated', title('Owe-me call Mekdi') === 'Call Mekdi');
 
 ok('To Do routes and does not appear either',
-   !isOwe('To do buy milk') && title('To do buy milk') === 'buy milk');
-ok('To Do hyphenated', title('To-do buy milk') === 'buy milk');
-ok('To Do run together', title('Todo buy milk') === 'buy milk');
-ok('and pluralised, as dictation sometimes does', title('To-dos buy milk') === 'buy milk');
+   !isOwe('To do buy milk') && title('To do buy milk') === 'Buy milk');
+ok('To Do hyphenated', title('To-do buy milk') === 'Buy milk');
+ok('To Do run together', title('Todo buy milk') === 'Buy milk');
+ok('and pluralised, as dictation sometimes does', title('To-dos buy milk') === 'Buy milk');
 
 // Dictation punctuates whether you want it to or not.
-ok('a colon after the command goes with it', title('Owe me: the signed lease') === 'the signed lease');
-ok('a comma too', title('Owe me, call the bank') === 'call the bank');
+ok('a colon after the command goes with it', title('Owe me: the signed lease') === 'The signed lease');
+ok('a comma too', title('Owe me, call the bank') === 'Call the bank');
 ok('and a full stop', title('Owe me. Call the bank') === 'Call the bank');
 ok('a full stop after To Do too', title('To do. Buy milk') === 'Buy milk');
 
 // The run-up before the column name is part of the instruction.
-ok('"add to" is consumed with the command', title('Add to owe me the deposit') === 'the deposit');
-ok('"put in" as well', title('Put in owe me the deposit') === 'the deposit');
-ok('and a longer run-up', title('Add a task to to do buy milk') === 'buy milk');
+ok('"add to" is consumed with the command', title('Add to owe me the deposit') === 'The deposit');
+ok('"put in" as well', title('Put in owe me the deposit') === 'The deposit');
+ok('and a longer run-up', title('Add a task to to do buy milk') === 'Buy milk');
 ok('the run-up does not change where it goes', isOwe('Add to owe me the deposit'));
 
 // A command and nothing else is not a task.
@@ -138,13 +141,26 @@ ok('nor with its punctuation', title('Owe me:') === '');
 //
 // "to do" is a phrase people use. Only the opening of a line is an instruction.
 ok('to do mid-sentence is part of the task',
-   title('the shopping I need to do tomorrow') === 'the shopping I need to do');
+   title('the shopping I need to do tomorrow') === 'The shopping I need to do');
 ok('a to-do inside a task survives', title('Buy a to-do notebook') === 'Buy a to-do notebook');
 ok('and owes me mid-sentence still finds the person',
    parse('Sarah owes me the deck').owePerson === 'Sarah');
-ok('with the marker out of the title', title('Sarah owes me the deck') === 'the deck');
-ok('waiting on still works', title('waiting on Tom for the deck') === 'the deck');
-ok('a plain task is untouched', title('call the bank') === 'call the bank');
+ok('with the marker out of the title', title('Sarah owes me the deck') === 'The deck');
+ok('waiting on still works', title('waiting on Tom for the deck') === 'The deck');
+ok('a plain task keeps its words', title('call the bank') === 'Call the bank');
+
+// ── A title parsed out of speech still starts with a capital ──
+//
+// Taking the routing words out leaves the sentence starting wherever it
+// happened to continue, so the rule has to be applied after the strip rather
+// than by whoever typed the input.
+ok('what is left of a dictated Owe Me is capitalised',
+   title('owe me call Mekdi about the deposit') === 'Call Mekdi about the deposit',
+   JSON.stringify(title('owe me call Mekdi about the deposit')));
+ok('and of a dictated To Do', title('to do buy milk') === 'Buy milk');
+ok('a plain lowercase task too', title('call the bank') === 'Call the bank');
+ok('a deliberate spelling survives it', title('to do iPhone repair') === 'iPhone repair');
+ok('an empty title stays empty', title('owe me') === '');
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
