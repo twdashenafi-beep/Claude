@@ -172,7 +172,7 @@ ok('there is an Add button', (await addTodo.count()) === 1);
 ok('Add is disabled until there is a title',
    (await addTodo.getAttribute('aria-disabled')) === 'true');
 
-await A.page.getByPlaceholder('What needs to be done?').fill('cancel the gym membership');
+await A.page.getByPlaceholder('What needs to be done?').fill('Cancel the gym membership');
 await A.page.waitForTimeout(300);
 ok('Add becomes available once a title is typed',
    (await addTodo.getAttribute('aria-disabled')) !== 'true');
@@ -180,8 +180,8 @@ ok('Add becomes available once a title is typed',
 await addTodo.click();
 await A.page.waitForTimeout(900);
 ok('the sheet closes on Add', !(await body(A.page)).includes('New To Do'));
-ok('a To Do task lands in To Do', (await columnOf('cancel the gym membership')) === 'todo',
-   await columnOf('cancel the gym membership'));
+ok('a To Do task lands in To Do', (await columnOf('Cancel the gym membership')) === 'todo',
+   await columnOf('Cancel the gym membership'));
 
 // ── Owe Me ──
 await A.page.getByLabel('Add something you are waiting on to Owe Me').click();
@@ -194,17 +194,17 @@ ok('the Owe Me sheet asks what is being waited on',
 ok('the Owe Me sheet asks who owes it',
    (await A.page.getByPlaceholder('Who owes you this?').count()) === 1);
 
-await A.page.getByPlaceholder('What are you waiting on?').fill('the signed lease');
+await A.page.getByPlaceholder('What are you waiting on?').fill('The signed lease');
 await A.page.getByPlaceholder('Who owes you this?').fill('Priya');
 await A.page.getByLabel('Add to Owe Me').click();
 await A.page.waitForTimeout(900);
 
-ok('an Owe Me task lands in Owe Me', (await columnOf('the signed lease')) === 'owe',
-   await columnOf('the signed lease'));
+ok('an Owe Me task lands in Owe Me', (await columnOf('The signed lease')) === 'owe',
+   await columnOf('The signed lease'));
 ok('the person is kept', (await columnOf('Priya')) === 'owe', await columnOf('Priya'));
 
 // The two lists stay separate.
-ok('the To Do task did not move', (await columnOf('cancel the gym membership')) === 'todo');
+ok('the To Do task did not move', (await columnOf('Cancel the gym membership')) === 'todo');
 ok('nothing was marked done by adding it', !(await body(A.page)).includes('1 of 2 done'));
 
 console.log(`\n${pass} passed, ${fail} failed`);

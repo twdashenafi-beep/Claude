@@ -12,6 +12,7 @@ import {
   sortProjects, orderForNewProject,
 } from '../services/projects';
 import { isArchived } from '../services/archive';
+import { capitalizeTitle } from '../utils/text';
 
 const TaskContext = createContext();
 const STORAGE_KEY = '@dayflow_vault_v2';
@@ -225,7 +226,7 @@ export function TaskProvider({ children, encryptionKey, synced }) {
     const now = stamp();
     const newTask = {
       id: newId(),
-      title: taskData.title,
+      title: capitalizeTitle(taskData.title),
       date: taskData.date || now,
       dueDate: taskData.dueDate || taskData.date || now,
       dueTime: taskData.dueTime || '',
@@ -352,6 +353,9 @@ export function TaskProvider({ children, encryptionKey, synced }) {
       prev.map(t => {
         if (t.id !== id) return t;
         const updated = { ...t, ...updates, updatedAt: stamp() };
+        // Renaming goes through the same rule as naming, or a task edited
+        // afterwards would be the one lowercase entry in the list.
+        if (typeof updates.title === 'string') updated.title = capitalizeTitle(updates.title);
         if (!updated.completed && updated.dueDate && updated.dueTime) {
           scheduleTaskNotifications(updated).catch(() => {});
         } else cancelTaskNotifications(id);

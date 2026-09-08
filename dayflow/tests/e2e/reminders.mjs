@@ -196,7 +196,7 @@ const hhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes
 
 await A.page.getByLabel('Add a task to To Do').click();
 await A.page.waitForTimeout(400);
-await A.page.getByPlaceholder('What needs to be done?').fill('take the medicine');
+await A.page.getByPlaceholder('What needs to be done?').fill('Take the medicine');
 await A.page.getByLabel('Set a time').click();
 await A.page.waitForTimeout(400);
 
@@ -229,7 +229,7 @@ await A.page.waitForTimeout(2500);
 let text = await body(A.page);
 ok('the task is listed with its time', text.includes(hhmm), text.slice(0, 200));
 ok('an overdue reminder raises an alert in the app', /due now/i.test(text), text.slice(0, 250));
-ok('the alert names the task', text.includes('take the medicine'));
+ok('the alert names the task', text.includes('Take the medicine'));
 
 // The chime is armed by the first gesture; every click above counts as one.
 const tones = await A.page.evaluate(() => window.__tones || []);
@@ -241,7 +241,7 @@ ok('the sound is two notes a fourth apart',
 const notes = await A.page.evaluate(() => window.__notes || []);
 ok('and a system notification is raised', notes.length >= 1, JSON.stringify(notes));
 ok('the notification names the task',
-   notes.some(n => n.title === 'take the medicine'), JSON.stringify(notes));
+   notes.some(n => n.title === 'Take the medicine'), JSON.stringify(notes));
 ok('the notification says it is due',
    notes.some(n => /due now/i.test(n.body || '')), JSON.stringify(notes));
 

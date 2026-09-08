@@ -161,7 +161,7 @@ async function columnOf(title) {
 // ── Setting a time while creating ──
 await A.page.getByLabel('Add a task to To Do').click();
 await A.page.waitForTimeout(400);
-await A.page.getByPlaceholder('What needs to be done?').fill('dentist');
+await A.page.getByPlaceholder('What needs to be done?').fill('Dentist');
 
 await A.page.getByLabel('Set a time').click();
 await A.page.waitForTimeout(500);
@@ -197,7 +197,7 @@ ok('the task carries its time into the list', (await body(A.page)).includes(to24
 
 // ── Changing it afterwards, which was the part that did not work ──
 // A single tap opens the task; two in quick succession would tick it off.
-await A.page.locator('text=dentist').first().click();
+await A.page.locator('text=Dentist').first().click();
 await A.page.waitForTimeout(900);
 
 text = await body(A.page);

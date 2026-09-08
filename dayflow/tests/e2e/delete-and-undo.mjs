@@ -130,12 +130,12 @@ async function add(phrase) {
   await A.page.waitForTimeout(900);
 }
 
-await add('cancel the gym membership');
-await add('renew the passport');
-ok('both tasks are listed', (await body(A.page)).includes('cancel the gym membership'));
+await add('Cancel the gym membership');
+await add('Renew the passport');
+ok('both tasks are listed', (await body(A.page)).includes('Cancel the gym membership'));
 
 // ── The control is on the row, not behind a gesture ──
-const remove = A.page.getByLabel('Delete cancel the gym membership');
+const remove = A.page.getByLabel('Delete Cancel the gym membership');
 ok('every row carries a delete control', (await remove.count()) === 1, String(await remove.count()));
 
 await remove.click();
@@ -144,9 +144,9 @@ let text = await body(A.page);
 // By the row being gone, not by the title being absent from the page: the undo
 // bar names what it deleted, so the words are still on screen.
 ok('the task goes without a confirmation step',
-   (await A.page.getByLabel('Delete cancel the gym membership').count()) === 0);
-ok('the undo bar names what went', text.includes('cancel the gym membership'));
-ok('the other task is untouched', text.includes('renew the passport'));
+   (await A.page.getByLabel('Delete Cancel the gym membership').count()) === 0);
+ok('the undo bar names what went', text.includes('Cancel the gym membership'));
+ok('the other task is untouched', text.includes('Renew the passport'));
 ok('deleting is not the same as completing', !text.includes('1 of 2 done'), text.slice(0, 90));
 ok('an undo is offered', /UNDO/.test(text));
 
@@ -154,24 +154,24 @@ ok('an undo is offered', /UNDO/.test(text));
 await A.page.getByText('UNDO', { exact: true }).click();
 await A.page.waitForTimeout(1000);
 text = await body(A.page);
-ok('undo restores the task', text.includes('cancel the gym membership'));
+ok('undo restores the task', text.includes('Cancel the gym membership'));
 ok('the undo bar goes away once used', !/UNDO/.test(text));
 
 // The tombstone is still on the server; a sync must not undo the undo.
 await A.page.waitForTimeout(3000);
-ok('the restored task survives a sync', (await body(A.page)).includes('cancel the gym membership'));
+ok('the restored task survives a sync', (await body(A.page)).includes('Cancel the gym membership'));
 ok('the server no longer holds it as deleted',
    [...rows.values()].filter(r => r.deleted).length === 0,
    JSON.stringify([...rows.values()].map(r => r.deleted)));
 
 // ── And the undo bar times out on its own ──
-await A.page.getByLabel('Delete renew the passport').click();
+await A.page.getByLabel('Delete Renew the passport').click();
 await A.page.waitForTimeout(600);
 ok('a second delete offers undo again', /UNDO/.test(await body(A.page)));
 await A.page.waitForTimeout(7500);
 ok('the undo bar clears itself', !/UNDO/.test(await body(A.page)));
 ok('the task stays deleted once the window passes',
-   !(await body(A.page)).includes('renew the passport'));
+   !(await body(A.page)).includes('Renew the passport'));
 
 // ── The traffic has to stop ──
 //

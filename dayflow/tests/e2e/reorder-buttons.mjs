@@ -163,7 +163,7 @@ async function columnOf(title) {
 }
 
 
-for (const title of ['alpha', 'bravo', 'charlie']) {
+for (const title of ['Alpha', 'Bravo', 'Charlie']) {
   const box = A.page.locator('input, textarea').first();
   await box.fill(title);
   await box.press('Enter');
@@ -174,7 +174,7 @@ async function order() {
   return A.page.evaluate(() => {
     const rows = [...document.querySelectorAll('*')]
       .filter(el => el.children.length === 0 &&
-        ['alpha', 'bravo', 'charlie'].includes((el.innerText || '').trim()))
+        ['Alpha', 'Bravo', 'Charlie'].includes((el.innerText || '').trim()))
       .map(el => ({ title: el.innerText.trim(), y: el.getBoundingClientRect().top }));
     return rows.sort((a, b) => a.y - b.y).map(r => r.title).join(',');
   });
@@ -191,10 +191,10 @@ async function hold(title) {
   await A.page.waitForTimeout(600);
 }
 
-ok('newest task is at the top', (await order()) === 'charlie,bravo,alpha', await order());
+ok('newest task is at the top', (await order()) === 'Charlie,Bravo,Alpha', await order());
 
 // ── Down ──
-await hold('charlie');
+await hold('Charlie');
 ok('the sheet says where the task sits',
    /1 of 3 in this list/.test(await body(A.page)), (await body(A.page)).slice(0, 300));
 ok('it cannot be moved up from the top',
@@ -203,21 +203,21 @@ ok('nor to the top', (await A.page.getByLabel('Move to the top of the list').get
 
 await A.page.getByLabel('Move down one place').click();
 await A.page.waitForTimeout(900);
-ok('down moves it one place', (await order()) === 'bravo,charlie,alpha', await order());
+ok('down moves it one place', (await order()) === 'Bravo,Charlie,Alpha', await order());
 
 // ── Up ──
-await hold('alpha');
+await hold('Alpha');
 await A.page.getByLabel('Move up one place').click();
 await A.page.waitForTimeout(900);
-ok('up moves it one place', (await order()) === 'bravo,alpha,charlie', await order());
+ok('up moves it one place', (await order()) === 'Bravo,Alpha,Charlie', await order());
 
 // ── Top ──
-await hold('charlie');
+await hold('Charlie');
 await A.page.getByLabel('Move to the top of the list').click();
 await A.page.waitForTimeout(900);
-ok('top sends it all the way up', (await order()) === 'charlie,bravo,alpha', await order());
+ok('top sends it all the way up', (await order()) === 'Charlie,Bravo,Alpha', await order());
 
-await hold('charlie');
+await hold('Charlie');
 ok('the bottom move is offered from the top',
    (await A.page.getByLabel('Move down one place').getAttribute('aria-disabled')) !== 'true');
 await A.page.keyboard.press('Escape');
@@ -230,7 +230,7 @@ await A.page.locator('input, textarea').nth(0).fill(USER.email);
 await A.page.locator('input, textarea').nth(1).fill('a strong master password');
 await A.page.getByText('UNLOCK', { exact: false }).first().click();
 await A.page.waitForTimeout(3000);
-ok('the order survives a reload', (await order()) === 'charlie,bravo,alpha', await order());
+ok('the order survives a reload', (await order()) === 'Charlie,Bravo,Alpha', await order());
 
 // ── And the handle no longer invites a text selection ──
 const guarded = await A.page.evaluate(() => {

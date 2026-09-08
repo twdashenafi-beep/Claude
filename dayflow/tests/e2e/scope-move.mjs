@@ -159,16 +159,16 @@ async function columnOf(title) {
 
 
 const box = A.page.locator('input, textarea').first();
-await box.fill('renew the passport');
+await box.fill('Renew the passport');
 await box.press('Enter');
 await A.page.waitForTimeout(900);
 
-const shows = async () => (await body(A.page)).includes('renew the passport');
+const shows = async () => (await body(A.page)).includes('Renew the passport');
 ok('a new task starts under Day', await shows());
 
 // ── Move it to Week from the quick actions ──
 // A press and hold, not a click: a click opens the task sheet instead.
-const row = A.page.locator('text=renew the passport').first();
+const row = A.page.locator('text=Renew the passport').first();
 const at = await row.boundingBox();
 await A.page.mouse.move(at.x + at.width / 2, at.y + at.height / 2);
 await A.page.mouse.down();
@@ -186,7 +186,7 @@ await A.page.getByLabel('Move to Week').click();
 await A.page.waitForTimeout(900);
 
 let text = await body(A.page);
-ok('the task leaves the day view', !text.includes('renew the passport'));
+ok('the task leaves the day view', !text.includes('Renew the passport'));
 ok('and the app says where it went', text.includes('Moved to Week'), text.slice(0, 200));
 
 // ── Following it ──
@@ -207,7 +207,7 @@ await A.page.waitForTimeout(500);
 ok('it is under Week', await shows());
 
 // ── The task sheet offers the same choice ──
-await A.page.locator('text=renew the passport').first().click();
+await A.page.locator('text=Renew the passport').first().click();
 await A.page.waitForTimeout(900);
 ok('the task sheet offers the scopes too',
    (await A.page.getByLabel('Show under Month').count()) === 1);

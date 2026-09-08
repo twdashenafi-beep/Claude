@@ -166,8 +166,8 @@ async function add(title) {
 }
 const shows = async title => (await body(A.page)).includes(title);
 
-await add('buy milk');
-ok('a task starts in the main list', await shows('buy milk'));
+await add('Buy milk');
+ok('a task starts in the main list', await shows('Buy milk'));
 
 // ── The bar is hidden until asked for ──
 ok('projects are out of the way until wanted',
@@ -188,21 +188,21 @@ let text = await body(A.page);
 ok('the project is created and entered', text.includes('Kitchen'));
 ok('the sheet says which project it is showing', /Kitchen\s*·/.test(text.replace(/\n/g, ' ')),
    text.slice(0, 260));
-ok('the main list task is not in the project', !(await shows('buy milk')));
+ok('the main list task is not in the project', !(await shows('Buy milk')));
 
-await add('fix the tap');
-ok('a task made in a project shows there', await shows('fix the tap'));
+await add('Fix the tap');
+ok('a task made in a project shows there', await shows('Fix the tap'));
 
 // ── Separation, in both directions ──
 await A.page.getByLabel('All tasks not in a project').click();
 await A.page.waitForTimeout(700);
-ok('the main list still has its own task', await shows('buy milk'));
-ok('and does not show the project task', !(await shows('fix the tap')));
+ok('the main list still has its own task', await shows('Buy milk'));
+ok('and does not show the project task', !(await shows('Fix the tap')));
 
 await A.page.getByLabel('Project Kitchen').click();
 await A.page.waitForTimeout(700);
-ok('switching back shows the project task again', await shows('fix the tap'));
-ok('and still not the main list task', !(await shows('buy milk')));
+ok('switching back shows the project task again', await shows('Fix the tap'));
+ok('and still not the main list task', !(await shows('Buy milk')));
 
 // ── A second project stays separate from the first ──
 await A.page.getByLabel('New project').click();
@@ -210,10 +210,10 @@ await A.page.waitForTimeout(300);
 await A.page.getByLabel('New project name').fill('Garden');
 await A.page.getByLabel('Create the project').click();
 await A.page.waitForTimeout(900);
-await add('plant bulbs');
+await add('Plant bulbs');
 
 ok('the second project has only its own task',
-   (await shows('plant bulbs')) && !(await shows('fix the tap')) && !(await shows('buy milk')));
+   (await shows('Plant bulbs')) && !(await shows('Fix the tap')) && !(await shows('Buy milk')));
 
 // A duplicate name is refused.
 await A.page.getByLabel('New project').click();
@@ -228,7 +228,7 @@ await A.page.waitForTimeout(400);
 // ── Moving an existing task into a project ──
 await A.page.getByLabel('All tasks not in a project').click();
 await A.page.waitForTimeout(700);
-const row = A.page.locator('text=buy milk').first();
+const row = A.page.locator('text=Buy milk').first();
 const at = await row.boundingBox();
 await A.page.mouse.move(at.x + at.width / 2, at.y + at.height / 2);
 await A.page.mouse.down();
@@ -242,10 +242,10 @@ ok('and does not offer the one it is already in',
 await A.page.getByLabel('Move to Kitchen').click();
 await A.page.waitForTimeout(900);
 
-ok('the task leaves the main list', !(await shows('buy milk')));
+ok('the task leaves the main list', !(await shows('Buy milk')));
 await A.page.getByLabel('Project Kitchen').click();
 await A.page.waitForTimeout(700);
-ok('and arrives in the project', await shows('buy milk'));
+ok('and arrives in the project', await shows('Buy milk'));
 
 // ── Deleting a project keeps the work ──
 await A.page.getByLabel('Project Kitchen').click({ delay: 600 });
@@ -259,7 +259,7 @@ text = await body(A.page);
 ok('the project is gone', !text.includes('Kitchen'));
 ok('and says where its tasks went', /back in Everything/i.test(text), text.slice(0, 240));
 ok('the tasks came back rather than going with it',
-   (await shows('buy milk')) && (await shows('fix the tap')));
+   (await shows('Buy milk')) && (await shows('Fix the tap')));
 
 // ── It all survives a reload ──
 await A.page.reload({ waitUntil: 'networkidle' });
@@ -269,7 +269,7 @@ await A.page.locator('input, textarea').nth(1).fill('a strong master password');
 await A.page.getByText('UNLOCK', { exact: false }).first().click();
 await A.page.waitForTimeout(3500);
 
-ok('the main list is restored', (await shows('buy milk')) && (await shows('fix the tap')));
+ok('the main list is restored', (await shows('Buy milk')) && (await shows('Fix the tap')));
 ok('and the surviving project is still there',
    (await body(A.page)).includes('Garden') || true);
 await A.page.getByLabel('Projects').click();
@@ -278,7 +278,7 @@ ok('the remaining project survived the reload', await shows('Garden'));
 await A.page.getByLabel('Project Garden').click();
 await A.page.waitForTimeout(700);
 ok('with its own task intact',
-   (await shows('plant bulbs')) && !(await shows('buy milk')));
+   (await shows('Plant bulbs')) && !(await shows('Buy milk')));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();

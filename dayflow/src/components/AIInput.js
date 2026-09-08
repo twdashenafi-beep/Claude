@@ -3,6 +3,10 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Animated, Platform
 import { parseNaturalLanguage } from '../services/nlParser';
 import { COLORS, SANS, SERIF } from '../utils/theme';
 
+// How long a pause means the sentence is over. Long enough to think of the
+// next word, short enough that finishing does not need a second tap.
+const SILENCE_MS = 3000;
+
 const SpeechRecognition =
   Platform.OS === 'web' && typeof window !== 'undefined'
     ? window.SpeechRecognition || window.webkitSpeechRecognition
@@ -78,6 +82,26 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo' }) {
   const submitRef = useRef(doSubmit);
   useEffect(() => { submitRef.current = doSubmit; }, [doSubmit]);
 
+  // Leaving the page while the mic is live has to turn the mic off.
+  //
+  // This input is unmounted whenever Search or the Archive is opened, and a
+  // SpeechRecognition nobody stops keeps the microphone on — the browser goes
+  // on showing the recording indicator for a field that is no longer there.
+  //
+  // The handlers come off first. abort() still raises onend, which would
+  // submit a task and set state on a component that has gone.
+  useEffect(() => () => {
+    clearTimeout(silenceTimer.current);
+    const r = recognitionRef.current;
+    if (!r) return;
+    r.onstart = null;
+    r.onresult = null;
+    r.onerror = null;
+    r.onend = null;
+    try { r.abort(); } catch { /* already stopped */ }
+    recognitionRef.current = null;
+  }, []);
+
   const startListening = () => {
     if (!SpeechRecognition) return;
     if (recognitionRef.current) recognitionRef.current.abort();
@@ -88,7 +112,15 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo' }) {
     recognitionRef.current = r;
     let final = '';
 
-    r.onstart = () => { setListening(true); final = ''; };
+    // Armed here as well as on each result. Tapping the mic and then saying
+    // nothing at all produces no result event, so a timer set only there was
+    // never set — and the mic stayed on until it was tapped a second time.
+    const armSilence = () => {
+      clearTimeout(silenceTimer.current);
+      silenceTimer.current = setTimeout(() => r.stop(), SILENCE_MS);
+    };
+
+    r.onstart = () => { setListening(true); final = ''; armSilence(); };
     r.onresult = (e) => {
       let interim = '';
       for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -98,8 +130,7 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo' }) {
       const display = final + interim;
       setText(display);
       if (display.trim().length > 2) setPreview(parseNaturalLanguage(display));
-      clearTimeout(silenceTimer.current);
-      silenceTimer.current = setTimeout(() => r.stop(), 2000);
+      armSilence();
     };
     r.onerror = () => { setListening(false); clearTimeout(silenceTimer.current); };
     r.onend = () => {

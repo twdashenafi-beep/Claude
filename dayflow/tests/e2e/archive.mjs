@@ -184,18 +184,18 @@ const openArchive = async () => {
   await A.page.waitForTimeout(800);
 };
 
-await add('write the report');
-await add('cancel the gym');
+await add('Write the report');
+await add('Cancel the gym');
 
 // ── Unfinished: delete still means delete ──
-await A.page.getByLabel('Delete cancel the gym').click();
+await A.page.getByLabel('Delete Cancel the gym').click();
 await A.page.waitForTimeout(700);
 let text = await body(A.page);
 ok('an unfinished task is deleted, not kept', /Deleted/.test(text) && !/Archived/.test(text),
    text.slice(0, 200));
 
 await openArchive();
-ok('and it is not in the archive', !(await shows('cancel the gym')),
+ok('and it is not in the archive', !(await shows('Cancel the gym')),
    (await body(A.page)).slice(0, 200));
 ok('an empty archive says what it is for',
    /Nothing archived yet/.test(await body(A.page)));
@@ -203,72 +203,72 @@ ok('an empty archive says what it is for',
 // ── Finished: delete keeps it ──
 await A.page.getByLabel('All tasks not in a project').click();
 await A.page.waitForTimeout(700);
-await A.page.getByLabel('Mark write the report as done').click();
+await A.page.getByLabel('Mark Write the report as done').click();
 await A.page.waitForTimeout(700);
 await A.page.getByLabel(/^Show \d+ completed/).first().click();
 await A.page.waitForTimeout(500);
-await A.page.getByLabel('Delete write the report').click();
+await A.page.getByLabel('Delete Write the report').click();
 await A.page.waitForTimeout(700);
 
 text = await body(A.page);
 ok('a finished task is archived rather than deleted', /Archived/.test(text), text.slice(0, 200));
-ok('the word deleted is not used for it', !/Deleted “write the report”/.test(text));
-ok('it leaves the page', !(await shows('write the report')));
+ok('the word deleted is not used for it', !/Deleted “Write the report”/.test(text));
+ok('it leaves the page', !(await shows('Write the report')));
 
 await openArchive();
-ok('and is kept in the archive', await shows('write the report'));
+ok('and is kept in the archive', await shows('Write the report'));
 console.log('ARCHIVE PAGE:', JSON.stringify((await body(A.page)).replace(/\n+/g, ' | ').slice(0, 400)));
 ok('the archive lists only what it holds',
-   (await shows('write the report')) && !(await shows('cancel the gym')));
+   (await shows('Write the report')) && !(await shows('Cancel the gym')));
 ok('and says which list it came from', /To Do/.test(await body(A.page)));
 
 // ── Undo puts it back rather than losing it ──
 await A.page.getByLabel('All tasks not in a project').click();
 await A.page.waitForTimeout(600);
-await add('second thing');
-await A.page.getByLabel('Mark second thing as done').click();
+await add('Second thing');
+await A.page.getByLabel('Mark Second thing as done').click();
 await A.page.waitForTimeout(600);
 const expand = A.page.getByLabel(/^Show \d+ completed/).first();
 if (await expand.count()) { await expand.click(); await A.page.waitForTimeout(400); }
-await A.page.getByLabel('Delete second thing').click();
+await A.page.getByLabel('Delete Second thing').click();
 await A.page.waitForTimeout(600);
-await A.page.getByLabel(/^Put second thing back/).click();
+await A.page.getByLabel(/^Put Second thing back/).click();
 await A.page.waitForTimeout(800);
-ok('undo brings an archived task back to the page', await shows('second thing'));
+ok('undo brings an archived task back to the page', await shows('Second thing'));
 
 await openArchive();
-ok('and it is no longer in the archive', !(await shows('second thing')));
-ok('and the other is gone from it', !(await shows('second thing')));
+ok('and it is no longer in the archive', !(await shows('Second thing')));
+ok('and the other is gone from it', !(await shows('Second thing')));
 
 // ── Restoring from inside the archive ──
-await A.page.getByLabel(/^Put write the report back/).click();
+await A.page.getByLabel(/^Put Write the report back/).click();
 await A.page.waitForTimeout(800);
 ok('the archive empties when its last task is restored',
    /Nothing archived yet/.test(await body(A.page)));
 await A.page.getByLabel('All tasks not in a project').click();
 await A.page.waitForTimeout(700);
-ok('and the task is on the page again', await shows('write the report'));
+ok('and the task is on the page again', await shows('Write the report'));
 
 // ── Deleting for good, from the archive ──
-await A.page.getByLabel('Delete write the report').click();
+await A.page.getByLabel('Delete Write the report').click();
 await A.page.waitForTimeout(700);
 await openArchive();
-ok('it is archived again', await shows('write the report'));
-await A.page.getByLabel('Delete write the report permanently').click();
+ok('it is archived again', await shows('Write the report'));
+await A.page.getByLabel('Delete Write the report permanently').click();
 await A.page.waitForTimeout(800);
 text = await body(A.page);
 ok('deleting from the archive says it is for good', /for good/.test(text), text.slice(0, 200));
-ok('and it is gone from the archive', !/write the report/.test(text.split('Deleted')[0]));
+ok('and it is gone from the archive', !/Write the report/.test(text.split('Deleted')[0]));
 
 // ── It survives a reload ──
 await A.page.getByLabel('All tasks not in a project').click();
 await A.page.waitForTimeout(600);
-await add('keep me');
-await A.page.getByLabel('Mark keep me as done').click();
+await add('Keep me');
+await A.page.getByLabel('Mark Keep me as done').click();
 await A.page.waitForTimeout(600);
 const reveal = A.page.getByLabel(/^Show \d+ completed/).first();
 if (await reveal.count()) { await reveal.click(); await A.page.waitForTimeout(400); }
-await A.page.getByLabel('Delete keep me').click();
+await A.page.getByLabel('Delete Keep me').click();
 await A.page.waitForTimeout(900);
 
 await A.page.reload({ waitUntil: 'networkidle' });
@@ -278,18 +278,18 @@ await A.page.locator('input, textarea').nth(1).fill('a strong master password');
 await A.page.getByText('UNLOCK', { exact: false }).first().click();
 await A.page.waitForTimeout(3500);
 
-ok('an archived task stays off the page after a reload', !(await shows('keep me')));
+ok('an archived task stays off the page after a reload', !(await shows('Keep me')));
 await openArchive();
-ok('and is still kept', await shows('keep me'));
+ok('and is still kept', await shows('Keep me'));
 
 // ── Clearing a column files its work, which is the ordinary way this happens ──
 await A.page.getByLabel('All tasks not in a project').click();
 await A.page.waitForTimeout(600);
-await add('first job');
-await add('second job');
-await A.page.getByLabel('Mark first job as done').click();
+await add('First job');
+await add('Second job');
+await A.page.getByLabel('Mark First job as done').click();
 await A.page.waitForTimeout(400);
-await A.page.getByLabel('Mark second job as done').click();
+await A.page.getByLabel('Mark Second job as done').click();
 await A.page.waitForTimeout(600);
 
 await A.page.getByLabel(/^Show \d+ completed/).first().click();
@@ -302,16 +302,16 @@ console.log('AFTER CLEAR:', JSON.stringify(text.replace(/\n+/g, ' | ').slice(0, 
 ok('clearing a column says the work was kept, not destroyed',
    /Archived \d+ finished tasks/.test(text), text.slice(0, 220));
 ok('and the tasks leave the page',
-   !(await shows('first job')) && !(await shows('second job')));
+   !(await shows('First job')) && !(await shows('Second job')));
 
 await openArchive();
-ok('both are in the archive', (await shows('first job')) && (await shows('second job')));
+ok('both are in the archive', (await shows('First job')) && (await shows('Second job')));
 ok('and no count is shown for them', !/tasks? kept/i.test(await page()),
    (await page()).slice(0, 200));
 
 // ── Emptying, and taking it back ──
 await openArchive();
-ok('the archive holds something to empty', await shows('first job'), (await page()).slice(0, 160));
+ok('the archive holds something to empty', await shows('First job'), (await page()).slice(0, 160));
 
 await A.page.getByLabel('Empty the archive permanently').click();
 await A.page.waitForTimeout(1200);
@@ -324,11 +324,11 @@ await A.page.getByLabel('Put the archive back').click();
 await A.page.waitForTimeout(1200);
 ok('undo brings the whole archive back',
    !/Nothing archived yet/.test(await page()), (await page()).slice(0, 200));
-ok('and the tasks themselves', (await shows('first job')) && (await shows('second job')));
+ok('and the tasks themselves', (await shows('First job')) && (await shows('Second job')));
 
 // It has to stick, not just look right until the next sync.
 await A.page.waitForTimeout(3000);
-ok('the restored archive survives a sync', (await shows('first job')));
+ok('the restored archive survives a sync', (await shows('First job')));
 
 // ── A note written against a task is part of the record ──
 await A.page.getByLabel('All tasks not in a project').click();
@@ -342,21 +342,21 @@ const LONG = 'The valve under the sink was the problem all along, not the tap it
 
 await A.page.getByLabel('Add a task to To Do').click();
 await A.page.waitForTimeout(400);
-await A.page.getByPlaceholder('What needs to be done?').fill('mend the sink');
+await A.page.getByPlaceholder('What needs to be done?').fill('Mend the sink');
 await A.page.getByPlaceholder('Notes').fill(SHORT);
 await A.page.getByLabel('Add to To Do').click();
 await A.page.waitForTimeout(900);
 
 await A.page.getByLabel('Add a task to To Do').click();
 await A.page.waitForTimeout(400);
-await A.page.getByPlaceholder('What needs to be done?').fill('the long one');
+await A.page.getByPlaceholder('What needs to be done?').fill('The long one');
 await A.page.getByPlaceholder('Notes').fill(LONG);
 await A.page.getByLabel('Add to To Do').click();
 await A.page.waitForTimeout(900);
 
-await A.page.getByLabel('Mark mend the sink as done').click();
+await A.page.getByLabel('Mark Mend the sink as done').click();
 await A.page.waitForTimeout(400);
-await A.page.getByLabel('Mark the long one as done').click();
+await A.page.getByLabel('Mark The long one as done').click();
 await A.page.waitForTimeout(600);
 // The column may already be expanded from an earlier step, in which case the
 // toggle reads Hide and there is nothing to open.
@@ -368,21 +368,21 @@ await A.page.waitForTimeout(1000);
 await openArchive();
 ok('a note is kept with the task it belonged to', await shows(SHORT),
    (await page()).slice(0, 300));
-ok('the task it belonged to is there too', await shows('mend the sink'));
+ok('the task it belonged to is there too', await shows('Mend the sink'));
 
 // A long note is clamped rather than cut, and opens on a tap.
 ok('a long note offers to be read in full',
-   (await A.page.getByLabel('Read the whole note on the long one').count()) === 1);
+   (await A.page.getByLabel('Read the whole note on The long one').count()) === 1);
 ok('a short one does not need the offer',
-   (await A.page.getByLabel('Read the whole note on mend the sink').count()) === 0);
+   (await A.page.getByLabel('Read the whole note on Mend the sink').count()) === 0);
 
-await A.page.getByLabel('Read the whole note on the long one').click();
+await A.page.getByLabel('Read the whole note on The long one').click();
 await A.page.waitForTimeout(400);
 ok('opening it shows the end of the note',
    (await page()).includes('under the stairs where the survey said it was'),
    (await page()).slice(0, 300));
 ok('and offers to close it again',
-   (await A.page.getByLabel('Collapse the note on the long one').count()) === 1);
+   (await A.page.getByLabel('Collapse the note on The long one').count()) === 1);
 
 // The note has to survive the round trip, not just the render.
 await A.page.reload({ waitUntil: 'networkidle' });
@@ -395,13 +395,13 @@ await openArchive();
 ok('the note is still there after a reload', await shows(SHORT));
 
 // And restoring puts the note back on the task, not just the title.
-await A.page.getByLabel(/^Put mend the sink back/).click();
+await A.page.getByLabel(/^Put Mend the sink back/).click();
 await A.page.waitForTimeout(900);
 await A.page.getByLabel('All tasks not in a project').click();
 await A.page.waitForTimeout(700);
 const revealed = A.page.getByLabel(/^Show \d+ completed/).first();
 if (await revealed.count()) { await revealed.click(); await A.page.waitForTimeout(400); }
-await A.page.locator('text=mend the sink').first().click();
+await A.page.locator('text=Mend the sink').first().click();
 await A.page.waitForTimeout(900);
 // The note sits in a field's value, which is not part of the page's text —
 // reading innerText here would find nothing and prove nothing.

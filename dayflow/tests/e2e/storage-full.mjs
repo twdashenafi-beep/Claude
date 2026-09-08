@@ -130,7 +130,7 @@ async function add(title) {
   await A.page.waitForTimeout(800);
 }
 
-await add('before the disk fills');
+await add('Before the disk fills');
 ok('nothing is said while saving works', !/out of storage|failed/i.test(await body()),
    (await body()).slice(0, 240));
 
@@ -147,7 +147,7 @@ await A.page.evaluate(() => {
   };
 });
 
-await add('after the disk fills');
+await add('After the disk fills');
 await A.page.waitForTimeout(1200);
 let text = await body();
 console.log('AFTER QUOTA:', JSON.stringify(text.replace(/\n+/g, ' | ').slice(0, 400)));
@@ -163,18 +163,18 @@ ok('it is announced rather than just drawn',
 
 // The app keeps working — the task is on the page, it is only the disk that
 // refused. Losing the session as well would make a bad situation worse.
-ok('the task is still added to the page', text.includes('after the disk fills'));
-ok('and the earlier one is still there', text.includes('before the disk fills'));
+ok('the task is still added to the page', text.includes('After the disk fills'));
+ok('and the earlier one is still there', text.includes('Before the disk fills'));
 
 // And it goes away by itself once writing works again, rather than needing a
 // reload to clear a warning that is no longer true.
 await A.page.evaluate(() => { delete Storage.prototype.setItem; });
-await add('once there is room again');
+await add('Once there is room again');
 await A.page.waitForTimeout(1500);
 text = await body();
 ok('the warning clears when saving works again', !/out of storage/i.test(text),
    text.slice(0, 300));
-ok('and the task went in', text.includes('once there is room again'));
+ok('and the task went in', text.includes('Once there is room again'));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();

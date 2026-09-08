@@ -18,8 +18,28 @@ export default function VoiceRecorder({ onRecordingComplete, existingUri, onDele
   const [isRecording, setIsRecording] = useState(false);
   const [duration, setDuration] = useState(0);
   const timer = useRef(null);
+  // Read by the unmount cleanup, which is created once and so cannot see the
+  // state.
+  const recording = useRef(false);
 
-  useEffect(() => () => clearInterval(timer.current), []);
+  // Closing the sheet mid-recording has to stop the recording.
+  //
+  // The counter was already cleared here; the recorder itself was not, so
+  // dismissing the sheet while recording left the microphone open and the
+  // audio session still in recording mode — which on a phone also routes the
+  // next thing you play to the earpiece.
+  //
+  // The half-finished take is dropped rather than attached: the sheet it
+  // belonged to has gone, and there is nothing left to attach it to.
+  useEffect(() => () => {
+    clearInterval(timer.current);
+    if (!recording.current) return;
+    recording.current = false;
+    Promise.resolve()
+      .then(() => recorder.stop())
+      .then(() => setAudioModeAsync({ allowsRecording: false }))
+      .catch(() => {});
+  }, [recorder]);
 
   const startRecording = async () => {
     try {
@@ -32,6 +52,7 @@ export default function VoiceRecorder({ onRecordingComplete, existingUri, onDele
       await recorder.prepareToRecordAsync();
       recorder.record();
 
+      recording.current = true;
       setIsRecording(true);
       setDuration(0);
       timer.current = setInterval(() => setDuration(d => d + 1), 1000);
@@ -42,6 +63,7 @@ export default function VoiceRecorder({ onRecordingComplete, existingUri, onDele
 
   const stopRecording = async () => {
     clearInterval(timer.current);
+    recording.current = false;
     setIsRecording(false);
     try {
       await recorder.stop();
