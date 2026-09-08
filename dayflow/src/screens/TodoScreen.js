@@ -182,7 +182,7 @@ function Column({
 export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
   const {
     tasks, addTask, toggleTask, deleteTask, restoreTask, updateTask, reorderTasks, syncState,
-    storageError,
+    storageError, vaultError,
     projects, addProject, renameProject, deleteProject, moveTaskToProject,
     archived, archiveTask, archiveTasks, unarchiveTask, deleteTasks, restoreTasks,
   } = useTasks();
@@ -543,6 +543,12 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
           {/* A device that has stopped saving says so, in the one place that is
               always on screen. Not the undo bar at the bottom: that clears
               itself after a few seconds, and this is true until it is not. */}
+          {vaultError ? (
+            <View style={s.storageBar} accessibilityRole="alert">
+              <Text style={s.storageText}>{vaultError}</Text>
+            </View>
+          ) : null}
+
           {storageError ? (
             <View style={s.storageBar} accessibilityRole="alert">
               <Text style={s.storageText}>{storageError}</Text>
