@@ -160,7 +160,7 @@ async function columnOf(title) {
 
 
 // Three tasks, added top-first, so the column reads c, b, a.
-for (const title of ['alpha', 'bravo', 'charlie']) {
+for (const title of ['Alpha', 'Bravo', 'Charlie']) {
   const box = A.page.locator('input, textarea').first();
   await box.fill(title);
   await box.press('Enter');
@@ -172,19 +172,19 @@ async function order() {
   return A.page.evaluate(() => {
     const rows = [...document.querySelectorAll('*')]
       .filter(el => el.children.length === 0 &&
-        ['alpha', 'bravo', 'charlie'].includes((el.innerText || '').trim()))
+        ['Alpha', 'Bravo', 'Charlie'].includes((el.innerText || '').trim()))
       .map(el => ({ title: el.innerText.trim(), y: el.getBoundingClientRect().top }));
     return rows.sort((a, b) => a.y - b.y).map(r => r.title).join(',');
   });
 }
 
-ok('newest task sits at the top', (await order()) === 'charlie,bravo,alpha', await order());
+ok('newest task sits at the top', (await order()) === 'Charlie,Bravo,Alpha', await order());
 
 // Every row offers a handle.
 ok('each row has a reorder handle',
-   (await A.page.getByLabel('Reorder charlie').count()) === 1);
+   (await A.page.getByLabel('Reorder Charlie').count()) === 1);
 
-// Drag charlie from the top down past two rows.
+// Drag Charlie from the top down past two rows.
 async function dragBy(title, dy) {
   const handle = A.page.getByLabel(`Reorder ${title}`);
   const box = await handle.boundingBox();
@@ -202,16 +202,16 @@ async function dragBy(title, dy) {
 
 const rowHeight = await A.page.evaluate(() => {
   const el = [...document.querySelectorAll('*')]
-    .find(e => e.children.length === 0 && (e.innerText || '').trim() === 'alpha');
+    .find(e => e.children.length === 0 && (e.innerText || '').trim() === 'Alpha');
   return el ? el.getBoundingClientRect().height + 18 : 40;
 });
 
-await dragBy('charlie', rowHeight * 2);
+await dragBy('Charlie', rowHeight * 2);
 ok('a row dropped at the bottom is at the bottom',
-   (await order()) === 'bravo,alpha,charlie', await order());
+   (await order()) === 'Bravo,Alpha,Charlie', await order());
 
-await dragBy('alpha', -rowHeight * 1.2);
-ok('a row dragged up moves up', (await order()) === 'alpha,bravo,charlie', await order());
+await dragBy('Alpha', -rowHeight * 1.2);
+ok('a row dragged up moves up', (await order()) === 'Alpha,Bravo,Charlie', await order());
 
 // ── It has to survive a reload, not just a render ──
 await A.page.reload({ waitUntil: 'networkidle' });
@@ -221,7 +221,7 @@ await A.page.locator('input, textarea').nth(1).fill('a strong master password');
 await A.page.getByText('UNLOCK', { exact: false }).first().click();
 await A.page.waitForTimeout(3000);
 
-ok('the order survives a reload', (await order()) === 'alpha,bravo,charlie', await order());
+ok('the order survives a reload', (await order()) === 'Alpha,Bravo,Charlie', await order());
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();
