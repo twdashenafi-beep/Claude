@@ -8,7 +8,9 @@
 //
 // `decryptRow` returns null when a row cannot be read with the current key.
 // That should not happen for your own rows, but skipping beats crashing, and it
-// keeps one corrupt row from taking the whole list with it.
+// keeps one corrupt row from taking the whole list with it. A decryptRow that
+// throws is treated the same way, as is a row that is not an object: a single
+// bad entry must not be able to stop syncing altogether.
 export function mergeTasks({ localTasks, localTombstones, remoteRows, decryptRow }) {
   const merged = new Map();
   const tombstones = new Map(localTombstones.map(t => [t.id, t]));
@@ -17,7 +19,14 @@ export function mergeTasks({ localTasks, localTombstones, remoteRows, decryptRow
 
   const toPush = [];
 
-  for (const row of remoteRows) {
+  // A response is not always shaped like one. A null or non-object entry used to
+  // throw on the first property read, which stopped the whole merge — nothing
+  // synced at all, in either direction, until it went away. Filtered once here
+  // rather than guarded at each use, because the list is read twice and the
+  // second read is the one that was missed.
+  const rows = (remoteRows || []).filter(r => r && typeof r === 'object' && r.id);
+
+  for (const row of rows) {
     const remoteAt = Date.parse(row.updatedAt) || 0;
 
     if (row.deleted) {
@@ -52,14 +61,22 @@ export function mergeTasks({ localTasks, localTombstones, remoteRows, decryptRow
       continue;
     }
 
-    const task = decryptRow(row.ciphertext);
+    // The promise this file makes two paragraphs up — that one unreadable row
+    // cannot take the list with it — held only for a decryptRow that returned
+    // null. One that threw took the merge down with it. Now both mean skip.
+    let task = null;
+    try {
+      task = decryptRow(row.ciphertext);
+    } catch {
+      task = null;
+    }
     if (!task) continue;
     merged.set(row.id, { ...task, id: row.id, updatedAt: row.updatedAt });
     tombstones.delete(row.id);
   }
 
   // Anything local the server has not seen also needs pushing.
-  const remoteById = new Map(remoteRows.map(r => [r.id, r]));
+  const remoteById = new Map(rows.map(r => [r.id, r]));
   for (const task of merged.values()) {
     if (!remoteById.has(task.id)) toPush.push(task.id);
   }

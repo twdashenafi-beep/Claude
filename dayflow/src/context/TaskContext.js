@@ -47,6 +47,11 @@ export function TaskProvider({ children, encryptionKey, synced }) {
   // failure and does not belong in syncState: one means the server is out of
   // reach, the other means this device is.
   const [storageError, setStorageError] = useState('');
+  // Set once, at startup, when what was saved here could not be read. Kept
+  // apart from storageError because a later write succeeding says nothing
+  // about it — clearing it on the next save would erase the only notice the
+  // user gets that something was lost.
+  const [vaultError, setVaultError] = useState('');
   const tombstones = useRef([]);
   const encryptAll = useMemo(() => createTaskEncryptor(), []);
 
@@ -73,16 +78,38 @@ export function TaskProvider({ children, encryptionKey, synced }) {
           const vault = JSON.parse(stored);
           const rows = Array.isArray(vault) ? vault : vault.rows || [];
           tombstones.current = (Array.isArray(vault) ? [] : vault.tombstones) || [];
-          const decrypted = rows
-            .map(row => {
+          const decrypted = [];
+          for (const row of rows) {
+            // Per row, not per vault. A single malformed entry threw on the
+            // first property read and the catch below abandoned the whole load
+            // — so one bad row emptied the list, and the write that follows
+            // then overwrote the file it came from.
+            try {
+              if (!row || typeof row !== 'object') continue;
               const task = decryptTask(row.ciphertext, encryptionKey);
-              return task ? { ...task, id: row.id, updatedAt: row.updatedAt } : null;
-            })
-            .filter(Boolean);
-            if (!cancelled) { tasksRef.current = decrypted; setTasks(decrypted); }
+              if (task) decrypted.push({ ...task, id: row.id, updatedAt: row.updatedAt });
+            } catch { /* skip the row, keep the rest */ }
+          }
+          if (!cancelled) { tasksRef.current = decrypted; setTasks(decrypted); }
         }
       } catch (e) {
         console.warn('Failed to load vault:', e.message);
+        // The file could not be read at all. What follows this effect is a
+        // write of the empty list that failing to read produced, which would
+        // destroy whatever was actually in there. On a device that syncs, the
+        // server has another copy; on one that does not, this is the only copy
+        // there is. So it is put aside first, under its own key, and the app
+        // says that it happened rather than starting quietly from nothing.
+        try {
+          const raw = await AsyncStorage.getItem(STORAGE_KEY);
+          if (raw) await AsyncStorage.setItem(`${STORAGE_KEY}_unreadable`, raw);
+        } catch { /* nothing more can be done for it */ }
+        if (!cancelled) {
+          setVaultError(
+            'The tasks saved on this device could not be read. A copy has been kept, '
+            + 'and anything on your other devices will sync back.'
+          );
+        }
       }
       if (!cancelled) setLoaded(true);
     })();
@@ -453,7 +480,7 @@ export function TaskProvider({ children, encryptionKey, synced }) {
     <TaskContext.Provider
       value={{
         tasks: visibleTasks, addTask, toggleTask, deleteTask, restoreTask, updateTask,
-        reorderTasks, syncState, syncNow, storageError,
+        reorderTasks, syncState, syncNow, storageError, vaultError,
         projects, addProject, renameProject, deleteProject, moveTaskToProject,
         archived, archiveTask, archiveTasks, unarchiveTask,
         deleteTasks, restoreTasks,

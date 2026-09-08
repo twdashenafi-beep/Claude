@@ -96,8 +96,24 @@ async function device(name) {
   // prompt without a real one.
   await page.addInitScript(() => {
     window.__tones = [];
+    // Counting oscillators only proves the code ran. Every gain node is also
+    // wired to an analyser so the test can read the samples that actually came
+    // out — envelopes, gain and all. A chime that schedules two notes against a
+    // stopped clock counts two and is silent.
+    window.__audio = { peak: 0, watching: false };
     const RealCtx = window.AudioContext || window.webkitAudioContext;
     class RecordingContext extends RealCtx {
+      constructor(...a) {
+        super(...a);
+        window.__audio.ctx = this;
+        this.__analyser = super.createAnalyser();
+        this.__analyser.fftSize = 2048;
+      }
+      createGain() {
+        const g = super.createGain();
+        try { g.connect(this.__analyser); } catch { /* nothing to tap */ }
+        return g;
+      }
       createOscillator() {
         const osc = super.createOscillator();
         const start = osc.start.bind(osc);
@@ -108,6 +124,23 @@ async function device(name) {
         return osc;
       }
     }
+    // Sample the analyser until told to stop, keeping the loudest value seen.
+    window.__listen = () => {
+      const ctx = window.__audio.ctx;
+      if (!ctx || !ctx.__analyser) return;
+      const buf = new Float32Array(ctx.__analyser.fftSize);
+      window.__audio.peak = 0;
+      window.__audio.watching = true;
+      const step = () => {
+        ctx.__analyser.getFloatTimeDomainData(buf);
+        for (let i = 0; i < buf.length; i++) {
+          const v = Math.abs(buf[i]);
+          if (v > window.__audio.peak) window.__audio.peak = v;
+        }
+        if (window.__audio.watching) requestAnimationFrame(step);
+      };
+      step();
+    };
     window.AudioContext = RecordingContext;
     window.webkitAudioContext = RecordingContext;
 
@@ -213,6 +246,34 @@ await A.page.locator('text=Reminder sound').first().click();
 await A.page.waitForTimeout(900);
 ok('it can be played more than once',
    (await A.page.evaluate(() => (window.__tones || []).length)) - before === 4);
+
+// ── And a sound actually comes out ──
+//
+// The checks above would all pass for a chime that scheduled its notes against
+// a stopped clock and played nothing, which is exactly how this failed before.
+await A.page.evaluate(() => window.__listen());
+await A.page.locator('text=Reminder sound').first().click();
+await A.page.waitForTimeout(1400);
+await A.page.evaluate(() => { window.__audio.watching = false; });
+const peak = await A.page.evaluate(() => window.__audio.peak);
+console.log('PEAK AMPLITUDE:', peak);
+ok('a signal is produced, not just scheduled', peak > 0.01, String(peak));
+ok('and at about the gain it asks for', peak > 0.1 && peak < 0.3, String(peak));
+
+// ── The context state it ends in is one that can play ──
+const state = await A.page.evaluate(() => window.__audio.ctx.state);
+ok('the audio context is running', state === 'running', state);
+
+// ── And the button says what happened ──
+//
+// Silence with no explanation is the worst outcome: on an iPhone the ring
+// switch mutes web audio and nothing else, so the app has to say that a sound
+// was played in order for the switch to become the obvious suspect.
+text = await body(A.page);
+ok('the row reports the outcome', /Played|Heard nothing|blocked|Could not play/i.test(text),
+   text.slice(0, 300));
+ok('and points at the silent switch when it did play',
+   /silent switch/i.test(text), text.slice(0, 300));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();

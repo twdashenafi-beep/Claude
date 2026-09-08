@@ -136,7 +136,11 @@ ok('nothing is said while saving works', !/out of storage|failed/i.test(await bo
 
 // From here the vault write is refused, exactly as a full origin refuses it.
 await A.page.evaluate(() => {
-  const real = Storage.prototype.setItem;
+  // Kept so it can be put back. Deleting the override would take the native
+  // method with it — it is an own property of Storage.prototype, not an
+  // inherited one, so there is nothing underneath to fall through to.
+  window.__realSetItem = Storage.prototype.setItem;
+  const real = window.__realSetItem;
   Storage.prototype.setItem = function (key, value) {
     if (String(key).includes('dayflow_vault')) {
       const err = new Error("Failed to execute 'setItem' on 'Storage': the quota has been exceeded.");
@@ -168,13 +172,46 @@ ok('and the earlier one is still there', text.includes('Before the disk fills'))
 
 // And it goes away by itself once writing works again, rather than needing a
 // reload to clear a warning that is no longer true.
-await A.page.evaluate(() => { delete Storage.prototype.setItem; });
+await A.page.evaluate(() => { Storage.prototype.setItem = window.__realSetItem; });
 await add('Once there is room again');
 await A.page.waitForTimeout(1500);
 text = await body();
 ok('the warning clears when saving works again', !/out of storage/i.test(text),
    text.slice(0, 300));
 ok('and the task went in', text.includes('Once there is room again'));
+
+// ── A vault that cannot be read is kept, not overwritten ──
+//
+// The write that follows a failed read is a write of the empty list the failure
+// produced. On a device that syncs, the server has another copy; on one that
+// does not, this is the only copy there is.
+await A.page.evaluate(() => {
+  const key = Object.keys(localStorage).find(k => k.includes('dayflow_vault'));
+  localStorage.setItem(key, '{"v":2,"rows":[{"id":"a","ciph');  // truncated mid-write
+});
+await A.page.reload({ waitUntil: 'networkidle' });
+await A.page.waitForTimeout(1200);
+await A.page.locator('input, textarea').nth(0).fill(USER.email);
+await A.page.locator('input, textarea').nth(1).fill('a strong master password');
+await A.page.getByText('UNLOCK', { exact: false }).first().click();
+await A.page.waitForTimeout(3500);
+
+text = await body();
+ok('an unreadable vault is reported rather than passed over silently',
+   /could not be read/i.test(text), text.slice(0, 400));
+ok('and it says a copy was kept', /copy has been kept/i.test(text), text.slice(0, 400));
+
+const kept = await A.page.evaluate(() => {
+  const key = Object.keys(localStorage).find(k => k.includes('unreadable'));
+  return key ? localStorage.getItem(key) : null;
+});
+ok('the unreadable file is still there under its own key',
+   typeof kept === 'string' && kept.includes('ciph'), JSON.stringify(kept));
+
+// The app still works — a bad file is not a dead app.
+await add('Life goes on');
+await A.page.waitForTimeout(900);
+ok('and tasks can still be added afterwards', (await body()).includes('Life goes on'));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();

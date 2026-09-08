@@ -5,7 +5,7 @@ import { COLORS, SANS, SERIF } from '../utils/theme';
 
 // How long a pause means the sentence is over. Long enough to think of the
 // next word, short enough that finishing does not need a second tap.
-const SILENCE_MS = 3000;
+const SILENCE_MS = 2000;
 
 const SpeechRecognition =
   Platform.OS === 'web' && typeof window !== 'undefined'

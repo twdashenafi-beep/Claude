@@ -182,7 +182,7 @@ function Column({
 export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
   const {
     tasks, addTask, toggleTask, deleteTask, restoreTask, updateTask, reorderTasks, syncState,
-    storageError,
+    storageError, vaultError,
     projects, addProject, renameProject, deleteProject, moveTaskToProject,
     archived, archiveTask, archiveTasks, unarchiveTask, deleteTasks, restoreTasks,
   } = useTasks();
@@ -377,8 +377,10 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
       saveShown(shownAlerts.current);
 
       // Once for the batch: three tasks coming due together is one sound, not
-      // three overlapping ones.
-      playChime();
+      // three overlapping ones. Nothing waits on it — the alert strip and the
+      // system notification are the reminder; the sound is how it announces
+      // itself, and a device that will not play it must not hold them up.
+      playChime().catch(() => {});
 
       for (const alert of due) {
         await showSystemAlert(alert.task.title, alertBody(alert), alert.key);
@@ -541,6 +543,12 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
           {/* A device that has stopped saving says so, in the one place that is
               always on screen. Not the undo bar at the bottom: that clears
               itself after a few seconds, and this is true until it is not. */}
+          {vaultError ? (
+            <View style={s.storageBar} accessibilityRole="alert">
+              <Text style={s.storageText}>{vaultError}</Text>
+            </View>
+          ) : null}
+
           {storageError ? (
             <View style={s.storageBar} accessibilityRole="alert">
               <Text style={s.storageText}>{storageError}</Text>

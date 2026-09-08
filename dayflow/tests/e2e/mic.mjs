@@ -1,9 +1,9 @@
 // The microphone stops when you stop dictating, and when you walk away.
 //
-// Two things are under test. That a pause ends the sentence on its own, rather
-// than needing the mic tapped a second time — including a pause from the very
-// start, which used to arm no timer at all because no speech result had
-// arrived to arm one. And that leaving the input turns the microphone off: the
+// Two things are under test. That a two-second pause ends the sentence on its
+// own, rather than needing the mic tapped a second time — including a pause
+// from the very start, which used to arm no timer at all because no speech
+// result had arrived to arm one. And that leaving the input turns the microphone off: the
 // quick-add box is unmounted whenever Search or the Archive is opened, and a
 // recogniser nobody stops keeps the microphone running for a field that is no
 // longer on the page.
@@ -183,11 +183,14 @@ await A.page.waitForTimeout(400);
 ok('tapping it starts the microphone', (await mic()).started === 1, JSON.stringify(await mic()));
 ok('and it is listening', (await mic()).live === true);
 
-await A.page.waitForTimeout(2000);
-ok('it is still listening before three seconds', (await mic()).live === true,
+// Comfortably inside the two-second pause. The margins are wide on purpose:
+// a loaded machine takes longer in real time than it was asked to wait, and a
+// timing test that fails on a busy afternoon teaches nobody anything.
+await A.page.waitForTimeout(800);
+ok('it is still listening before the pause is up', (await mic()).live === true,
    JSON.stringify(await mic()));
 
-await A.page.waitForTimeout(2000);
+await A.page.waitForTimeout(1800);
 ok('silence from the start stops it by itself', (await mic()).live === false,
    JSON.stringify(await mic()));
 ok('and it stopped rather than being abandoned', (await mic()).stopped >= 1);
@@ -196,10 +199,10 @@ ok('and it stopped rather than being abandoned', (await mic()).stopped >= 1);
 await A.page.getByLabel('Dictate a task').click();
 await A.page.waitForTimeout(300);
 await A.page.evaluate(() => window.__mic.instance.say('to do collect the parcel'));
-await A.page.waitForTimeout(1500);
+await A.page.waitForTimeout(900);
 ok('speaking keeps it listening', (await mic()).live === true, JSON.stringify(await mic()));
 
-await A.page.waitForTimeout(2500);
+await A.page.waitForTimeout(2200);
 ok('a pause after speaking stops it', (await mic()).live === false, JSON.stringify(await mic()));
 await A.page.waitForTimeout(900);
 let text = await body();

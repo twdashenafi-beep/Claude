@@ -12,6 +12,17 @@ import { COLORS, SERIF, SANS } from '../utils/theme';
 // last item, behind a typed confirmation, because nothing about it is undoable.
 import { playChime, chimeAvailable } from '../services/chime';
 
+// What to say after trying to play it. The first case is the interesting one:
+// the browser reports a sound played, so if none was heard the cause is
+// outside the app — on an iPhone or iPad, almost always the silent switch,
+// which mutes web audio without muting anything else.
+const SOUND_RESULT = {
+  played: 'Played. Heard nothing? Check the silent switch',
+  blocked: 'Your browser blocked it — tap anywhere, then try again',
+  unavailable: 'This device has no sound to play',
+  failed: 'Could not play it',
+};
+
 export default function AccountSheet({ visible, email, dataKey, onClose, onLock, onDeleted }) {
   const [view, setView] = useState('menu'); // menu | password | code | delete
   const [password, setPassword] = useState('');
@@ -21,6 +32,10 @@ export default function AccountSheet({ visible, email, dataKey, onClose, onLock,
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState('');
+  // What happened the last time the chime was asked to play. A button that
+  // makes a sound has nothing to show when it makes none, and "nothing
+  // happened" is the one answer that leaves you no wiser.
+  const [sound, setSound] = useState('');
 
   const reset = () => {
     setView('menu'); setPassword(''); setConfirm(''); setTyped('');
@@ -122,8 +137,12 @@ export default function AccountSheet({ visible, email, dataKey, onClose, onLock,
               {chimeAvailable() ? (
                 <Row
                   label="Reminder sound"
-                  detail="Play it now"
-                  onPress={() => playChime()}
+                  detail={sound || 'Play it now'}
+                  onPress={async () => {
+                    setSound('Playing…');
+                    const result = await playChime();
+                    setSound(SOUND_RESULT[result] || SOUND_RESULT.failed);
+                  }}
                 />
               ) : null}
               <Row label="Lock" detail="Close the vault on this device" onPress={() => { close(); onLock(); }} />

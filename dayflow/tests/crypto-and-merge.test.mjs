@@ -183,5 +183,54 @@ ok('task the server has not seen is queued to push', m.pushIds.includes('h'));
      stale.tombstonePushIds.includes('g1'));
 }
 
+// ── One bad row must not stop the whole sync ──
+//
+// The merge is the last thing standing between a bad response and the user's
+// work. These are what a real network sends when something has gone wrong
+// upstream, and every one of them used to throw — which does not lose data by
+// itself, but stops syncing in both directions until it goes away.
+{
+  const decrypt = c => ({ title: String(c).slice(2) });
+  const merge = (local, tombs, remote, dec = decrypt) =>
+    mergeTasks({ localTasks: local, localTombstones: tombs, remoteRows: remote, decryptRow: dec });
+  const survives = (label, fn) => {
+    let threw = null;
+    try { fn(); } catch (e) { threw = e.message; }
+    ok(label, threw === null, threw || '');
+  };
+
+  const keep = { id: 'keep', title: 'keep', updatedAt: '2026-01-01T00:00:00.000Z' };
+  const good = { id: 'a', ciphertext: 'c:a', updatedAt: '2026-06-01T00:00:00.000Z' };
+
+  for (const junk of [null, undefined, 42, 'a string', {}, { id: null }, []]) {
+    survives(`a remote entry of ${JSON.stringify(junk) || String(junk)} is survived`,
+      () => merge([keep], [], [junk]));
+  }
+
+  ok('and the good rows around it still merge',
+    merge([keep], [], [null, good, undefined]).tasks.length === 2,
+    JSON.stringify(merge([keep], [], [null, good, undefined]).tasks.map(t => t.id)));
+
+  survives('a decryptRow that throws is survived',
+    () => merge([keep], [], [good], () => { throw new Error('bad key'); }));
+  ok('and the local task is untouched by it',
+    merge([keep], [], [good], () => { throw new Error('bad key'); })
+      .tasks.some(t => t.id === 'keep'));
+  ok('and the row it could not read is not pushed back as ours',
+    !merge([keep], [], [good], () => { throw new Error('bad key'); }).pushIds.includes('a'));
+
+  survives('a missing remote list is survived',
+    () => mergeTasks({ localTasks: [keep], localTombstones: [], remoteRows: undefined, decryptRow: decrypt }));
+
+  // The same id twice, which a paginated read can produce at a page boundary.
+  const twice = merge([], [], [
+    { id: 'd', ciphertext: 'c:d', updatedAt: '2026-01-01T00:00:00.000Z' },
+    { id: 'd', ciphertext: 'c:d2', updatedAt: '2026-06-01T00:00:00.000Z' },
+  ]);
+  ok('a duplicated id yields one task', twice.tasks.filter(t => t.id === 'd').length === 1);
+  ok('and it is the newer of the two',
+    twice.tasks.find(t => t.id === 'd').updatedAt === '2026-06-01T00:00:00.000Z');
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
