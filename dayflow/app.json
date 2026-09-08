@@ -16,13 +16,9 @@
       "bundleIdentifier": "com.tewodros.dayflow",
       "buildNumber": "1",
       "infoPlist": {
-        "NSCalendarsUsageDescription": "DayFlow needs calendar access to sync your tasks.",
-        "NSCalendarsFullAccessUsageDescription": "DayFlow needs full calendar access to read and write events.",
-        "NSMicrophoneUsageDescription": "DayFlow needs microphone access for voice notes and voice commands.",
-        "NSSpeechRecognitionUsageDescription": "DayFlow uses speech recognition for voice task input.",
-        "UIBackgroundModes": [
-          "remote-notification"
-        ]
+        "NSCalendarsUsageDescription": "DayFlow adds a task to your calendar when you choose to put it there.",
+        "NSCalendarsFullAccessUsageDescription": "DayFlow adds a task to your calendar when you choose to put it there.",
+        "NSMicrophoneUsageDescription": "DayFlow records a voice note when you attach one to a task."
       },
       "requireFullScreen": false
     },
@@ -57,7 +53,7 @@
       [
         "expo-audio",
         {
-          "microphonePermission": "DayFlow needs microphone access for voice notes."
+          "microphonePermission": "DayFlow records a voice note when you attach one to a task."
         }
       ]
     ],

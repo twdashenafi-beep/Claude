@@ -9,13 +9,20 @@ import CryptoJS from 'crypto-js';
 //
 // The key comes from services/crypto.js and never leaves the device.
 
+// Encryption that fails loudly.
+//
+// This used to return the plaintext when AES threw, and to return the plaintext
+// when handed no key. Both are the same mistake: a function called encrypt
+// handing back readable text, to a caller whose next act is to upload it. On
+// native that was not hypothetical — crypto-js has no randomness on Hermes
+// unless services/secureRandom.js has run, so salt generation throws, and the
+// catch turned a missing polyfill into a vault synced in the clear.
+//
+// If this cannot encrypt, nothing downstream should proceed.
 export function encrypt(text, key) {
-  if (!text || !key) return text;
-  try {
-    return CryptoJS.AES.encrypt(text, key).toString();
-  } catch {
-    return text;
-  }
+  if (!key) throw new Error('Cannot encrypt without a key');
+  if (!text) return text;
+  return CryptoJS.AES.encrypt(text, key).toString();
 }
 
 export function decrypt(ciphertext, key) {

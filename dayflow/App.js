@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { TaskProvider } from './src/context/TaskContext';
 import TodoScreen from './src/screens/TodoScreen';
@@ -9,6 +10,7 @@ import { requestPermissions } from './src/services/notifications';
 import { initSync } from './src/services/supabase';
 import { markSyncSkipped, wasSyncSkipped } from './src/services/syncConfig';
 import { unlockChime } from './src/services/chime';
+import { hasSecureRandom, RANDOM_SOURCE } from './src/services/secureRandom';
 
 export default function App() {
   // The encryption key lives in memory only, so closing the app locks it.
@@ -54,6 +56,24 @@ export default function App() {
     return () => window.removeEventListener('unhandledrejection', onRejection);
   }, []);
 
+  // Nothing this app does is safe without real randomness: the data key, the
+  // recovery code and every AES salt come from it. If the platform has none and
+  // the polyfill could not install one, the honest thing is to stop at the door
+  // rather than let the user create an account whose encryption is not there.
+  if (!hasSecureRandom()) {
+    return (
+      <View style={fatal.wrap}>
+        <Text style={fatal.title}>DayFlow cannot start safely</Text>
+        <Text style={fatal.body}>
+          This device provides no secure source of randomness, which DayFlow needs
+          to generate the key that encrypts your tasks. Rather than store anything
+          it cannot protect, it has stopped.
+        </Text>
+        <Text style={fatal.detail}>Randomness source: {RANDOM_SOURCE}</Text>
+      </View>
+    );
+  }
+
   return (
     <ErrorBoundary onReset={() => setVault(null)}>
       {!syncChecked ? null : needsSetup ? (
@@ -77,3 +97,10 @@ export default function App() {
     </ErrorBoundary>
   );
 }
+
+const fatal = StyleSheet.create({
+  wrap: { flex: 1, justifyContent: 'center', padding: 32, backgroundColor: '#E9E6DF' },
+  title: { fontSize: 20, fontWeight: '700', color: '#1A1A18', marginBottom: 12 },
+  body: { fontSize: 15, lineHeight: 22, color: '#57534B' },
+  detail: { fontSize: 12, color: '#96907F', marginTop: 16 },
+});

@@ -11,6 +11,16 @@
 
 let context = null;
 
+// Whether there is a chime to play at all. Web Audio is a browser API; on iOS
+// and Android there is none, and no sound is lost by its absence — a reminder
+// there arrives as a system notification, which carries the operating system's
+// own sound. What would be lost is a button in Account offering to play a
+// sound that cannot exist, so callers ask first.
+export function chimeAvailable() {
+  if (typeof window === 'undefined') return false;
+  return !!(window.AudioContext || window.webkitAudioContext);
+}
+
 function ensureContext() {
   if (typeof window === 'undefined') return null;
   const Ctor = window.AudioContext || window.webkitAudioContext;

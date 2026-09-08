@@ -97,13 +97,26 @@ export async function deriveAccountKeys(email, password) {
   return { authHash, kek };
 }
 
+// Read at call time, not captured at module load: on native the source is
+// installed by services/secureRandom.js, and whether that has run yet depends on
+// import order rather than on anything this module can see.
+//
+// It was previously gated on `subtle`, which is a different capability — Hermes
+// has neither, but a platform could have one without the other, and the gate
+// meant a perfectly good getRandomValues went unused.
+//
+// There is no fallback, deliberately. Every weaker source is worse than
+// stopping: the data key and the recovery code are the entire security of the
+// vault, and a key drawn from Math.random is a key an attacker can re-draw.
 function randomBytes(count) {
-  if (subtle && globalThis.crypto.getRandomValues) {
-    return globalThis.crypto.getRandomValues(new Uint8Array(count));
+  const source = typeof globalThis !== 'undefined' ? globalThis.crypto : null;
+  if (source && typeof source.getRandomValues === 'function') {
+    return source.getRandomValues(new Uint8Array(count));
   }
-  const words = CryptoJS.lib.WordArray.random(count);
-  const hex = words.toString(CryptoJS.enc.Hex);
-  return Uint8Array.from(hex.match(/../g).map(h => parseInt(h, 16)));
+  throw new Error(
+    'No secure source of randomness is available on this device, so a key cannot '
+    + 'be generated. This is a bug: services/secureRandom.js should have installed one.'
+  );
 }
 
 // The key that actually encrypts tasks. Random, never derived from anything the
