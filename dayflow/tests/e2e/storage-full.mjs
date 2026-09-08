@@ -136,7 +136,11 @@ ok('nothing is said while saving works', !/out of storage|failed/i.test(await bo
 
 // From here the vault write is refused, exactly as a full origin refuses it.
 await A.page.evaluate(() => {
-  const real = Storage.prototype.setItem;
+  // Kept so it can be put back. Deleting the override would take the native
+  // method with it — it is an own property of Storage.prototype, not an
+  // inherited one, so there is nothing underneath to fall through to.
+  window.__realSetItem = Storage.prototype.setItem;
+  const real = window.__realSetItem;
   Storage.prototype.setItem = function (key, value) {
     if (String(key).includes('dayflow_vault')) {
       const err = new Error("Failed to execute 'setItem' on 'Storage': the quota has been exceeded.");
@@ -168,7 +172,7 @@ ok('and the earlier one is still there', text.includes('Before the disk fills'))
 
 // And it goes away by itself once writing works again, rather than needing a
 // reload to clear a warning that is no longer true.
-await A.page.evaluate(() => { delete Storage.prototype.setItem; });
+await A.page.evaluate(() => { Storage.prototype.setItem = window.__realSetItem; });
 await add('Once there is room again');
 await A.page.waitForTimeout(1500);
 text = await body();
