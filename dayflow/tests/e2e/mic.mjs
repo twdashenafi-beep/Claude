@@ -132,13 +132,28 @@ await A.page.waitForTimeout(1500);
 // what is under test is the lifecycle around it, which is ours. It records
 // what happened to it so the test can ask.
 await A.page.addInitScript(() => {
-  window.__mic = { started: 0, stopped: 0, aborted: 0, live: false };
+  window.__mic = { started: 0, stopped: 0, aborted: 0, live: false, langs: [] };
   class FakeRecognition {
     start() {
       window.__mic.started += 1;
       window.__mic.live = true;
       window.__mic.instance = this;
+      window.__mic.langs.push(this.lang);
       setTimeout(() => this.onstart && this.onstart(), 0);
+    }
+    // Safari ends recognition on its own, mid-sentence, and reports it as a
+    // clean end rather than an error. This is that.
+    endOnItsOwn() {
+      window.__mic.live = false;
+      this.onend && this.onend();
+    }
+    // A real browser follows a fatal error with an end of its own.
+    fail(code) {
+      this.onerror && this.onerror({ error: code });
+      if (code !== 'no-speech') {
+        window.__mic.live = false;
+        setTimeout(() => this.onend && this.onend(), 0);
+      }
     }
     stop() {
       window.__mic.stopped += 1;
@@ -232,6 +247,87 @@ await A.page.waitForTimeout(700);
 text = await body();
 ok('and no empty task was left behind by the unmount',
    !/\n\s*\n\s*×/.test(text), text.slice(0, 300));
+
+// ── It listens in the language the device is set to ──
+//
+// This was hard-coded to en-US for everyone. A recogniser told to expect
+// American English mishears every other accent, which is most of them.
+{
+  const langs = (await mic()).langs.filter(Boolean);
+  const expected = await A.page.evaluate(() => navigator.language);
+  ok('the recogniser is told the device language',
+    langs.length > 0 && langs.every(l => l === expected),
+    `${JSON.stringify(langs)} against ${expected}`);
+  ok('and it is not hard-coded to American English',
+    expected === 'en-US' || !langs.includes('en-US'), JSON.stringify(langs));
+}
+
+// ── Being cut off mid-sentence does not end the sentence ──
+//
+// Safari ends recognition on its own, constantly. Treating that as "they have
+// finished speaking" is what made dictation feel like it stopped listening.
+{
+  await A.page.getByLabel('Dictate a task').click();
+  await A.page.waitForTimeout(400);
+  const before = (await mic()).started;
+
+  await A.page.evaluate(() => window.__mic.instance.say('call the letting agent'));
+  await A.page.waitForTimeout(200);
+  await A.page.evaluate(() => window.__mic.instance.endOnItsOwn());
+  await A.page.waitForTimeout(500);
+
+  ok('a recogniser that ends on its own is started again',
+    (await mic()).started > before, JSON.stringify(await mic()));
+  ok('and it is still listening', (await mic()).live === true, JSON.stringify(await mic()));
+
+  // The second half of the sentence, spoken to the replacement.
+  await A.page.evaluate(() => window.__mic.instance.say('about the deposit'));
+  await A.page.waitForTimeout(2600);
+
+  const text = await body();
+  ok('both halves end up in one task',
+    text.includes('Call the letting agent about the deposit'), text.slice(0, 400));
+  ok('and the halves are not run together',
+    !text.includes('agentabout'), text.slice(0, 300));
+}
+
+// ── A restart that hears nothing gives up rather than looping ──
+{
+  await A.page.getByLabel('Dictate a task').click();
+  await A.page.waitForTimeout(400);
+  for (let i = 0; i < 8; i++) {
+    await A.page.evaluate(() => window.__mic.instance && window.__mic.instance.endOnItsOwn());
+    await A.page.waitForTimeout(220);
+  }
+  await A.page.waitForTimeout(600);
+  ok('a microphone that hears nothing stops restarting',
+    (await mic()).live === false, JSON.stringify(await mic()));
+}
+
+// ── A blocked microphone says so ──
+{
+  await A.page.getByLabel('Dictate a task').click();
+  await A.page.waitForTimeout(400);
+  await A.page.evaluate(() => window.__mic.instance.fail('not-allowed'));
+  await A.page.waitForTimeout(600);
+  const text = await body();
+  ok('a blocked microphone is explained rather than failing in silence',
+    /Microphone blocked/i.test(text), text.slice(0, 300));
+  ok('and it stops listening', (await mic()).live === false);
+}
+
+// ── Dictation adds to what was typed rather than replacing it ──
+{
+  const box = A.page.locator('input, textarea').first();
+  await box.fill('Ring the plumber');
+  await A.page.getByLabel('Dictate a task').click();
+  await A.page.waitForTimeout(400);
+  await A.page.evaluate(() => window.__mic.instance.say('on Tuesday'));
+  await A.page.waitForTimeout(2600);
+  const text = await body();
+  ok('what was already typed is kept',
+    text.includes('Ring the plumber on Tuesday'), text.slice(0, 400));
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();

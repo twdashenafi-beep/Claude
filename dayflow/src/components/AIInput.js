@@ -3,14 +3,58 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Animated, Platform
 import { parseNaturalLanguage } from '../services/nlParser';
 import { COLORS, SANS, SERIF } from '../utils/theme';
 
-// How long a pause means the sentence is over. Long enough to think of the
-// next word, short enough that finishing does not need a second tap.
+// How long a pause means the sentence is over, when the button was tapped
+// rather than held. Long enough to think of the next word, short enough that
+// finishing does not need a second tap.
 const SILENCE_MS = 2000;
+
+// Below this, a press is a tap and dictation latches on until you pause or tap
+// again. At or above it, the press is a hold: it ends the moment you let go.
+// Holding is the faster way — speak, release, done, with nothing to wait for.
+const HOLD_MS = 350;
+
+// Recognition ends on its own more often than the spec suggests, particularly
+// in Safari, which cuts off mid-sentence and reports a clean end rather than an
+// error. When that happens the words gathered so far are kept and a new
+// recogniser is started, so a long sentence survives being interrupted. The cap
+// is on restarts that produce nothing: without it, a microphone that cannot
+// hear at all would restart forever.
+const MAX_EMPTY_RESTARTS = 3;
 
 const SpeechRecognition =
   Platform.OS === 'web' && typeof window !== 'undefined'
     ? window.SpeechRecognition || window.webkitSpeechRecognition
     : null;
+
+// The language to listen in.
+//
+// This was 'en-US' for everyone. A recogniser told to expect American English
+// mishears every other accent — it is the difference between "call Mekdi" and
+// "call Becky" — and the browser already knows what the device is set to.
+function listeningLanguage() {
+  if (typeof navigator === 'undefined') return 'en-US';
+  return navigator.language || (navigator.languages && navigator.languages[0]) || 'en-US';
+}
+
+// What went wrong, in words rather than a code. Silence after a tap is the one
+// case that needs no explaining.
+const SPEECH_ERROR = {
+  'not-allowed': 'Microphone blocked — allow it in your browser settings',
+  'service-not-allowed': 'Microphone blocked — allow it in your browser settings',
+  'audio-capture': 'No microphone found',
+  network: 'Dictation needs a connection',
+  'language-not-supported': 'Dictation is not available for this language',
+};
+
+// Transcripts arrive without reliable spacing, and across a restart there is
+// none at all, so "call the" and "bank" become "call thebank".
+function joinSpeech(a, b) {
+  const left = String(a || '').trimEnd();
+  const right = String(b || '').trimStart();
+  if (!left) return right;
+  if (!right) return left;
+  return `${left} ${right}`;
+}
 
 export default function AIInput({ onAddTask, viewMode, activeTab = 'todo' }) {
   const [text, setText] = useState('');
@@ -20,6 +64,8 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo' }) {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const recognitionRef = useRef(null);
   const silenceTimer = useRef(null);
+  const latched = useRef(false);
+  const [speechError, setSpeechError] = useState('');
 
   useEffect(() => {
     if (listening) {
@@ -92,6 +138,10 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo' }) {
   // submit a task and set state on a component that has gone.
   useEffect(() => () => {
     clearTimeout(silenceTimer.current);
+    // Cleared first: onend schedules a restart when this is still set, and a
+    // restart after unmount turns the microphone back on for a field that has
+    // gone.
+    wants.current = false;
     const r = recognitionRef.current;
     if (!r) return;
     r.onstart = null;
@@ -102,48 +152,140 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo' }) {
     recognitionRef.current = null;
   }, []);
 
-  const startListening = () => {
+  // Everything the run needs to survive a restart. A recogniser that ends
+  // mid-sentence is replaced by a new one, and closure variables would go with
+  // the old instance — which is how half a sentence used to get committed.
+  const wants = useRef(false);        // the user still intends to be dictating
+  const spoken = useRef('');          // final transcript so far, across restarts
+  const base = useRef('');            // whatever was typed before dictation began
+  const emptyRestarts = useRef(0);
+  const pressAt = useRef(0);
+
+  const teardown = r => {
+    if (!r) return;
+    r.onstart = null; r.onresult = null; r.onerror = null; r.onend = null;
+    try { r.abort(); } catch { /* already finished */ }
+  };
+
+  // Ends dictation and lets the result be submitted.
+  const stopListening = useCallback(() => {
+    wants.current = false;
+    clearTimeout(silenceTimer.current);
+    const r = recognitionRef.current;
+    // stop() rather than abort(): abort discards anything not yet finalised,
+    // which loses the last word or two of every sentence.
+    if (r) { try { r.stop(); } catch { /* already stopped */ } }
+  }, []);
+
+  const startListening = useCallback((resuming = false) => {
     if (!SpeechRecognition) return;
-    if (recognitionRef.current) recognitionRef.current.abort();
+    teardown(recognitionRef.current);
+
+    if (!resuming) {
+      // Dictation adds to what is in the box rather than replacing it, so a
+      // line half typed is not thrown away by reaching for the microphone.
+      base.current = text.trim();
+      spoken.current = '';
+      emptyRestarts.current = 0;
+      setSpeechError('');
+    }
+
     const r = new SpeechRecognition();
     r.continuous = true;
     r.interimResults = true;
-    r.lang = 'en-US';
+    r.lang = listeningLanguage();
+    r.maxAlternatives = 1;
     recognitionRef.current = r;
-    let final = '';
+    wants.current = true;
 
-    // Armed here as well as on each result. Tapping the mic and then saying
-    // nothing at all produces no result event, so a timer set only there was
-    // never set — and the mic stayed on until it was tapped a second time.
+    // Armed on start as well as on each result: tapping the mic and saying
+    // nothing produces no result event, so a timer set only there was never
+    // set at all, and the microphone stayed on until tapped again.
     const armSilence = () => {
       clearTimeout(silenceTimer.current);
-      silenceTimer.current = setTimeout(() => r.stop(), SILENCE_MS);
+      // Only a tap latches. A hold ends when the finger lifts, and a silence
+      // timer would cut the speaker off mid-thought while they still held it.
+      if (!latched.current) return;
+      silenceTimer.current = setTimeout(() => stopListening(), SILENCE_MS);
     };
 
-    r.onstart = () => { setListening(true); final = ''; armSilence(); };
-    r.onresult = (e) => {
+    const show = interim => {
+      const display = joinSpeech(joinSpeech(base.current, spoken.current), interim);
+      setText(display);
+      setPreview(display.trim().length > 2 ? parseNaturalLanguage(display) : null);
+    };
+
+    r.onstart = () => { setListening(true); armSilence(); };
+
+    r.onresult = e => {
       let interim = '';
       for (let i = e.resultIndex; i < e.results.length; i++) {
-        if (e.results[i].isFinal) final += e.results[i][0].transcript;
-        else interim += e.results[i][0].transcript;
+        const said = e.results[i][0].transcript;
+        if (e.results[i].isFinal) spoken.current = joinSpeech(spoken.current, said);
+        else interim = joinSpeech(interim, said);
       }
-      const display = final + interim;
-      setText(display);
-      if (display.trim().length > 2) setPreview(parseNaturalLanguage(display));
+      emptyRestarts.current = 0;
+      show(interim);
       armSilence();
     };
-    r.onerror = () => { setListening(false); clearTimeout(silenceTimer.current); };
-    r.onend = () => {
-      setListening(false);
+
+    r.onerror = e => {
+      const code = e && e.error;
+      // 'no-speech' and 'aborted' are ordinary: the first is a quiet room, the
+      // second is this component being taken off the page. Neither is worth a
+      // message, and 'no-speech' should not stop a hold that is still held.
+      if (code === 'no-speech' && wants.current) return;
+      if (code && code !== 'aborted' && SPEECH_ERROR[code]) setSpeechError(SPEECH_ERROR[code]);
+      wants.current = false;
       clearTimeout(silenceTimer.current);
-      setTimeout(() => submitRef.current(), 150);
+      setListening(false);
+      // A browser normally follows an error with an end of its own, which
+      // releases the microphone. Not every one does, and a microphone left open
+      // after a failure is the worst of both — no dictation, and the recording
+      // indicator still lit. So end it here rather than assume.
+      try { r.abort(); } catch { /* already finished */ }
     };
-    r.start();
+
+    r.onend = () => {
+      clearTimeout(silenceTimer.current);
+
+      // Ended on its own while still wanted. Safari does this constantly, and
+      // treating it as the end of the sentence is what made dictation feel like
+      // it was not listening: you were still talking and it had already gone.
+      if (wants.current) {
+        if (spoken.current) emptyRestarts.current = 0;
+        else emptyRestarts.current += 1;
+        if (emptyRestarts.current <= MAX_EMPTY_RESTARTS) {
+          setTimeout(() => { if (wants.current) startListening(true); }, 120);
+          return;
+        }
+        wants.current = false;
+      }
+
+      setListening(false);
+      const said = joinSpeech(base.current, spoken.current);
+      setTimeout(() => { if (said.trim()) submitRef.current(said); }, 120);
+    };
+
+    try { r.start(); } catch { /* already running */ }
+  }, [text, stopListening]);
+
+  // Press and hold to talk; a quick tap latches it on instead.
+  //
+  // Holding is the faster of the two and now the default: speak, let go, done,
+  // with no pause to sit through and no second tap to remember. The tap is kept
+  // for a long sentence, or a phone you would rather not hold a finger against.
+  const onMicPressIn = () => {
+    if (listening) { stopListening(); return; }
+    pressAt.current = Date.now();
+    latched.current = false;
+    startListening();
   };
 
-  const stopListening = () => {
-    clearTimeout(silenceTimer.current);
-    if (recognitionRef.current) recognitionRef.current.stop();
+  const onMicPressOut = () => {
+    if (!wants.current) return;
+    if (Date.now() - pressAt.current >= HOLD_MS) stopListening();
+    else { latched.current = true; }
   };
 
   return (
@@ -180,11 +322,15 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo' }) {
         {SpeechRecognition ? (
           <TouchableOpacity
             style={[st.mic, listening && st.micActive]}
-            onPress={listening ? stopListening : startListening}
+            onPressIn={onMicPressIn}
+            onPressOut={onMicPressOut}
+            delayPressIn={0}
+            hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
             activeOpacity={0.5}
             accessibilityRole="button"
             aria-selected={listening}
             accessibilityLabel={listening ? 'Stop dictation' : 'Dictate a task'}
+            accessibilityHint="Hold to talk and let go to add it, or tap once and pause when you have finished"
           >
             <Animated.View style={listening ? { transform: [{ scale: pulseAnim }] } : undefined}>
               <Text style={st.micIcon}>{listening ? '■' : '🎙'}</Text>
@@ -194,11 +340,21 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo' }) {
       </View>
 
       {listening && (
-        <View style={st.listenRow}>
+        <View style={st.listenRow} dataSet={{ notice: 'true' }}>
           <Animated.View style={[st.dot, { transform: [{ scale: pulseAnim }] }]} />
-          <Text style={st.listenText}>Speak naturally...</Text>
+          <Text style={st.listenText}>
+            {latched.current ? 'Listening — pause when you have finished' : 'Listening — let go to add it'}
+          </Text>
         </View>
       )}
+
+      {/* A microphone that will not start used to fail in silence, which reads
+          as a broken button rather than a permission that was never granted. */}
+      {!listening && speechError ? (
+        <View style={st.listenRow} dataSet={{ notice: 'true' }} accessibilityRole="alert">
+          <Text style={st.listenText}>{speechError}</Text>
+        </View>
+      ) : null}
 
       {preview && !listening && !processing && text.trim().length > 2 && (
         <View style={st.previewRow}>
@@ -240,9 +396,9 @@ const st = StyleSheet.create({
   },
   sendIcon: { fontSize: 13, color: COLORS.sheet, fontWeight: '700', marginTop: -1 },
   mic: {
-    width: 30, height: 30, borderRadius: 15,
+    width: 44, height: 44, borderRadius: 22,
     justifyContent: 'center', alignItems: 'center',
-    marginRight: -4,
+    marginRight: -10,
   },
   micActive: { backgroundColor: COLORS.accent },
   micIcon: { fontSize: 16, lineHeight: 20 },
