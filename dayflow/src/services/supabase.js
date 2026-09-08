@@ -71,14 +71,3 @@ export function getSupabase() {
 export function isSyncConfigured() {
   return client !== null;
 }
-
-// For display only — never the key.
-export function syncProjectUrl() {
-  return activeConfig ? activeConfig.url : '';
-}
-
-// True when the details came from the build, in which case the app should not
-// offer to change or clear them.
-export function syncIsBuiltIn() {
-  return hasBuildConfig;
-}

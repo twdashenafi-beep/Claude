@@ -154,5 +154,3 @@ export async function deriveRecoveryKey(code, email) {
   if (normalized.length < RECOVERY_CHARS) throw new Error('Recovery code is incomplete');
   return pbkdf2(normalized, `${normalizeEmail(email)}|${RECOVERY_CONTEXT}`, 1);
 }
-
-export const KDF_ITERATIONS = ITERATIONS;

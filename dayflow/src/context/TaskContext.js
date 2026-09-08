@@ -42,6 +42,10 @@ export function TaskProvider({ children, encryptionKey, synced }) {
   const [tasks, setTasks] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [syncState, setSyncState] = useState(synced ? 'idle' : 'off');
+  // Empty when the last local write succeeded. A storage failure is not a sync
+  // failure and does not belong in syncState: one means the server is out of
+  // reach, the other means this device is.
+  const [storageError, setStorageError] = useState('');
   const tombstones = useRef([]);
   const encryptAll = useMemo(() => createTaskEncryptor(), []);
 
@@ -103,7 +107,21 @@ export function TaskProvider({ children, encryptionKey, synced }) {
     if (!pending.current) return;
     const list = pending.current;
     pending.current = null;
-    persist(list).catch(() => {});
+    persist(list)
+      .then(() => setStorageError(''))
+      .catch(err => {
+        // This used to be swallowed whole. A browser refusing the write —
+        // which it does at around seven thousand tasks, and immediately in a
+        // private window — then meant the app carried on looking like it was
+        // saving while nothing reached the disk, and the next reload dropped
+        // everything since. Silence is the wrong answer to "your work is not
+        // being saved".
+        setStorageError(
+          /quota|exceed|full/i.test(err && err.message ? err.message : '')
+            ? 'This device is out of storage, so nothing new is being saved here.'
+            : 'Saving to this device failed, so nothing new is being kept here.'
+        );
+      });
   }, [persist]);
 
   useEffect(() => {
@@ -431,7 +449,7 @@ export function TaskProvider({ children, encryptionKey, synced }) {
     <TaskContext.Provider
       value={{
         tasks: visibleTasks, addTask, toggleTask, deleteTask, restoreTask, updateTask,
-        reorderTasks, syncState, syncNow,
+        reorderTasks, syncState, syncNow, storageError,
         projects, addProject, renameProject, deleteProject, moveTaskToProject,
         archived, archiveTask, archiveTasks, unarchiveTask,
         deleteTasks, restoreTasks,

@@ -182,6 +182,7 @@ function Column({
 export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
   const {
     tasks, addTask, toggleTask, deleteTask, restoreTask, updateTask, reorderTasks, syncState,
+    storageError,
     projects, addProject, renameProject, deleteProject, moveTaskToProject,
     archived, archiveTask, archiveTasks, unarchiveTask, deleteTasks, restoreTasks,
   } = useTasks();
@@ -537,6 +538,20 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
             {SYNC_LABEL[syncState] ? `  ·  ${SYNC_LABEL[syncState]}` : ''}
           </Text>
 
+          {/* A device that has stopped saving says so, in the one place that is
+              always on screen. Not the undo bar at the bottom: that clears
+              itself after a few seconds, and this is true until it is not. */}
+          {storageError ? (
+            <View style={s.storageBar} accessibilityRole="alert">
+              <Text style={s.storageText}>{storageError}</Text>
+              <Text style={s.storageHint}>
+                {syncState === 'off'
+                  ? 'Connect this device to your other devices, or empty the archive, to make room.'
+                  : 'Your other devices still have everything. Emptying the archive here makes room.'}
+              </Text>
+            </View>
+          ) : null}
+
           {/* The archive answers a different question from the rest of the app —
               what got done, and when — so it does not carry scopes, columns or
               an input for adding to it. */}
@@ -764,6 +779,15 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
 }
 
 const s = StyleSheet.create({
+  storageBar: {
+    marginTop: 12, padding: 12,
+    borderWidth: 1, borderColor: COLORS.accent, borderRadius: 4,
+  },
+  storageText: { fontFamily: SANS, fontSize: 13, fontWeight: '600', color: COLORS.accent },
+  storageHint: {
+    fontFamily: SERIF, fontSize: 12.5, fontStyle: 'italic',
+    color: COLORS.inkSoft, marginTop: 4,
+  },
   alertBar: {
     position: 'absolute', left: 0, right: 0, bottom: 0,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
