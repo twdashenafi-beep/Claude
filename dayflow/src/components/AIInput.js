@@ -82,6 +82,26 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo' }) {
   const submitRef = useRef(doSubmit);
   useEffect(() => { submitRef.current = doSubmit; }, [doSubmit]);
 
+  // Leaving the page while the mic is live has to turn the mic off.
+  //
+  // This input is unmounted whenever Search or the Archive is opened, and a
+  // SpeechRecognition nobody stops keeps the microphone on — the browser goes
+  // on showing the recording indicator for a field that is no longer there.
+  //
+  // The handlers come off first. abort() still raises onend, which would
+  // submit a task and set state on a component that has gone.
+  useEffect(() => () => {
+    clearTimeout(silenceTimer.current);
+    const r = recognitionRef.current;
+    if (!r) return;
+    r.onstart = null;
+    r.onresult = null;
+    r.onerror = null;
+    r.onend = null;
+    try { r.abort(); } catch { /* already stopped */ }
+    recognitionRef.current = null;
+  }, []);
+
   const startListening = () => {
     if (!SpeechRecognition) return;
     if (recognitionRef.current) recognitionRef.current.abort();

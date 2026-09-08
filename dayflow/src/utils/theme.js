@@ -40,14 +40,3 @@ export const SANS = Platform.select({
   default:
     '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
 });
-
-// Section headings: small, letterspaced, uppercase — a ledger label, not a
-// screen title.
-export const SECTION_LABEL = {
-  fontFamily: SANS,
-  fontSize: 11,
-  fontWeight: '700',
-  letterSpacing: 1.6,
-  textTransform: 'uppercase',
-  color: COLORS.inkSoft,
-};
