@@ -134,18 +134,25 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo' }) {
             <Text style={st.sendIcon}>↑</Text>
           </TouchableOpacity>
         )}
-        <TouchableOpacity
-          style={[st.mic, listening && st.micActive]}
-          onPress={listening ? stopListening : startListening}
-          activeOpacity={0.5}
-          accessibilityRole="button"
-          aria-selected={listening}
-          accessibilityLabel={listening ? 'Stop dictation' : 'Dictate a task'}
-        >
-          <Animated.View style={listening ? { transform: [{ scale: pulseAnim }] } : undefined}>
-            <Text style={st.micIcon}>{listening ? '■' : '🎙'}</Text>
-          </Animated.View>
-        </TouchableOpacity>
+        {/* Only where there is something behind it. Speech recognition is a
+            browser API; on iOS and Android there is no such thing in the
+            bundle, and the button used to render there and do nothing at all
+            when tapped. Nothing is lost by hiding it — both keyboards carry a
+            dictation key of their own, which types into this same field. */}
+        {SpeechRecognition ? (
+          <TouchableOpacity
+            style={[st.mic, listening && st.micActive]}
+            onPress={listening ? stopListening : startListening}
+            activeOpacity={0.5}
+            accessibilityRole="button"
+            aria-selected={listening}
+            accessibilityLabel={listening ? 'Stop dictation' : 'Dictate a task'}
+          >
+            <Animated.View style={listening ? { transform: [{ scale: pulseAnim }] } : undefined}>
+              <Text style={st.micIcon}>{listening ? '■' : '🎙'}</Text>
+            </Animated.View>
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       {listening && (

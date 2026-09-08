@@ -10,7 +10,7 @@ import { COLORS, SERIF, SANS } from '../utils/theme';
 // account. Deletion has to be reachable in-app — App Store Guideline 5.1.1(v)
 // rejects any app that offers sign-up without it — and it is deliberately the
 // last item, behind a typed confirmation, because nothing about it is undoable.
-import { playChime } from '../services/chime';
+import { playChime, chimeAvailable } from '../services/chime';
 
 export default function AccountSheet({ visible, email, dataKey, onClose, onLock, onDeleted }) {
   const [view, setView] = useState('menu'); // menu | password | code | delete
@@ -119,11 +119,13 @@ export default function AccountSheet({ visible, email, dataKey, onClose, onLock,
                   it to come due, which is no way to find out whether a sound
                   works. Pressing it is also a gesture, which is what a browser
                   needs before it will play anything at all. */}
-              <Row
-                label="Reminder sound"
-                detail="Play it now"
-                onPress={() => playChime()}
-              />
+              {chimeAvailable() ? (
+                <Row
+                  label="Reminder sound"
+                  detail="Play it now"
+                  onPress={() => playChime()}
+                />
+              ) : null}
               <Row label="Lock" detail="Close the vault on this device" onPress={() => { close(); onLock(); }} />
               <View style={s.gap} />
               <Row label="Delete account" detail="Permanent" danger onPress={() => setView('delete')} />
