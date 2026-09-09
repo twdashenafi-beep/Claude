@@ -469,7 +469,12 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
         <View style={[s.sheet, { paddingHorizontal: gutter }]}>
           {/* Masthead */}
           <View style={s.mastheadRow}>
-            <Text style={s.wordmark}>DayFlow</Text>
+            {/* Four actions and a wordmark do not fit across a phone: Account
+                was wrapping onto a line of its own. The name is the thing to
+                drop — on a phone it is already on the icon you tapped to get
+                here, and the date below is a better anchor than a repeat of
+                the app's own name. */}
+            {narrow ? <View /> : <Text style={s.wordmark}>DayFlow</Text>}
             <View style={s.mastheadActions}>
               <TouchableOpacity
                 onPress={() => setShowBriefing(true)}
