@@ -1,9 +1,11 @@
 import React, { useRef, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, Animated, PanResponder,
+  useWindowDimensions,
 } from 'react-native';
 import { VoicePlayButton } from './VoiceRecorder';
 import { Platform } from 'react-native';
+import { dueLabel, dueSpoken } from '../services/due';
 import { COLORS, SANS, SERIF } from '../utils/theme';
 
 // Holding a finger on the handle otherwise selects the text beside it and
@@ -118,12 +120,20 @@ export default function TaskItem({
     }
   };
 
+  // On a phone the two columns leave a title about a hundred points of width,
+  // which is a dozen characters a line — "Call the letting agent about the
+  // deposit" was arriving as "Call the letting agent about the…". Below the
+  // fold there is nothing but empty sheet, so the room to spend is vertical.
+  const { width } = useWindowDimensions();
+  const narrow = width < 480;
+
   const done = task.completed;
   // Who it is with, and when it is due — what you need in order to chase it.
-  const meta = [
-    task.owePerson || null,
-    !done && task.dueTime ? task.dueTime : null,
-  ].filter(Boolean);
+  //
+  // The date half used to be the bare time, which said the same thing for a
+  // task due this evening and one that was due a fortnight ago.
+  const due = done ? null : dueLabel(task);
+  const meta = [task.owePerson || null].filter(Boolean);
 
   return (
     <Animated.View style={{ opacity: opacityAnim }}>
@@ -140,7 +150,7 @@ export default function TaskItem({
         {...panResponder.panHandlers}
       >
         <View
-          style={st.grip}
+          style={[st.grip, narrow && st.gripNarrow]}
           dataSet={{ grip: 'true' }}
           {...dragResponder.panHandlers}
           accessibilityRole="button"
@@ -177,21 +187,28 @@ export default function TaskItem({
           accessibilityLabel={[
             task.title,
             task.owePerson ? `waiting on ${task.owePerson}` : null,
-            task.dueTime ? `due at ${task.dueTime}` : null,
+            dueSpoken(task),
             task.priority === 'high' ? 'high priority' : null,
             done ? 'completed' : null,
           ].filter(Boolean).join(', ')}
           accessibilityHint="Opens the task. Double tap to mark it done."
         >
-          <Text style={[st.title, done && st.titleDone]} numberOfLines={2}>
+          <Text style={[st.title, done && st.titleDone]} numberOfLines={narrow ? 3 : 2}>
             {!done && task.priority === 'high' ? (
               <Text style={st.priority}>! </Text>
             ) : null}
             {task.title}
           </Text>
 
-          {meta.length > 0 ? (
+          {meta.length > 0 || due ? (
             <Text style={[st.meta, done && st.metaDone]} numberOfLines={1}>
+              {/* Late is the only thing on a row allowed to raise its voice.
+                  Everything else here is the same quiet italic, so the one word
+                  that needs finding can be found by colour alone. */}
+              {due ? (
+                <Text style={due.late ? st.late : null}>{due.text}</Text>
+              ) : null}
+              {due && meta.length > 0 ? '  ·  ' : ''}
               {meta.join('  ·  ')}
             </Text>
           ) : null}
@@ -237,6 +254,7 @@ const st = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center', gap: 2,
     cursor: 'grab',
   },
+  gripNarrow: { width: 10, marginRight: 3 },
   gripRow: { flexDirection: 'row', gap: 2 },
   gripDot: { width: 2, height: 2, borderRadius: 1, backgroundColor: '#CFC9BB' },
   check: {
@@ -257,6 +275,7 @@ const st = StyleSheet.create({
     marginTop: 2, fontVariant: ['tabular-nums'],
   },
   metaDone: { color: COLORS.done },
+  late: { color: COLORS.accent, fontStyle: 'normal', fontWeight: '700' },
 
   // Faint until reached for: present on every row, but the checkbox is what
   // the eye should land on.
