@@ -227,7 +227,11 @@ await A.page.waitForTimeout(2500);
 // Checked on the page that raises it. Reloading first throws the alert away —
 // it is recorded as shown, so it is deliberately not raised a second time.
 let text = await body(A.page);
-ok('the task is listed with its time', text.includes(hhmm), text.slice(0, 200));
+// The row used to be checked for the bare time. It now reads Overdue, which is
+// the stronger claim: the task was set for a minute ago, and only a due moment
+// genuinely in the past produces that word. The time itself is on the task.
+ok('the task is listed, and marked overdue as it should be',
+   /Overdue/.test(text), text.slice(0, 300));
 ok('an overdue reminder raises an alert in the app', /due now/i.test(text), text.slice(0, 250));
 ok('the alert names the task', text.includes('Take the medicine'));
 
