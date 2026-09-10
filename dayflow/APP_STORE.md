@@ -138,22 +138,35 @@ DayFlow's honest answers:
   leaves the device.
 - No tracking, no analytics, no third-party SDKs that collect anything.
 
-### Export compliance — a decision only you can make
+### Export compliance — declared
 
 Apple asks whether the app uses encryption. It does: AES-256, to protect your
-own data.
+own data on your own devices.
 
-Apps in this position normally qualify for the exemption at EAR 740.17(b)(1)
-and answer that they use no *non-exempt* encryption. **This is a legal
-declaration, so it is yours to make, not mine.** I have deliberately left it out
-of `app.json` so that Apple asks you directly at submission.
-
-If you decide it applies and want to stop being asked on every build, add this
-to `app.json` under `"ios"`:
+`app.json` now carries the declaration, at your instruction:
 
 ```json
-"config": { "usesNonExemptEncryption": false }
+"ios": { "config": { "usesNonExemptEncryption": false } }
 ```
+
+Apple will stop asking on every build. Recorded here because `app.json` cannot
+hold a comment and this is a legal statement rather than a setting.
+
+**What it asserts, in plain terms.** That DayFlow uses no encryption which is
+*not* exempt from US export regulations. The reasoning is that its only use of
+cryptography is standard, published algorithms — AES-256 and PBKDF2-HMAC-SHA256
+— protecting the user's own data, which is the case described by the exemption
+at EAR 740.17(b)(1). The app implements no cryptography of its own, offers no
+cryptographic service to anything else, and is not sold to a government.
+
+**When it would stop being true.** If DayFlow ever gained a bespoke cipher, or
+became a tool whose purpose was encrypting other people's data rather than its
+own, this line would need revisiting. Adding an ordinary feature will not
+change it.
+
+Neither this note nor the declaration is legal advice. If the app's purpose
+changes, or if it is ever distributed somewhere with different rules, the
+declaration is worth putting in front of somebody qualified.
 
 ---
 

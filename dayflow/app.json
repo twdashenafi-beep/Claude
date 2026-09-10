@@ -20,7 +20,10 @@
         "NSCalendarsFullAccessUsageDescription": "DayFlow adds a task to your calendar when you choose to put it there.",
         "NSMicrophoneUsageDescription": "DayFlow records a voice note when you attach one to a task."
       },
-      "requireFullScreen": false
+      "requireFullScreen": false,
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.tewodros.dayflow",
