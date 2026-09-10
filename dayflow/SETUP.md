@@ -122,6 +122,12 @@ This is the full app: reminders, calendar sync, voice notes. It needs an
 **Apple Developer Program** membership ($99/yr). EAS builds in the cloud, so a
 Mac is not required.
 
+Section 1's `npm install` is a prerequisite, not a convenience. Every `eas`
+command reads `app.json`, which names plugins it then resolves on disk, so on a
+clone with no `node_modules` they all fail with `Failed to resolve plugin for
+module "expo-calendar"` — a message that never mentions the step that was
+missed.
+
 ```bash
 npm install -g eas-cli
 ```

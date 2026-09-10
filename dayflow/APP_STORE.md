@@ -66,11 +66,31 @@ paste a line with one and everything after the hash arrives as arguments:
 
     Unexpected arguments: #, writes, extra.eas.projectId
 
-One line at a time:
+Start from a clone rather than an unpacked archive, so that what `eas init`
+writes can be committed back:
 
 ```bash
-cd dayflow
+git clone https://github.com/twdashenafi-beep/Claude.git dayflow-app
 ```
+
+```bash
+cd dayflow-app/dayflow
+```
+
+One line at a time from here.
+
+```bash
+npm ci
+```
+
+**This one is not optional and not obvious.** A fresh clone has no
+`node_modules`, and every `eas` command reads `app.json`, which names plugins —
+`expo-calendar`, `expo-notifications`, `expo-audio` — that it then has to
+resolve on disk. Without them, every command fails the same way and the message
+does not mention which step was missed:
+
+    Failed to resolve plugin for module "expo-calendar" relative to ...
+    Do you have node modules installed?
 
 ```bash
 npm install -g eas-cli
