@@ -60,11 +60,35 @@ Two things in `app.json` are still blank because only you can fill them:
 
 ## 2. First build
 
+Nothing below carries a trailing comment, on purpose. macOS runs zsh, and zsh
+does not treat `#` as the start of a comment when you type it at the prompt —
+paste a line with one and everything after the hash arrives as arguments:
+
+    Unexpected arguments: #, writes, extra.eas.projectId
+
+One line at a time:
+
 ```bash
 cd dayflow
+```
+
+```bash
 npm install -g eas-cli
+```
+
+```bash
 eas login
-eas init                 # creates the project, writes extra.eas.projectId into app.json
+```
+
+```bash
+eas init
+```
+
+`eas init` creates the project on Expo and writes `extra.eas.projectId` into
+`app.json`. **Commit that change** — without it, every machine builds a
+different project.
+
+```bash
 eas build --platform ios --profile production
 ```
 

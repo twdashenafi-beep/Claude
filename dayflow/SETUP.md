@@ -16,11 +16,17 @@
 
 ## 1. Quick start
 
+> macOS runs zsh, which does not treat `#` as the start of a comment when typed
+> at the prompt — a pasted line with a trailing comment arrives as arguments.
+> So no command in this file carries one.
+
 ```bash
 cd dayflow
 npm install
-npx expo start          # press w for web, i for iOS simulator
+npx expo start
 ```
+
+Press **w** for the browser, **i** for the iOS simulator.
 
 DayFlow needs no configuration to run: tasks live in encrypted local storage,
 with no account and no network. `.env` only turns on the optional AI and
@@ -35,8 +41,10 @@ Two routes, and they are not exclusive.
 Install **Expo Go** from the App Store, then:
 
 ```bash
-npx expo start          # scan the QR code with the iPhone/iPad camera
+npx expo start
 ```
+
+Scan the QR code with the iPhone or iPad camera.
 
 Both devices must be on the same Wi-Fi; add `--tunnel` if they are not. This is
 the fastest way to see the real app, but it runs inside Expo Go rather than
@@ -74,9 +82,15 @@ device, so there is no sync between them unless you configure Supabase.
 Build locally:
 
 ```bash
-npm run build:web       # -> web-build/, served from the domain root
-npm run preview:web     # local preview
+npm run build:web
 ```
+
+```bash
+npm run preview:web
+```
+
+The first writes `web-build/`, to be served from the domain root. The second
+previews it locally.
 
 Deploying to GitHub Pages is automated by `.github/workflows/pages.yml`, which
 publishes DayFlow at the site root and moves the older World Monitor dashboard
@@ -110,12 +124,22 @@ Mac is not required.
 
 ```bash
 npm install -g eas-cli
-eas login
-eas init                  # writes extra.eas.projectId into app.json
 ```
 
-Then fill in the `submit.production.ios` block of `eas.json` with your
-`appleId`, `ascAppId` (from App Store Connect) and `appleTeamId`.
+```bash
+eas login
+```
+
+```bash
+eas init
+```
+
+`eas init` writes `extra.eas.projectId` into `app.json`. **Commit that change** —
+without it, every machine builds a different project.
+
+`eas submit` asks for your Apple ID and team the first time and remembers them,
+so `eas.json` carries no credentials. It used to hold placeholders for them,
+which failed confusingly if left unedited.
 
 ```bash
 eas build --platform ios --profile production
@@ -130,29 +154,38 @@ is testable for 90 days. iPad support is already configured in `app.json`
 To try a build on your own devices without TestFlight:
 
 ```bash
-eas build --platform ios --profile preview   # internal distribution
+eas build --platform ios --profile preview
 ```
+
+That profile is for internal distribution.
 
 Register each device's UDID first with `eas device:create`.
 
 ## 5. Mac desktop (Electron)
 
 ```bash
-cd electron && npm install && cd ..
+cd ../desktop && npm install
 ```
 
 Development, in two terminals:
 
 ```bash
-npx expo start --web       # serves on :8081
-cd electron && npm start   # loads localhost:8081
+npx expo start --web
 ```
+
+```bash
+cd ../desktop && npm start
+```
+
+The first serves on port 8081; the second loads it.
 
 Build a `.dmg`:
 
 ```bash
-cd electron && npm run build     # installer lands in release/
+cd ../desktop && npm run dmg
 ```
+
+The installer lands in `desktop/dist/`.
 
 Shortcuts: `Cmd+N` new task, `Cmd+Return` complete, `Cmd+D` briefing, `Cmd+Q`
 quit. The app minimises to the menu bar on close.
@@ -175,8 +208,10 @@ EXPO_PUBLIC_API_URL=http://localhost:3001
 ```
 
 ```bash
-npm run api                             # then: curl localhost:3001/health
+npm run api
 ```
+
+Then check it with `curl localhost:3001/health`.
 
 Endpoints: `POST /ai/summary`, `/ai/prioritize`, `/ai/steps`. Unset the key and
 they return 503 while the app falls back to its offline behaviour. Restart the

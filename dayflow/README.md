@@ -24,13 +24,29 @@ AI-powered task manager with end-to-end encryption. Built with React Native (Exp
 
 ## Quick Start
 
+> macOS runs zsh, which does not treat `#` as the start of a comment when typed
+> at the prompt — a pasted line with a trailing comment arrives as arguments.
+> So no command in this file carries one.
+
 ```bash
 cd dayflow
 npm install
-npx expo start           # dev server (press w for web, i for iOS)
-npm run build:web        # installable web app -> web-build/
-npm run api              # optional API server (AI + Supabase) on :3001
+npx expo start
 ```
+
+`expo start` opens the dev server: press **w** for the browser, **i** for the
+iOS simulator. Two others worth knowing:
+
+```bash
+npm run build:web
+```
+
+```bash
+npm run api
+```
+
+The first writes an installable web app to `web-build/`. The second runs the
+optional API server, for the AI and Supabase features, on port 3001.
 
 DayFlow runs fully offline out of the box — no account, no keys, no network.
 The optional cloud and AI features are configured through `.env`; copy
@@ -43,7 +59,7 @@ The optional cloud and AI features are configured through `.env`; copy
 | **Web** | `https://twdashenafi-beep.github.io/Claude/` | Deployed by `.github/workflows/pages.yml` |
 | **iPhone / iPad** | Open that URL in Safari → Share → **Add to Home Screen** | Full-screen, works offline, free |
 | **iPhone / iPad (native)** | `eas build --platform ios --profile production` → TestFlight | Adds reminders and calendar sync; needs an Apple Developer account |
-| **Mac** | `cd electron && npm run build` | `.dmg` in `release/` |
+| **Mac** | `cd desktop && npm run dmg` | `.dmg` in `desktop/dist/` |
 | **Trying it out** | `npx expo start`, scan the QR with Expo Go | No install, runs while your machine serves |
 
 Full instructions, including the one-time GitHub Pages switch, are in
@@ -71,9 +87,7 @@ dayflow/
 ├── app.config.js                   # Layers in the web base path per build
 ├── eas.json                        # EAS Build configuration
 ├── .env.example                    # Environment template
-├── electron/                       # macOS Electron wrapper
-│   ├── main.js                     # Electron main process
-│   └── package.json                # Electron build config
+├── electron/                       # superseded — see ../desktop/
 ├── src/
 │   ├── components/
 │   │   ├── AIInput.js              # Natural language + voice input bar
