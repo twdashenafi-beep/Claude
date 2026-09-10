@@ -41,17 +41,20 @@ title in it, stop and say so.
 
 ---
 
-## 1. Accounts you need
+## 1. Accounts
 
-| What | Cost | Who |
-| --- | --- | --- |
-| Apple Developer Program | £79 / $99 per year | You — [developer.apple.com/programs](https://developer.apple.com/programs/) |
-| Expo account | Free | You — [expo.dev](https://expo.dev) |
+The Apple Developer Program is **done**. The only other account is an Expo one,
+which is free: [expo.dev](https://expo.dev). Sign up before the first command
+below, or `eas login` will offer to make one.
 
-Enrolment as an individual is usually approved within 24–48 hours. As a company
-it needs a D-U-N-S number and takes longer.
+No Mac is required for any of this. EAS builds on Apple hardware in the cloud.
 
-No Mac is required. EAS builds on Apple hardware in the cloud.
+Two things in `app.json` are still blank because only you can fill them:
+
+- `extra.eas.projectId` — written automatically by `eas init` in step 2.
+  **Commit that change**; without it every machine builds a different project.
+- `ios.config.usesNonExemptEncryption` — a legal declaration, deliberately left
+  out. See section 4.
 
 ---
 
@@ -151,6 +154,92 @@ to `app.json` under `"ios"`:
 ```json
 "config": { "usesNonExemptEncryption": false }
 ```
+
+---
+
+## 4a. The listing, drafted
+
+Edit freely — this is a starting point, not a submission. Apple's limits are in
+brackets and every line below is inside them.
+
+**Subtitle** [30]
+
+    Two lists, side by side
+
+**Promotional text** [170] — changeable any time, without a new build
+
+    What you owe and what you are owed, on one page. Nothing leaves your
+    device unencrypted, and nobody but you can read it.
+
+**Keywords** [100] — commas, no spaces, no words already in the name
+
+    todo,owe,chase,follow up,reminders,encrypted,private,projects,planner,day,week,month,tasks
+
+**Description** [4000]
+
+    DayFlow is a task list with one idea behind it: the things you have to do
+    and the things other people owe you are different kinds of work, and they
+    belong side by side rather than jumbled together.
+
+    TWO COLUMNS
+    To Do is yours. Owe Me is what you are waiting on — the deposit, the
+    signed contract, the reply — with the person's name against it, so
+    chasing is a glance rather than a hunt through your inbox.
+
+    DAY, WEEK, MONTH
+    Three pages, not three apps. Move a task between them in a tap.
+
+    WRITE IT THE WAY YOU SAY IT
+    "Call Mekdi tomorrow at 11" arrives dated, timed and filed. "Owe me the
+    signed lease" goes to the right column. Dictate it if your hands are full.
+
+    PROJECTS
+    A project is the same page holding a different slice — its own two
+    columns, its own three scopes. Drag the tabs into whatever order suits.
+
+    NOTHING IS LOST
+    Finish a task and delete it and it goes to the Archive, with its notes, for
+    as long as you want it. Delete something unfinished and there is a moment
+    to undo.
+
+    IT KNOWS WHAT IS LATE
+    Overdue says overdue. A task nobody dated stays quiet — a list that cries
+    wolf is worse than one that says nothing.
+
+    PRIVATE BY CONSTRUCTION
+    Your tasks are encrypted on the device with a key your master password
+    unlocks, before anything is sent anywhere. The server stores an unreadable
+    blob and a timestamp. It cannot read your tasks, and neither can we,
+    because there is nothing to read and no key to read it with.
+
+    YOUR DEVICES, YOUR SERVER
+    DayFlow syncs through a Supabase project you own. No account with us, no
+    subscription, no advertising, nothing collected.
+
+**What's New** — for the first release
+
+    First release.
+
+---
+
+## 4b. Privacy — the answers, and why
+
+Apple asks what you collect. The honest answers are short:
+
+| Question | Answer |
+| --- | --- |
+| Data collected | **None** |
+| Tracking | **No** |
+| Third-party analytics | **None** |
+
+The email address is used to derive the encryption key and to sign in to *your
+own* Supabase project. It is not collected by the app's publisher, because
+there is no publisher-side server. Task content is encrypted before it leaves
+the device.
+
+If the form insists on an entry for the email address, the accurate shape is
+"Contact Info → Email Address", used for "App Functionality", **not** linked to
+the user and **not** used for tracking.
 
 ---
 
