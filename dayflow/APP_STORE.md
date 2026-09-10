@@ -125,6 +125,37 @@ eas build --platform ios --profile simulator
 
 ---
 
+## 2a. The audit warning after npm ci
+
+`npm ci` reports ten moderate advisories. They come from two roots, and neither
+reaches the app anyone runs:
+
+**`@anthropic-ai/sdk`** — used only by `api-server.js`, the optional server for
+the AI features. It is never bundled: the built web bundle contains no
+reference to it, and nothing under `src/` imports it.
+
+**`uuid@7`**, which accounts for the other eight — `expo` → `@expo/config-plugins`
+→ `xcode` → `uuid`. That is build tooling, run on the machine doing the
+building, not code shipped to a device.
+
+**Do not run `npm audit fix --force`.** It would try to move `expo` off SDK 55
+to satisfy a transitive dependency of a build tool. That is how the expo-audio
+mismatch happened earlier in this project: a version that looked fine on the web
+and would have failed on the first native build. The advisories are worth
+re-checking when Expo next publishes an SDK, and not before.
+
+To see the reasoning yourself rather than taking it on trust:
+
+```bash
+npm ls uuid
+```
+
+```bash
+grep -rn "@anthropic-ai/sdk" src/ App.js
+```
+
+---
+
 ## 3. TestFlight, before the store
 
 ```bash
