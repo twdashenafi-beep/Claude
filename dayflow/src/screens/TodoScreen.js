@@ -183,7 +183,7 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
   const {
     tasks, addTask, toggleTask, deleteTask, restoreTask, updateTask, reorderTasks, syncState,
     storageError, vaultError,
-    projects, addProject, renameProject, deleteProject, moveTaskToProject,
+    projects, addProject, renameProject, deleteProject, moveTaskToProject, reorderProjects,
     archived, archiveTask, archiveTasks, unarchiveTask, deleteTasks, restoreTasks,
   } = useTasks();
   const { width } = useWindowDimensions();
@@ -522,6 +522,7 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
               onSelect={setProject}
               onCreate={name => { const made = addProject(name); setProject(made.id); }}
               onRename={renameProject}
+              onReorder={reorderProjects}
               onDelete={id => {
                 deleteProject(id);
                 setProject(EVERYTHING);

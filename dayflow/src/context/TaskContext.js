@@ -481,6 +481,11 @@ export function TaskProvider({ children, encryptionKey, synced }) {
       value={{
         tasks: visibleTasks, addTask, toggleTask, deleteTask, restoreTask, updateTask,
         reorderTasks, syncState, syncNow, storageError, vaultError,
+        // The same function under a second name. Tasks and projects are one
+        // record list underneath, and both carry an order, so moving either is
+        // the same write — but a caller passing project changes to something
+        // called reorderTasks would be right to wonder.
+        reorderProjects: reorderTasks,
         projects, addProject, renameProject, deleteProject, moveTaskToProject,
         archived, archiveTask, archiveTasks, unarchiveTask,
         deleteTasks, restoreTasks,
