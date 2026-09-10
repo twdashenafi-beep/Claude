@@ -159,5 +159,47 @@ ok('rows below a downward move come up', shiftFor(2, 1, 3, 40) === -40);
 ok('rows above an upward move go down', shiftFor(1, 3, 1, 40) === 40);
 ok('nothing shifts when nothing moves', shiftFor(2, 1, 1, 40) === 0);
 
+// ── The same helpers move the project tabs, sideways ──
+//
+// The tab bar reuses moveWithin, targetIndex and shiftFor with widths in place
+// of heights and dx in place of dy. That reuse is only sound if these really
+// are about sizes along an axis rather than about rows in a column, so it is
+// checked here rather than assumed there.
+{
+  const projects = Array.from({ length: 6 }, (_, i) => ({ id: `p${i}`, name: `P${i}`, order: i }));
+  const apply = (list, changes) => {
+    const by = new Map(changes.map(c => [c.id, c.order]));
+    return [...list]
+      .map(p => (by.has(p.id) ? { ...p, order: by.get(p.id) } : p))
+      .sort((a, b) => a.order - b.order);
+  };
+
+  let wrong = 0;
+  for (let from = 0; from < projects.length; from += 1) {
+    for (let to = 0; to < projects.length; to += 1) {
+      const after = apply(projects, moveWithin(projects, from, to));
+      const want = [...projects];
+      const [moved] = want.splice(from, 1);
+      want.splice(to, 0, moved);
+      if (after.map(p => p.id).join() !== want.map(p => p.id).join()) wrong += 1;
+    }
+  }
+  ok('every move from every position to every other lands correctly', wrong === 0, `${wrong} wrong`);
+
+  // Tabs are not a uniform width, any more than rows are a uniform height.
+  const widths = [80, 120, 60, 200, 90];
+  ok('a small sideways drag stays where it is', targetIndex(widths, 0, 10) === 0);
+  ok('passing the next tab crosses it', targetIndex(widths, 0, 100) === 1);
+  ok('a drag to the far right reaches the end', targetIndex(widths, 0, 10000) === 4);
+  ok('and to the far left reaches the start', targetIndex(widths, 4, -10000) === 0);
+  ok('nothing goes past either end', targetIndex(widths, 2, -99999) === 0);
+  ok('an empty row is survived', targetIndex([], 0, 50) === 0);
+
+  // The tabs that are not in hand slide aside by the width of the one that is.
+  ok('a tab between the two ends slides left', shiftFor(1, 0, 2, 80) === -80);
+  ok('and the other way it slides right', shiftFor(1, 2, 0, 80) === 80);
+  ok('a tab outside the move does not stir', shiftFor(4, 0, 2, 80) === 0);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
