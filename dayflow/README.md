@@ -87,7 +87,6 @@ dayflow/
 ├── app.config.js                   # Layers in the web base path per build
 ├── eas.json                        # EAS Build configuration
 ├── .env.example                    # Environment template
-├── electron/                       # superseded — see ../desktop/
 ├── src/
 │   ├── components/
 │   │   ├── AIInput.js              # Natural language + voice input bar

@@ -163,21 +163,25 @@ Register each device's UDID first with `eas device:create`.
 
 ## 5. Mac desktop (Electron)
 
+The wrapper in `desktop/` opens the deployed site in a proper Mac window, which
+remembers where it was left. It is not a second copy of the app: whatever is
+live at the URL is what it shows, so it needs no build of its own and cannot
+drift out of date.
+
 ```bash
 cd ../desktop && npm install
-```
-
-Development, in two terminals:
-
-```bash
-npx expo start --web
 ```
 
 ```bash
 cd ../desktop && npm start
 ```
 
-The first serves on port 8081; the second loads it.
+To point it at something other than the deployed site — a local build, or a
+staging copy:
+
+```bash
+DAYFLOW_URL=http://localhost:8081 npm start
+```
 
 Build a `.dmg`:
 
@@ -185,10 +189,11 @@ Build a `.dmg`:
 cd ../desktop && npm run dmg
 ```
 
-The installer lands in `desktop/dist/`.
-
-Shortcuts: `Cmd+N` new task, `Cmd+Return` complete, `Cmd+D` briefing, `Cmd+Q`
-quit. The app minimises to the menu bar on close.
+The installer lands in `desktop/dist/`. Signing is left unconfigured on purpose:
+with a Developer ID in the keychain, electron-builder finds it and uses it, and
+without one it signs ad-hoc, which is what lets the app open on Apple Silicon at
+all. To hand the `.dmg` to anyone else without a Gatekeeper warning it needs a
+Developer ID and notarisation — the same membership covers both.
 
 ## 6. Optional services
 
