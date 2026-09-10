@@ -41,17 +41,20 @@ title in it, stop and say so.
 
 ---
 
-## 1. Accounts you need
+## 1. Accounts
 
-| What | Cost | Who |
-| --- | --- | --- |
-| Apple Developer Program | £79 / $99 per year | You — [developer.apple.com/programs](https://developer.apple.com/programs/) |
-| Expo account | Free | You — [expo.dev](https://expo.dev) |
+The Apple Developer Program is **done**. The only other account is an Expo one,
+which is free: [expo.dev](https://expo.dev). Sign up before the first command
+below, or `eas login` will offer to make one.
 
-Enrolment as an individual is usually approved within 24–48 hours. As a company
-it needs a D-U-N-S number and takes longer.
+No Mac is required for any of this. EAS builds on Apple hardware in the cloud.
 
-No Mac is required. EAS builds on Apple hardware in the cloud.
+Two things in `app.json` are still blank because only you can fill them:
+
+- `extra.eas.projectId` — written automatically by `eas init` in step 2.
+  **Commit that change**; without it every machine builds a different project.
+- `ios.config.usesNonExemptEncryption` — a legal declaration, deliberately left
+  out. See section 4.
 
 ---
 
@@ -135,22 +138,121 @@ DayFlow's honest answers:
   leaves the device.
 - No tracking, no analytics, no third-party SDKs that collect anything.
 
-### Export compliance — a decision only you can make
+### Export compliance — declared
 
 Apple asks whether the app uses encryption. It does: AES-256, to protect your
-own data.
+own data on your own devices.
 
-Apps in this position normally qualify for the exemption at EAR 740.17(b)(1)
-and answer that they use no *non-exempt* encryption. **This is a legal
-declaration, so it is yours to make, not mine.** I have deliberately left it out
-of `app.json` so that Apple asks you directly at submission.
-
-If you decide it applies and want to stop being asked on every build, add this
-to `app.json` under `"ios"`:
+`app.json` now carries the declaration, at your instruction:
 
 ```json
-"config": { "usesNonExemptEncryption": false }
+"ios": { "config": { "usesNonExemptEncryption": false } }
 ```
+
+Apple will stop asking on every build. Recorded here because `app.json` cannot
+hold a comment and this is a legal statement rather than a setting.
+
+**What it asserts, in plain terms.** That DayFlow uses no encryption which is
+*not* exempt from US export regulations. The reasoning is that its only use of
+cryptography is standard, published algorithms — AES-256 and PBKDF2-HMAC-SHA256
+— protecting the user's own data, which is the case described by the exemption
+at EAR 740.17(b)(1). The app implements no cryptography of its own, offers no
+cryptographic service to anything else, and is not sold to a government.
+
+**When it would stop being true.** If DayFlow ever gained a bespoke cipher, or
+became a tool whose purpose was encrypting other people's data rather than its
+own, this line would need revisiting. Adding an ordinary feature will not
+change it.
+
+Neither this note nor the declaration is legal advice. If the app's purpose
+changes, or if it is ever distributed somewhere with different rules, the
+declaration is worth putting in front of somebody qualified.
+
+---
+
+## 4a. The listing, drafted
+
+Edit freely — this is a starting point, not a submission. Apple's limits are in
+brackets and every line below is inside them.
+
+**Subtitle** [30]
+
+    Two lists, side by side
+
+**Promotional text** [170] — changeable any time, without a new build
+
+    What you owe and what you are owed, on one page. Nothing leaves your
+    device unencrypted, and nobody but you can read it.
+
+**Keywords** [100] — commas, no spaces, no words already in the name
+
+    todo,owe,chase,follow up,reminders,encrypted,private,projects,planner,day,week,month,tasks
+
+**Description** [4000]
+
+    DayFlow is a task list with one idea behind it: the things you have to do
+    and the things other people owe you are different kinds of work, and they
+    belong side by side rather than jumbled together.
+
+    TWO COLUMNS
+    To Do is yours. Owe Me is what you are waiting on — the deposit, the
+    signed contract, the reply — with the person's name against it, so
+    chasing is a glance rather than a hunt through your inbox.
+
+    DAY, WEEK, MONTH
+    Three pages, not three apps. Move a task between them in a tap.
+
+    WRITE IT THE WAY YOU SAY IT
+    "Call Mekdi tomorrow at 11" arrives dated, timed and filed. "Owe me the
+    signed lease" goes to the right column. Dictate it if your hands are full.
+
+    PROJECTS
+    A project is the same page holding a different slice — its own two
+    columns, its own three scopes. Drag the tabs into whatever order suits.
+
+    NOTHING IS LOST
+    Finish a task and delete it and it goes to the Archive, with its notes, for
+    as long as you want it. Delete something unfinished and there is a moment
+    to undo.
+
+    IT KNOWS WHAT IS LATE
+    Overdue says overdue. A task nobody dated stays quiet — a list that cries
+    wolf is worse than one that says nothing.
+
+    PRIVATE BY CONSTRUCTION
+    Your tasks are encrypted on the device with a key your master password
+    unlocks, before anything is sent anywhere. The server stores an unreadable
+    blob and a timestamp. It cannot read your tasks, and neither can we,
+    because there is nothing to read and no key to read it with.
+
+    YOUR DEVICES, YOUR SERVER
+    DayFlow syncs through a Supabase project you own. No account with us, no
+    subscription, no advertising, nothing collected.
+
+**What's New** — for the first release
+
+    First release.
+
+---
+
+## 4b. Privacy — the answers, and why
+
+Apple asks what you collect. The honest answers are short:
+
+| Question | Answer |
+| --- | --- |
+| Data collected | **None** |
+| Tracking | **No** |
+| Third-party analytics | **None** |
+
+The email address is used to derive the encryption key and to sign in to *your
+own* Supabase project. It is not collected by the app's publisher, because
+there is no publisher-side server. Task content is encrypted before it leaves
+the device.
+
+If the form insists on an entry for the email address, the accurate shape is
+"Contact Info → Email Address", used for "App Functionality", **not** linked to
+the user and **not** used for tracking.
 
 ---
 
