@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Animated, PanResponder,
 } from 'react-native';
@@ -18,7 +18,8 @@ const GAP = 6;
 // time it runs — the second drag of a session would otherwise be computed
 // against the order as it stood before the first.
 function ProjectTab({
-  id, label, index, on, lifted, dragging, shift, onSelect, onRename, onLift, onMove, onDrop, onMeasure,
+  id, label, index, on, lifted, dragging, shift,
+  onSelect, onRename, onLift, onMove, onDrop, onRelease, onMeasure,
 }) {
   const live = useRef({});
   live.current = { lifted, onMove, onDrop };
@@ -52,6 +53,11 @@ function ProjectTab({
         // want it. Renaming moved to a second tap on the tab you are already
         // on, which is where this file said it lived long before it did.
         onLongPress={() => { if (id) onLift(index); }}
+        // The pan responder only claims the gesture once the finger actually
+        // moves, so a tab picked up and put straight back down never reaches
+        // onPanResponderRelease — it stayed lifted, and the row stayed locked.
+        // This is the one event that always arrives.
+        onPressOut={() => { if (id) onRelease(index); }}
         delayLongPress={300}
         style={[s.tab, on && s.tabOn, lifted && s.tabLifted]}
         accessibilityRole="tab"
@@ -59,9 +65,7 @@ function ProjectTab({
         accessibilityLabel={id ? `Project ${label}` : 'All tasks not in a project'}
         accessibilityHint={
           id
-            ? (on
-              ? 'Tap again to rename, move or delete it. Hold to pick it up and drag it along the row.'
-              : 'Hold to pick it up and drag it along the row.')
+            ? 'Hold to pick it up and drag it along the row, or hold and let go to rename, move or delete it.'
             : undefined
         }
       >
@@ -96,12 +100,23 @@ export default function ProjectBar({
   const measure = useCallback((index, width) => { widths.current[index] = width; }, []);
 
   const lift = useCallback(index => {
+    carried.current = false;
+    clearTimeout(releaseTimer.current);
+    liftedRef.current = index;
     setLifted(index);
     setTarget(index);
     dragX.setValue(0);
   }, [dragX]);
 
+  // Whether the tab in hand was actually carried anywhere, and a mirror of what
+  // is lifted that a timer can read without going through React.
+  const carried = useRef(false);
+  const liftedRef = useRef(null);
+  const releaseTimer = useRef(null);
+  useEffect(() => () => clearTimeout(releaseTimer.current), []);
+
   const move = useCallback(dx => {
+    carried.current = true;
     dragX.setValue(dx);
     setLifted(from => {
       if (from === null) return from;
@@ -111,6 +126,8 @@ export default function ProjectBar({
   }, [dragX]);
 
   const drop = useCallback(() => {
+    clearTimeout(releaseTimer.current);
+    liftedRef.current = null;
     setLifted(from => {
       setTarget(to => {
         if (from !== null && to !== null && from !== to && onReorder) {
@@ -123,6 +140,27 @@ export default function ProjectBar({
     });
     dragX.setValue(0);
   }, [dragX, onReorder]);
+
+  // Picked up and put straight back down. Holding a tab and letting go without
+  // carrying it anywhere is what a long press meant before this row could be
+  // dragged at all, so it still opens the editor — the two gestures share a
+  // beginning and are told apart by whether anything moved.
+  const release = useCallback((index, openEditor) => {
+    // The touchable and the pan responder both report the end of a gesture, and
+    // not in a fixed order — the touchable is told the gesture was taken away
+    // before the responder has said it took it. Deciding on the spot read every
+    // drag as a press-and-let-go and opened the editor instead of moving the
+    // tab. So the decision waits a moment for the drag to declare itself.
+    clearTimeout(releaseTimer.current);
+    releaseTimer.current = setTimeout(() => {
+      if (carried.current || liftedRef.current !== index) return;
+      liftedRef.current = null;
+      setLifted(null);
+      setTarget(null);
+      dragX.setValue(0);
+      openEditor();
+    }, 160);
+  }, [dragX]);
 
   // Moving without dragging. A tab is a small target on a phone, and a row that
   // scrolls sideways is an awkward place to hold one still — the same reason
@@ -235,6 +273,7 @@ export default function ProjectBar({
             onLift={() => {}}
             onMove={() => {}}
             onDrop={() => {}}
+            onRelease={() => {}}
             onMeasure={() => {}}
           />
 
@@ -257,6 +296,7 @@ export default function ProjectBar({
               onLift={lift}
               onMove={move}
               onDrop={drop}
+              onRelease={i => release(i, () => { setEditing({ id: p.id, name: p.name }); setError(''); })}
               onMeasure={measure}
             />
           ))}
