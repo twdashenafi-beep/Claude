@@ -66,11 +66,31 @@ paste a line with one and everything after the hash arrives as arguments:
 
     Unexpected arguments: #, writes, extra.eas.projectId
 
-One line at a time:
+Start from a clone rather than an unpacked archive, so that what `eas init`
+writes can be committed back:
 
 ```bash
-cd dayflow
+git clone https://github.com/twdashenafi-beep/Claude.git dayflow-app
 ```
+
+```bash
+cd dayflow-app/dayflow
+```
+
+One line at a time from here.
+
+```bash
+npm ci
+```
+
+**This one is not optional and not obvious.** A fresh clone has no
+`node_modules`, and every `eas` command reads `app.json`, which names plugins —
+`expo-calendar`, `expo-notifications`, `expo-audio` — that it then has to
+resolve on disk. Without them, every command fails the same way and the message
+does not mention which step was missed:
+
+    Failed to resolve plugin for module "expo-calendar" relative to ...
+    Do you have node modules installed?
 
 ```bash
 npm install -g eas-cli
@@ -101,6 +121,37 @@ To try it on a simulator first, without any Apple account at all:
 
 ```bash
 eas build --platform ios --profile simulator
+```
+
+---
+
+## 2a. The audit warning after npm ci
+
+`npm ci` reports ten moderate advisories. They come from two roots, and neither
+reaches the app anyone runs:
+
+**`@anthropic-ai/sdk`** — used only by `api-server.js`, the optional server for
+the AI features. It is never bundled: the built web bundle contains no
+reference to it, and nothing under `src/` imports it.
+
+**`uuid@7`**, which accounts for the other eight — `expo` → `@expo/config-plugins`
+→ `xcode` → `uuid`. That is build tooling, run on the machine doing the
+building, not code shipped to a device.
+
+**Do not run `npm audit fix --force`.** It would try to move `expo` off SDK 55
+to satisfy a transitive dependency of a build tool. That is how the expo-audio
+mismatch happened earlier in this project: a version that looked fine on the web
+and would have failed on the first native build. The advisories are worth
+re-checking when Expo next publishes an SDK, and not before.
+
+To see the reasoning yourself rather than taking it on trust:
+
+```bash
+npm ls uuid
+```
+
+```bash
+grep -rn "@anthropic-ai/sdk" src/ App.js
 ```
 
 ---

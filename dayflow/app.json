@@ -60,6 +60,11 @@
         }
       ]
     ],
-    "scheme": "dayflow"
+    "scheme": "dayflow",
+    "extra": {
+      "eas": {
+        "projectId": "b5d74812-ef07-41f7-8fd6-ea31f0c8673d"
+      }
+    }
   }
 }

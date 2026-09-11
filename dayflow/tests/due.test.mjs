@@ -86,5 +86,61 @@ ok('and silence stays silent', dueSpoken(on('2026-09-09'), NOW) === null);
      dueLabel(on('2026-09-09', '09:00'), lateNight).text === 'Overdue');
 }
 
+// ── Days are not always 86400 seconds ──
+//
+// "Today", "tomorrow" and "overdue" are decided by counting days between two
+// local midnights. Twice a year that gap is 23 hours or 25, and on the far side
+// of the world it is a different calendar day from UTC at the same instant. An
+// off-by-one here would surface as tasks quietly reading Overdue on the morning
+// the clocks change — so the cases are run for real, in four zones, rather than
+// reasoned about.
+//
+// Each runs in its own process because TZ is read once per Date operation and
+// this test's own clock must not move under it.
+{
+  const { execFileSync } = await import('node:child_process');
+  const here = new URL('.', import.meta.url).pathname;
+
+  const script = `
+    import { dueLabel } from '${here}../src/services/due.js';
+    const ymd = d => d.getFullYear() + '-' +
+      String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    const out = [];
+    for (const iso of process.argv.slice(2)) {
+      const now = new Date(iso);
+      const task = day => ({ dueDate: day + 'T12:00:00', dueTime: '' });
+      const text = t => { const r = dueLabel(t, now); return r ? r.text : 'SILENT'; };
+      out.push([
+        text({ dueDate: ymd(now) + 'T00:00:00', dueTime: '18:00' }),
+        text(task(ymd(new Date(now.getTime() + 86400000)))),
+        text(task(ymd(new Date(now.getTime() - 86400000)))),
+      ].join('|'));
+    }
+    console.log(out.join(String.fromCharCode(10)));
+  `;
+
+  // Clocks back in London on 25 Oct 2026, forward on 29 Mar; a new year; and an
+  // ordinary day for a control.
+  const DAYS = ['2026-10-25T10:00:00', '2026-03-29T10:00:00', '2027-01-01T10:00:00', '2026-06-15T10:00:00'];
+
+  for (const tz of ['Europe/London', 'America/New_York', 'Australia/Sydney', 'UTC', 'Pacific/Kiritimati']) {
+    let lines;
+    try {
+      lines = execFileSync(process.execPath, ['--input-type=module', '-e', script, ...DAYS],
+        { env: { ...process.env, TZ: tz }, encoding: 'utf8' }).trim().split('\n');
+    } catch (e) {
+      ok(`${tz}: the probe runs`, false, String(e.message).slice(0, 120));
+      continue;
+    }
+    lines.forEach((line, i) => {
+      const [today, tomorrow, past] = line.split('|');
+      const when = DAYS[i].slice(0, 10);
+      ok(`${tz} ${when}: this evening reads as a time`, /^\d{2}:\d{2}$/.test(today), today);
+      ok(`${tz} ${when}: tomorrow reads Tomorrow`, tomorrow === 'Tomorrow', tomorrow);
+      ok(`${tz} ${when}: yesterday reads Overdue`, past === 'Overdue', past);
+    });
+  }
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
