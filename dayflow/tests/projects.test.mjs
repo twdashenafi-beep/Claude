@@ -8,6 +8,7 @@ import {
   PROJECT_KIND, EVERYTHING, projectOf, isProject, isTask,
   sortProjects, orderForNewProject, tasksInProject, projectName, cleanProjectName,
 } from '../src/services/projects.js';
+import { moveWithin } from '../src/services/ordering.js';
 
 let pass = 0, fail = 0;
 const ok = (label, cond, extra = '') => {
@@ -91,6 +92,58 @@ ok('a very long name is capped', cleanProjectName('x'.repeat(80)).name.length ==
   ok('a duplicate name is refused whatever its case', clash.ok === false);
   ok('and says which name clashed', /Kitchen/.test(clash.error));
   ok('a different name is fine', cleanProjectName('Garden', existing).ok === true);
+}
+
+// ── The states reordering will actually meet ──
+//
+// The tab bar writes an order that then syncs, so two devices reordering at
+// once produce ties, an older project has no order at all, and a long session
+// of dragging subdivides the gaps between values. None of that is hypothetical
+// once the feature is in use.
+{
+  const P = (id, order, createdAt = '2026-01-01') => ({ id, name: id, kind: 'project', order, createdAt });
+  const apply = (list, changes) => {
+    const by = new Map(changes.map(c => [c.id, c.order]));
+    return sortProjects(list.map(p => (by.has(p.id) ? { ...p, order: by.get(p.id) } : p)));
+  };
+
+  // Two devices reordering at once land on the same number.
+  const tied = [P('a', 1, '2026-01-01'), P('b', 1, '2026-01-02'), P('c', 1, '2026-01-03')];
+  ok('equal orders fall back to when they were made',
+    sortProjects(tied).map(p => p.id).join() === 'a,b,c');
+  ok('and sorting twice gives the same answer',
+    sortProjects(sortProjects(tied)).map(p => p.id).join() === 'a,b,c');
+
+  // A project made before ordering existed carries no order.
+  const none = [{ id: 'x', name: 'x', createdAt: '2026-01-02' }, { id: 'y', name: 'y', createdAt: '2026-01-01' }];
+  ok('projects with no order at all still sort', sortProjects(none).map(p => p.id).join() === 'y,x');
+  ok('and can still be reordered',
+    apply(none, moveWithin(sortProjects(none), 0, 1)).map(p => p.id).join() === 'x,y');
+
+  // Dragging the same tab back and forth subdivides the gap each time.
+  let list = [P('a', 0), P('b', 1), P('c', 2)];
+  for (let i = 0; i < 60; i += 1) {
+    list = apply(list, moveWithin(list, 2, 1));
+    list = apply(list, moveWithin(list, 1, 2));
+  }
+  const orders = list.map(p => p.order);
+  ok('sixty reorders do not collapse the order values',
+    new Set(orders).size === orders.length, JSON.stringify(orders));
+  ok('and the list keeps its length', list.length === 3);
+
+  // A tab deleted on another device while this one is mid-drag.
+  ok('moving from beyond the end changes nothing', moveWithin(list, 5, 0).length === 0);
+  ok('moving to beyond the end changes nothing', moveWithin(list, 0, 9).length === 0);
+  ok('a negative index changes nothing', moveWithin(list, -1, 0).length === 0);
+  ok('an empty list changes nothing', moveWithin([], 0, 0).length === 0);
+
+  // Anything at all in the order field, from a row written by a future version.
+  for (const bad of [null, undefined, NaN, 'first', {}, Infinity, -Infinity]) {
+    let threw = false;
+    try { sortProjects([P('a', 0), { id: 'b', name: 'b', order: bad, createdAt: '2026-01-02' }]); }
+    catch { threw = true; }
+    ok(`an order of ${String(bad)} is survived`, !threw);
+  }
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
