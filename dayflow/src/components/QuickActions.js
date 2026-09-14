@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal, Platform } from 'react-native';
 import { syncTaskToCalendar } from '../services/calendar';
+import { calendarWindow } from '../services/due';
 
 export default function QuickActions({
   visible, task, onClose, onComplete, onEdit, onDelete, onPriority, onScope,
@@ -14,11 +15,14 @@ export default function QuickActions({
   if (!task) return null;
 
   // expo-calendar has no web implementation, so the row is native-only.
-  const canSyncCalendar = Platform.OS !== 'web' && !!task.dueDate;
+  // Offered only when there is a date somebody actually chose. Every task
+  // carries a dueDate whether or not anyone picked one, so testing for its
+  // presence offered to file undated tasks at the second they were created.
+  const canSyncCalendar = Platform.OS !== 'web' && !!calendarWindow(task);
 
   const addToCalendar = async () => {
     setCalendarState('saving');
-    const eventId = await syncTaskToCalendar({ ...task, date: task.dueDate || task.date });
+    const eventId = await syncTaskToCalendar(task);
     setCalendarState(eventId ? 'saved' : 'failed');
     if (eventId) setTimeout(onClose, 600);
   };

@@ -93,6 +93,64 @@ function isDefaultStamp(task) {
     && startOfDay(due).getTime() === startOfDay(made).getTime();
 }
 
+// When a task is actually due, for anything that needs the moment rather than
+// the words for it — putting it in a calendar, most of all.
+//
+// null when nobody chose a date, which is the case the calendar most needs told.
+// Every task carries a dueDate whether or not anyone picked one, so without this
+// "add to calendar" would cheerfully file an undated task at whatever second it
+// happened to be created.
+//
+// `timed` says whether a time was chosen as well.
+//
+// Unlike dueLabel, this says nothing about whether the task is finished. A
+// label is about what to shout at you and a finished task is not late; a moment
+// is a fact about the date, and filing a finished task in a calendar is merely
+// pointless rather than wrong.
+export function dueMoment(task) {
+  const at = dueAt(task);
+  if (!at) return null;
+
+  const time = timeOf(task);
+  if (!time && isDefaultStamp(task)) return null;
+
+  return { at, timed: !!time };
+}
+
+// The span a task should occupy in a calendar, or null if it should not be in
+// one at all.
+//
+// This lives here, beside the rules it depends on, rather than in the calendar
+// service — that module cannot be loaded outside a device, and this is the part
+// that was wrong, so it is the part that needs testing.
+//
+// A task due on Friday and one due at half past five on Friday are different
+// kinds of appointment. Only the second belongs at an hour of the day; the
+// first is the whole of it, which is also what keeps an undated Friday from
+// arriving as a midnight-to-one-in-the-morning meeting.
+const HOUR_MS = 60 * 60 * 1000;
+
+export function calendarWindow(task) {
+  const moment = dueMoment(task);
+  if (!moment) return null;
+
+  if (moment.timed) {
+    return {
+      startDate: moment.at,
+      endDate: new Date(moment.at.getTime() + HOUR_MS),
+      allDay: false,
+    };
+  }
+
+  // Midnight to midnight, counted in days rather than in hours. Twice a year a
+  // day is 23 hours or 25, and adding 86,400,000 to the start of one of those
+  // ends the event an hour inside the day before or the day after.
+  const startDate = startOfDay(moment.at);
+  const endDate = startOfDay(moment.at);
+  endDate.setDate(endDate.getDate() + 1);
+  return { startDate, endDate, allDay: true };
+}
+
 // { text, late } — or null when there is nothing worth saying.
 export function dueLabel(task, now = new Date()) {
   if (!task || task.completed) return null;
