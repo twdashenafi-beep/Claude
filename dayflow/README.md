@@ -8,10 +8,10 @@ AI-powered task manager with end-to-end encryption. Built with React Native (Exp
 ## Features
 
 - **Natural Language Input** — Type or speak "Call Mekdi tomorrow at 11am urgent" and the task is created with the right date, time and priority
-- **Voice Commands** — Speak naturally to create tasks (web speech recognition)
+- **Voice Commands** — Speak naturally to create tasks (web speech recognition). The recording is kept with the task, so a thought can be captured without naming it first and a mishearing is recoverable
 - **Voice Notes** — Hold to record a voice memo, on a new task or on one that already exists. Recordings are stored inside the encrypted task itself, so they survive a reload and reach your other devices
 - **End-to-End Encryption** — Task titles, notes, amounts and names are encrypted with AES-256 before they touch storage. Only you have the key.
-- **One Page, Two Columns** — To Do and Owe Me sit side by side on a single A4-proportioned sheet, divided by a ruled line
+- **One Page, Two Columns** — To Do and Owe Me sit side by side on a single A4-proportioned sheet, divided by a ruled line. A task can be moved between them from its own sheet, keeping its date, notes and recording
 - **Day/Week/Month Views** — Tasks are scoped to their view for clear separation
 - **Daily Briefing** — Progress, high-priority items and owed totals at a glance, with an optional Claude-written summary
 - **Quick Actions** — Double-tap to complete, long-press for options, swipe to delete
@@ -119,6 +119,7 @@ dayflow/
 │   │   ├── age.js                  # How long a task has been sitting there
 │   │   ├── leak.js                 # Whether the server can read any of it (pure, tested)
 │   │   ├── audio.js                # Making a recording outlast the page that made it
+│   │   ├── capture.js              # Keeping the audio of what you dictated
 │   │   ├── search.js               # Matching and ranking across every list
 │   │   ├── notifications.js        # Local notification scheduling
 │   │   └── supabase.js             # Supabase client (optional)

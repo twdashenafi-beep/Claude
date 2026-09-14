@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Animated, Platform } from 'react-native';
 import { parseNaturalLanguage } from '../services/nlParser';
+import { startCapture, finishCapture, abandonCapture } from '../services/capture';
 import { COLORS, SANS, SERIF } from '../utils/theme';
 
 // How long a pause means the sentence is over, when the button was tapped
@@ -86,7 +87,7 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo' }) {
     setPreview(val.trim().length > 2 ? parseNaturalLanguage(val) : null);
   }, []);
 
-  const doSubmit = useCallback((inputText) => {
+  const doSubmit = useCallback((inputText, voiceNoteUri) => {
     const t = inputText || text;
     if (!t.trim()) return;
 
@@ -119,6 +120,10 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo' }) {
         reminderEnabled: !!parsed.dueTime,
         earlyReminderMinutes: 0,
         notes: '',
+        // What you actually said, when there is any. Recognition is not very
+        // good, and a mishearing used to leave a garbled title and no way back
+        // to the words behind it.
+        voiceNoteUri: voiceNoteUri || null,
         attachments: [],
       });
       setText('');
@@ -144,6 +149,8 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo' }) {
     // restart after unmount turns the microphone back on for a field that has
     // gone.
     wants.current = false;
+    abandonCapture(capture.current);
+    capture.current = null;
     const r = recognitionRef.current;
     if (!r) return;
     r.onstart = null;
@@ -162,6 +169,8 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo' }) {
   const base = useRef('');            // whatever was typed before dictation began
   const emptyRestarts = useRef(0);
   const pressAt = useRef(0);
+  // The recording running alongside dictation, when the device allows one.
+  const capture = useRef(null);
 
   const teardown = r => {
     if (!r) return;
@@ -217,7 +226,24 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo' }) {
       setPreview(display.trim().length > 2 ? parseNaturalLanguage(display) : null);
     };
 
-    r.onstart = () => { setListening(true); armSilence(); };
+    r.onstart = () => {
+      setListening(true);
+      armSilence();
+      // Started here rather than before, so the recogniser has the microphone
+      // first: whatever a given browser does about sharing it, dictation — the
+      // part that already worked — gets first claim. A restart mid-sentence
+      // keeps the recording that is already running rather than beginning a
+      // second one.
+      if (!resuming && !capture.current) {
+        startCapture()
+          .then(handle => {
+            // Let go while it was still opening: nothing wants it now.
+            if (!wants.current && handle) { abandonCapture(handle); return; }
+            capture.current = handle;
+          })
+          .catch(() => {});
+      }
+    };
 
     r.onresult = e => {
       let interim = '';
@@ -241,6 +267,9 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo' }) {
       wants.current = false;
       clearTimeout(silenceTimer.current);
       setListening(false);
+      // The microphone has to go back whether or not the words arrived.
+      abandonCapture(capture.current);
+      capture.current = null;
       // A browser normally follows an error with an end of its own, which
       // releases the microphone. Not every one does, and a microphone left open
       // after a failure is the worst of both — no dictation, and the recording
@@ -266,7 +295,15 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo' }) {
 
       setListening(false);
       const said = joinSpeech(base.current, spoken.current);
-      setTimeout(() => { if (said.trim()) submitRef.current(said); }, 120);
+      setTimeout(async () => {
+        // Always finished, even when nothing was heard, or the microphone stays
+        // open for a sentence that is never going to arrive.
+        const handle = capture.current;
+        capture.current = null;
+        let recorded = null;
+        try { recorded = await finishCapture(handle); } catch { /* no recording, still a task */ }
+        if (said.trim()) submitRef.current(said, recorded);
+      }, 120);
     };
 
     try { r.start(); } catch { /* already running */ }
