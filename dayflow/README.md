@@ -9,7 +9,7 @@ AI-powered task manager with end-to-end encryption. Built with React Native (Exp
 
 - **Natural Language Input** — Type or speak "Call Mekdi tomorrow at 11am urgent" and the task is created with the right date, time and priority
 - **Voice Commands** — Speak naturally to create tasks (web speech recognition)
-- **Voice Notes** — Hold to record voice memos attached to tasks
+- **Voice Notes** — Hold to record a voice memo, on a new task or on one that already exists. Recordings are stored inside the encrypted task itself, so they survive a reload and reach your other devices
 - **End-to-End Encryption** — Task titles, notes, amounts and names are encrypted with AES-256 before they touch storage. Only you have the key.
 - **One Page, Two Columns** — To Do and Owe Me sit side by side on a single A4-proportioned sheet, divided by a ruled line
 - **Day/Week/Month Views** — Tasks are scoped to their view for clear separation
@@ -118,6 +118,7 @@ dayflow/
 │   │   ├── due.js                  # What a row says about when a task is due
 │   │   ├── age.js                  # How long a task has been sitting there
 │   │   ├── leak.js                 # Whether the server can read any of it (pure, tested)
+│   │   ├── audio.js                # Making a recording outlast the page that made it
 │   │   ├── search.js               # Matching and ranking across every list
 │   │   ├── notifications.js        # Local notification scheduling
 │   │   └── supabase.js             # Supabase client (optional)

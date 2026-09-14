@@ -6,6 +6,7 @@ import { PRIORITY, PRIORITY_COLORS } from '../utils/constants';
 import { EARLY_REMINDER_OPTIONS } from '../services/notifications';
 import { COLORS } from '../utils/theme';
 import DateTimeFields from './DateTimeFields';
+import VoiceRecorder from './VoiceRecorder';
 
 export default function TaskDetail({ task, visible, onClose, onSave, projects = [] }) {
   const [title, setTitle] = useState('');
@@ -18,6 +19,7 @@ export default function TaskDetail({ task, visible, onClose, onSave, projects = 
   const [owePerson, setOwePerson] = useState('');
   const [viewScope, setViewScope] = useState('day');
   const [projectId, setProjectId] = useState('');
+  const [voiceNoteUri, setVoiceNoteUri] = useState(null);
 
   useEffect(() => {
     if (task) {
@@ -33,6 +35,7 @@ export default function TaskDetail({ task, visible, onClose, onSave, projects = 
       setOwePerson(task.owePerson || '');
       setViewScope(task.viewScope || 'day');
       setProjectId(task.projectId || '');
+      setVoiceNoteUri(task.voiceNoteUri || null);
     }
   }, [task]);
 
@@ -51,6 +54,7 @@ export default function TaskDetail({ task, visible, onClose, onSave, projects = 
       owePerson,
       viewScope,
       projectId,
+      voiceNoteUri,
     });
     onClose();
   };
@@ -225,7 +229,14 @@ export default function TaskDetail({ task, visible, onClose, onSave, projects = 
             </View>
           )}
 
-          {/* Notes */}
+          {/* Notes, typed and spoken.
+              A voice note is a note you did not want to type, so it lives
+              under the same heading rather than earning one of its own. It sits
+              directly under the box in the add sheet too — the two sheets
+              putting the same thing in two places is how a person learns that
+              one of them cannot do it. Which, until now, was true: a note could
+              only ever be attached in the seconds before a task existed, and
+              the moment you pressed Add the offer was withdrawn for good. */}
           <View style={styles.section}>
             <Text style={styles.label}>Notes</Text>
             <TextInput
@@ -236,6 +247,11 @@ export default function TaskDetail({ task, visible, onClose, onSave, projects = 
               placeholderTextColor="#C7C7CC"
               multiline
               textAlignVertical="top"
+            />
+            <VoiceRecorder
+              existingUri={voiceNoteUri}
+              onRecordingComplete={uri => setVoiceNoteUri(uri)}
+              onDelete={() => setVoiceNoteUri(null)}
             />
           </View>
 
