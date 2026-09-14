@@ -7,7 +7,7 @@ import { EARLY_REMINDER_OPTIONS } from '../services/notifications';
 import { COLORS } from '../utils/theme';
 import DateTimeFields from './DateTimeFields';
 
-export default function TaskDetail({ task, visible, onClose, onSave }) {
+export default function TaskDetail({ task, visible, onClose, onSave, projects = [] }) {
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
   const [priority, setPriority] = useState('medium');
@@ -17,6 +17,7 @@ export default function TaskDetail({ task, visible, onClose, onSave }) {
   const [earlyReminderIdx, setEarlyReminderIdx] = useState(0);
   const [owePerson, setOwePerson] = useState('');
   const [viewScope, setViewScope] = useState('day');
+  const [projectId, setProjectId] = useState('');
 
   useEffect(() => {
     if (task) {
@@ -31,6 +32,7 @@ export default function TaskDetail({ task, visible, onClose, onSave }) {
       setEarlyReminderIdx(idx >= 0 ? idx : 0);
       setOwePerson(task.owePerson || '');
       setViewScope(task.viewScope || 'day');
+      setProjectId(task.projectId || '');
     }
   }, [task]);
 
@@ -48,6 +50,7 @@ export default function TaskDetail({ task, visible, onClose, onSave }) {
       earlyReminderMinutes: earlyMinutes,
       owePerson,
       viewScope,
+      projectId,
     });
     onClose();
   };
@@ -149,6 +152,40 @@ export default function TaskDetail({ task, visible, onClose, onSave }) {
               })}
             </View>
           </View>
+
+          {/* Which project it belongs to.
+              This could already be changed by holding a task, which is a
+              gesture nobody finds by accident. Opening a task is where you go
+              to change what a task is, and everything else about it was
+              already here. Same control as the scopes above, because it is the
+              same kind of choice — one of a short list, one at a time. */}
+          {projects.length > 0 ? (
+            <View style={styles.section}>
+              <Text style={styles.label}>Project</Text>
+              <View style={styles.projectRow}>
+                {[{ id: '', name: 'Everything' }, ...projects].map(p => {
+                  const on = (projectId || '') === p.id;
+                  return (
+                    <TouchableOpacity
+                      key={p.id || 'everything'}
+                      style={[styles.scopeBtn, styles.projectBtn, on && styles.scopeBtnOn]}
+                      onPress={() => setProjectId(p.id)}
+                      accessibilityRole="radio"
+                      aria-checked={on}
+                      accessibilityLabel={`Put in ${p.name}`}
+                    >
+                      <Text
+                        style={[styles.scopeText, on && styles.scopeTextOn]}
+                        numberOfLines={1}
+                      >
+                        {p.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          ) : null}
 
           {/* Remind Me Early */}
           <View style={styles.section}>
@@ -269,6 +306,13 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   scopeRow: { flexDirection: 'row', gap: 8 },
+  // Wraps rather than divides: three scopes share a row evenly, but a project
+  // list is however long it is, and a seventh share of the width fits no name.
+  projectRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  // Not flex: 0 — in React Native that is flexBasis: 0 as well as flexGrow: 0,
+  // so the button collapses to its padding and the name disappears. What is
+  // wanted is "do not stretch, but be as wide as your text".
+  projectBtn: { flexGrow: 0, flexShrink: 1, flexBasis: 'auto', paddingHorizontal: 14 },
   scopeBtn: {
     flex: 1, alignItems: 'center', paddingVertical: 10,
     borderRadius: 8, borderWidth: 1, borderColor: '#E5E5EA',
