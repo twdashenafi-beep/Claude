@@ -279,6 +279,13 @@ what makes the tasks readable on all three.
 
 **Set it up once:**
 
+> **Checking it worked.** Once two devices are syncing, open **Account →
+> Encryption** in the app. It pulls your own rows back from the server and looks
+> for anything readable in them — plain text, your own task titles, any
+> character that could not have survived encryption. `Unreadable` and a sample
+> of the stored bytes is the answer you want. It beats the dashboard, and it is
+> the only version of this check you can perform on a phone.
+
 1. Create a free project at [supabase.com](https://supabase.com).
 2. Open **SQL Editor → New Query**, paste `supabase/schema.sql`, and run it.
 3. Copy **Project URL** and the **anon public** key from **Settings → API**.

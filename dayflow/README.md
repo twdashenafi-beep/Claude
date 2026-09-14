@@ -21,6 +21,7 @@ AI-powered task manager with end-to-end encryption. Built with React Native (Exp
 - **Reminders** — Local notifications at the due time, with early-reminder options
 - **Persistent Storage** — Tasks survive restarts via encrypted AsyncStorage
 - **Encrypted Sync** — Sign in on each device and they share the same tasks. The server stores only ciphertext; the key is derived from your password and never leaves the device
+- **Check the encryption yourself** — Account → Encryption pulls your own rows back from the server and reads them the way an intruder would, so the central claim is checked on the device rather than taken on trust
 - **Multi-Platform** — iPhone, iPad, Mac (Electron), and Web
 
 ## Quick Start
@@ -116,6 +117,7 @@ dayflow/
 │   │   ├── nlParser.js             # Natural language parser
 │   │   ├── due.js                  # What a row says about when a task is due
 │   │   ├── age.js                  # How long a task has been sitting there
+│   │   ├── leak.js                 # Whether the server can read any of it (pure, tested)
 │   │   ├── search.js               # Matching and ranking across every list
 │   │   ├── notifications.js        # Local notification scheduling
 │   │   └── supabase.js             # Supabase client (optional)
