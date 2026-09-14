@@ -7,7 +7,7 @@
 // when it says something the default could not have said.
 //
 // Run with `npm test`.
-import { dueLabel, dueSpoken } from '../src/services/due.js';
+import { dueLabel, dueSpoken, dueMoment, calendarWindow } from '../src/services/due.js';
 
 let pass = 0, fail = 0;
 const ok = (label, cond, extra = '') => {
@@ -197,6 +197,106 @@ ok('and silence stays silent', dueSpoken(on('2026-09-09'), NOW) === null);
       ok(`${tz} ${when}: yesterday reads Overdue`, past === 'Overdue', past);
     });
   }
+}
+
+// ── Handing a task to the device's calendar ──
+//
+// This read the date field on its own, which does not carry the time — the app
+// keeps the two apart and combines them everywhere else. So a task due at half
+// past five was filed at midnight: right day, emphatically wrong hour. And
+// since every task carries a dueDate whether or not anybody picked one, it
+// would also cheerfully file an undated task at the second it was created.
+{
+  const at = (task) => {
+    const w = calendarWindow(task);
+    return w ? w.startDate : null;
+  };
+  const hhmm = (d) => d && `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  const mins = (w) => w && Math.round((w.endDate - w.startDate) / 60000);
+
+  // Nothing anybody chose does not go in a calendar.
+  ok('an undated task has no moment', dueMoment(undated()) === null);
+  ok('and nothing to put in a calendar', calendarWindow(undated()) === null);
+  ok('nor does one dated by an older version',
+     calendarWindow({ createdAt: '2026-09-02T16:22:41.318Z',
+                      dueDate: '2026-09-02T13:04:02.771Z' }) === null);
+  ok('nor one with no date at all', calendarWindow({ title: 'x' }) === null);
+  ok('nor one whose date cannot be read', calendarWindow({ dueDate: 'whenever' }) === null);
+  ok('and nothing at all is safe', calendarWindow(null) === null);
+
+  // The bug itself: a chosen time has to survive into the event.
+  const evening = { createdAt: MADE, dueDate: '2026-09-11T00:00:00', dueTime: '17:30' };
+  ok('a task due at half past five starts at half past five', hhmm(at(evening)) === '17:30', hhmm(at(evening)));
+  ok('on the day it was given', at(evening).getDate() === 11, String(at(evening)));
+  ok('and it is an appointment, not a day', calendarWindow(evening).allDay === false);
+  ok('lasting an hour', mins(calendarWindow(evening)) === 60, String(mins(calendarWindow(evening))));
+  ok('and the moment says it was timed', dueMoment(evening).timed === true);
+
+  // A date carried on a stamp that happens to have a time of day in it must not
+  // become an event at that arbitrary hour.
+  const friday = { createdAt: MADE, dueDate: '2026-09-11T10:00:00', dueTime: '' };
+  ok('a day with no time starts at midnight', hhmm(at(friday)) === '00:00', hhmm(at(friday)));
+  ok('and is a whole day', calendarWindow(friday).allDay === true);
+  ok('lasting one', mins(calendarWindow(friday)) === 1440, String(mins(calendarWindow(friday))));
+  ok('and the moment says it was not timed', dueMoment(friday).timed === false);
+
+  // Midnight is a legitimate time to choose, and must not be mistaken for none.
+  const midnight = { createdAt: MADE, dueDate: '2026-09-11T00:00:00', dueTime: '00:00' };
+  ok('a task chosen for midnight is still an appointment',
+     calendarWindow(midnight).allDay === false);
+  ok('lasting an hour, not a day', mins(calendarWindow(midnight)) === 60);
+
+  // A time that is not a time is not one.
+  ok('a nonsense time falls back to the whole day',
+     calendarWindow({ createdAt: MADE, dueDate: '2026-09-11T10:00:00', dueTime: '99:99' }).allDay === true);
+
+  // Finishing something does not change when it was due. A label stays quiet
+  // about a finished task because it should not shout; a moment is a fact.
+  ok('a finished task still has a moment',
+     calendarWindow({ ...evening, completed: true }) !== null);
+  ok('while its label stays quiet', dueLabel({ ...evening, completed: true }, NOW) === null);
+
+  // A whole day is a day, not 86,400,000 milliseconds. Twice a year those are
+  // different numbers, and the difference puts the end of an all-day event an
+  // hour inside the day before or the day after.
+  {
+    const { execFileSync } = await import('node:child_process');
+    const script = `
+      import { calendarWindow } from '${new URL('../src/services/due.js', import.meta.url).pathname}';
+      const w = calendarWindow({ createdAt: '2020-01-01T00:00:00',
+                                 dueDate: process.argv[1], dueTime: '' });
+      const pad = n => String(n).padStart(2, '0');
+      const show = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate())
+        + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+      process.stdout.write(show(w.startDate) + '|' + show(w.endDate));
+    `;
+    const days = [
+      ['Europe/London', '2026-10-25T12:00:00', '2026-10-25 00:00|2026-10-26 00:00', 'the 25-hour day'],
+      ['Europe/London', '2026-03-29T12:00:00', '2026-03-29 00:00|2026-03-30 00:00', 'the 23-hour day'],
+      ['America/New_York', '2026-11-01T12:00:00', '2026-11-01 00:00|2026-11-02 00:00', 'the 25-hour day'],
+      ['Australia/Sydney', '2026-10-04T12:00:00', '2026-10-04 00:00|2026-10-05 00:00', 'the 23-hour day'],
+      ['UTC', '2026-10-25T12:00:00', '2026-10-25 00:00|2026-10-26 00:00', 'an ordinary day'],
+    ];
+    for (const [tz, iso, want, what] of days) {
+      let got;
+      try {
+        got = execFileSync(process.execPath, ['--input-type=module', '-e', script, iso],
+          { env: { ...process.env, TZ: tz }, encoding: 'utf8' }).trim();
+      } catch (e) {
+        ok(`${tz}: ${what}`, false, String(e.message).slice(0, 160));
+        continue;
+      }
+      ok(`${tz}: an all-day event spans ${what} exactly`, got === want, got);
+    }
+  }
+
+  // The end is always after the start, whatever was asked for.
+  let backwards = null;
+  for (const t of [evening, friday, midnight]) {
+    const w = calendarWindow(t);
+    if (!(w.endDate > w.startDate)) backwards = JSON.stringify(w);
+  }
+  ok('an event never ends before it starts', backwards === null, backwards || '');
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
