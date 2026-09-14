@@ -22,6 +22,17 @@ const HOLD_MS = 350;
 // hear at all would restart forever.
 const MAX_EMPTY_RESTARTS = 3;
 
+// "Owe me" on its own is not a sentence anybody has finished saying. It is an
+// instruction with its task still to come, and naming the column first is
+// exactly when you are most likely to pause — you have said where it goes and
+// are now thinking about what it is.
+//
+// The pause that ends dictation would end it there, leaving the words in the
+// box, the microphone off and nothing added, which looks precisely like the
+// routing not working. So a command on its own buys more time. Not unlimited:
+// a phone that hears "owe me" from a pocket must not listen for ever.
+const COMMAND_WAITS = 3;
+
 const SpeechRecognition =
   Platform.OS === 'web' && typeof window !== 'undefined'
     ? window.SpeechRecognition || window.webkitSpeechRecognition
@@ -169,6 +180,8 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo' }) {
   const base = useRef('');            // whatever was typed before dictation began
   const emptyRestarts = useRef(0);
   const pressAt = useRef(0);
+  // How many extra pauses a command with no task after it has been given.
+  const commandWaits = useRef(0);
   // The recording running alongside dictation, when the device allows one.
   const capture = useRef(null);
 
@@ -198,6 +211,7 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo' }) {
       base.current = text.trim();
       spoken.current = '';
       emptyRestarts.current = 0;
+      commandWaits.current = 0;
       setSpeechError('');
     }
 
@@ -217,7 +231,21 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo' }) {
       // Only a tap latches. A hold ends when the finger lifts, and a silence
       // timer would cut the speaker off mid-thought while they still held it.
       if (!latched.current) return;
-      silenceTimer.current = setTimeout(() => stopListening(), SILENCE_MS);
+      silenceTimer.current = setTimeout(() => {
+        // Everything said so far. If it routes somewhere and names nothing,
+        // the sentence is half finished and the pause is a person thinking,
+        // not a person stopping.
+        const said = joinSpeech(base.current, spoken.current);
+        const unfinished =
+          said.trim().length > 0 && parseNaturalLanguage(said).title.trim().length === 0;
+
+        if (unfinished && commandWaits.current < COMMAND_WAITS) {
+          commandWaits.current += 1;
+          armSilence();
+          return;
+        }
+        stopListening();
+      }, SILENCE_MS);
     };
 
     const show = interim => {
@@ -395,16 +423,29 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo' }) {
         </View>
       ) : null}
 
-      {preview && !listening && !processing && text.trim().length > 2 && (
+      {/* Shown while listening as well as after it.
+          Hiding it during dictation meant the one thing worth seeing was
+          invisible at the one moment it mattered: whether the words that choose
+          the column were heard as those words. A mishearing is obvious the
+          instant it is on the screen and impossible to catch if it is not. */}
+      {preview && !processing && text.trim().length > 2 && (
         <View style={st.previewRow}>
-          <Text style={st.previewText} numberOfLines={1}>{preview.title}</Text>
+          <Text style={st.previewText} numberOfLines={1}>
+            {preview.title || (listening ? 'Listening…' : '')}
+          </Text>
           {/* Which list this is heading for, before it is committed — the
               routing is inferred from the wording, so it has to be visible. */}
-          {preview.taskType === 'done_for_me' && (
+          {preview.taskType === 'done_for_me' ? (
             <Text style={st.tag}>
               {preview.owePerson ? `Owe Me · ${preview.owePerson}` : 'Owe Me'}
             </Text>
-          )}
+          ) : null}
+          {/* Said out loud too. Owe Me announced itself and To Do did not, so
+              there was no way to tell a command that had been understood from
+              one that had been misheard and quietly left in the title. */}
+          {preview.taskType !== 'done_for_me' && preview.commanded ? (
+            <Text style={st.tag}>To Do</Text>
+          ) : null}
           {preview.hasDate && <Text style={st.tag}>{preview.viewScope}</Text>}
           {preview.hasTime && <Text style={st.tag}>{preview.dueTime}</Text>}
           {preview.priority === 'high' && <Text style={[st.tag, { color: COLORS.accent, fontWeight: '700' }]}>High</Text>}
