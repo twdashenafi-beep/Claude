@@ -713,6 +713,7 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
         visible={!!detailTask}
         onClose={() => setDetailTask(null)}
         onSave={updateTask}
+        projects={projects}
       />
 
       {alerts.length > 0 ? (
