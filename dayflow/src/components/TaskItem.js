@@ -6,7 +6,7 @@ import {
 import { VoicePlayButton } from './VoiceRecorder';
 import { Platform } from 'react-native';
 import { dueLabel, dueSpoken } from '../services/due';
-import { waitingLabel } from '../services/waiting';
+import { ageLabel } from '../services/age';
 import { COLORS, SANS, SERIF } from '../utils/theme';
 
 // Holding a finger on the handle otherwise selects the text beside it and
@@ -134,10 +134,11 @@ export default function TaskItem({
   // The date half used to be the bare time, which said the same thing for a
   // task due this evening and one that was due a fortnight ago.
   const due = done ? null : dueLabel(task);
-  // How long this has been sat with somebody else. Owe Me is a chasing list and
-  // its rows said nothing at all about time, so one asked for this morning and
-  // one asked for six weeks ago read exactly alike.
-  const waiting = done ? null : waitingLabel(task);
+  // How long this has been sitting. One slot, and the column it is in decides
+  // what it means: in Owe Me somebody has had it for three weeks, in To Do you
+  // have carried it for three weeks. Both said nothing at all about time
+  // before, so one raised this morning and one raised in July read alike.
+  const age = done ? null : ageLabel(task);
   const meta = [task.owePerson || null].filter(Boolean);
 
   return (
@@ -193,7 +194,7 @@ export default function TaskItem({
             task.title,
             task.owePerson ? `waiting on ${task.owePerson}` : null,
             dueSpoken(task),
-            waiting ? waiting.text : null,
+            age ? age.text : null,
             task.priority === 'high' ? 'high priority' : null,
             done ? 'completed' : null,
           ].filter(Boolean).join(', ')}
@@ -206,7 +207,7 @@ export default function TaskItem({
             {task.title}
           </Text>
 
-          {meta.length > 0 || due || waiting ? (
+          {meta.length > 0 || due || age ? (
             <Text style={[st.meta, done && st.metaDone]} numberOfLines={narrow ? 2 : 1}>
               {/* Late is the only thing on a row allowed to raise its voice.
                   Everything else here is the same quiet italic, so the one word
@@ -214,11 +215,11 @@ export default function TaskItem({
               {due ? (
                 <Text style={due.late ? st.late : null}>{due.text}</Text>
               ) : null}
-              {due && (waiting || meta.length > 0) ? '  ·  ' : ''}
-              {waiting ? (
-                <Text style={waiting.stale ? st.late : null}>{waiting.text}</Text>
+              {due && (age || meta.length > 0) ? '  ·  ' : ''}
+              {age ? (
+                <Text style={age.stale ? st.late : null}>{age.text}</Text>
               ) : null}
-              {waiting && meta.length > 0 ? '  ·  ' : ''}
+              {age && meta.length > 0 ? '  ·  ' : ''}
               {meta.join('  ·  ')}
             </Text>
           ) : null}

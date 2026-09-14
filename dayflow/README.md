@@ -17,6 +17,7 @@ AI-powered task manager with end-to-end encryption. Built with React Native (Exp
 - **Quick Actions** — Double-tap to complete, long-press for options, swipe to delete
 - **Calendar Sync** — Push any dated task to your device calendar from the quick-actions sheet
 - **Owe Me** — A follow-up column for what other people owe *you*: the task, who you are waiting on, and when to chase it. Each row says how long it has been waiting, and turns red past a fortnight
+- **How long it has been sitting** — A To Do you have carried far longer than its scope says so too, quietly: red is for somebody else being late, not for you
 - **Reminders** — Local notifications at the due time, with early-reminder options
 - **Persistent Storage** — Tasks survive restarts via encrypted AsyncStorage
 - **Encrypted Sync** — Sign in on each device and they share the same tasks. The server stores only ciphertext; the key is derived from your password and never leaves the device
@@ -114,7 +115,7 @@ dayflow/
 │   │   ├── encryption.js           # AES-256 encryption service
 │   │   ├── nlParser.js             # Natural language parser
 │   │   ├── due.js                  # What a row says about when a task is due
-│   │   ├── waiting.js              # How long an Owe Me task has been waiting
+│   │   ├── age.js                  # How long a task has been sitting there
 │   │   ├── search.js               # Matching and ranking across every list
 │   │   ├── notifications.js        # Local notification scheduling
 │   │   └── supabase.js             # Supabase client (optional)

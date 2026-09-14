@@ -1,10 +1,10 @@
-// How long you have been waiting, on the row.
+// How long a task has been sitting there, on the row.
 //
-// Owe Me is a chasing list, and its rows said nothing at all about time: one
-// asked for this morning and one asked for six weeks ago read exactly alike.
-// What has to be proved is both halves of that — that a long wait says so and
-// turns red, and that a fresh one still says nothing, because a line reading
-// "waiting 0 days" against every row is noise you learn to skip past.
+// Neither column said anything at all about time, so one raised this morning
+// and one raised in July read exactly alike. What has to be proved is both
+// halves of it — that a long wait says so and turns red, that a long-carried
+// task says so and does not, and that neither speaks while it is new, because a
+// line remarking on every row is noise you learn to skip past.
 //
 // The waiting is made by moving the browser's clock forward rather than by
 // writing a date into storage: the vault is encrypted, and more to the point a
@@ -189,8 +189,8 @@ const rowSays = async (title) => page.evaluate((t) => {
     .find(e => (e.getAttribute('aria-label') || '').startsWith(t));
   return el ? el.getAttribute('aria-label') : null;
 }, title);
-ok('and the To Do says nothing — nobody owes you that',
-   !/waiting/.test(await rowSays('Cancel the gym membership') || ''),
+ok('and the To Do says nothing — three days is not avoidance',
+   !/waiting|carried/.test(await rowSays('Cancel the gym membership') || ''),
    String(await rowSays('Cancel the gym membership')));
 
 // Found here rather than in the due tests, because it only shows once the clock
@@ -223,6 +223,28 @@ ok('and no longer in days', !/waiting \d+ days/.test(text), text.slice(0, 500));
 pen = await penFor('waiting 3 weeks');
 ok('a stale chase is drawn in the red pen', pen && pen.colour !== GREY, JSON.stringify(pen));
 ok('and in bold, like an overdue task', pen && Number(pen.weight) >= 700, JSON.stringify(pen));
+
+// ── And the other column admits what it has been carrying ──
+//
+// Same length of time, opposite meaning: nobody else is late, you are. So it
+// says so and then says it quietly, because a sheet that turns your own backlog
+// red is a red sheet for whoever needs the signal most.
+ok('a task carried three weeks says so',
+   /carried 3 weeks/.test(await rowSays('Cancel the gym membership') || ''),
+   String(await rowSays('Cancel the gym membership')));
+ok('and it is not called waiting — nobody owes you your own task',
+   !/waiting/.test(await rowSays('Cancel the gym membership') || ''),
+   String(await rowSays('Cancel the gym membership')));
+
+pen = await penFor('carried 3 weeks');
+ok('what you are carrying is its own element', pen !== null);
+ok('and stays in the ordinary grey', pen && pen.colour === GREY, JSON.stringify(pen));
+ok('and is not bolded either', pen && Number(pen.weight) < 700, JSON.stringify(pen));
+
+// The two columns must say a length of time the same way, or the page has two
+// voices.
+ok('both columns word three weeks identically',
+   /waiting 3 weeks/.test(text) && /carried 3 weeks/.test(text), text.slice(0, 600));
 
 // A picture of the thing, on a phone, when SHOT names a file. The label has to
 // survive a narrow column beside the person's name, which is a matter of

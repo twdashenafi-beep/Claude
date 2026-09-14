@@ -224,8 +224,11 @@ npm run api
 
 Then check it with `curl localhost:3001/health`.
 
-Endpoints: `POST /ai/summary`, `/ai/prioritize`, `/ai/steps`. Unset the key and
-they return 503 while the app falls back to its offline behaviour. Restart the
+One endpoint: `POST /ai/summary`, which backs the optional summary in the daily
+briefing. Unset the key and it returns 503 while the app falls back to its
+offline behaviour — which is all of the app except that one paragraph. Note
+that this is the only thing in DayFlow that sends task titles off the device in
+readable form; everything else the server ever sees is ciphertext. Restart the
 Expo dev server after changing `EXPO_PUBLIC_*` — those are baked in at bundle
 time. Beyond local use, deploy the API server somewhere private and point
 `EXPO_PUBLIC_API_URL` at it; the deployed web app cannot reach your localhost.
