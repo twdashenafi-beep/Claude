@@ -162,5 +162,25 @@ ok('a plain lowercase task too', title('call the bank') === 'Call the bank');
 ok('a deliberate spelling survives it', title('to do iPhone repair') === 'iPhone repair');
 ok('an empty title stays empty', title('owe me') === '');
 
+// ── Whether a column was named out loud ──
+//
+// The quick-add box shows this back to you while you are still speaking. A
+// command that was understood has to look different from one that was misheard
+// and left sitting in the title, or a mishearing is invisible until the task is
+// in the wrong list.
+const said = (t) => parseNaturalLanguage(t).commanded;
+ok('a spoken To Do is a command', said('To Do call the letting agent') === true);
+ok('and a spoken Owe Me', said('Owe me the signed lease') === true);
+ok('and a bare command on its own', said('Owe me') === true);
+ok('an ordinary task is not', said('call the letting agent') === false);
+// It means the wording chose the column, not that a column was named: a
+// phrasing that implies one counts too, which is why the box can show Owe Me
+// for this without anybody having said the words.
+ok('a phrasing that implies the column counts as well',
+   said('Sarah owes me the Q3 numbers') === true);
+ok('and its column is Owe Me',
+   parseNaturalLanguage('Sarah owes me the Q3 numbers').taskType === 'done_for_me');
+ok('nor an empty line', said('') === false);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

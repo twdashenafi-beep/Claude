@@ -257,6 +257,15 @@ export function parseNaturalLanguage(input) {
     viewScope,
     // 'done_for_me' is what the Owe Me column filters on.
     taskType: owe.isOwe ? 'done_for_me' : 'todo',
+    // Whether the wording chose the column, rather than the open tab deciding
+    // it. True for a named column — "To Do …", "Owe me …" — and for a phrasing
+    // that implies one, as "Sarah owes me the deck" does.
+    //
+    // The quick-add box shows this back to you while you are still speaking. A
+    // command that was understood has to look different from one that was
+    // misheard and left sitting in the title, or the mishearing is invisible
+    // until the task turns up in the wrong list.
+    commanded: owe.commanded,
     owePerson: owe.person,
     hasDate: !!date || !!time,
     hasTime: !!time,
