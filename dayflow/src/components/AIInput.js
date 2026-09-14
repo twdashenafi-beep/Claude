@@ -99,7 +99,6 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo' }) {
 
     setProcessing(true);
     setTimeout(() => {
-      const now = new Date();
       // What was said decides which list it lands in. activeTab is only the
       // fallback: before this, "Sarah owes me the deck" was filed under To Do
       // because the tab was the only thing consulted.
@@ -111,8 +110,11 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo' }) {
         taskType,
         owePerson: parsed.owePerson || '',
         viewScope: parsed.viewScope || viewMode || 'day',
-        date: parsed.date || now.toISOString(),
-        dueDate: parsed.dueDate || now.toISOString(),
+        // Only what was actually said. Stamping the current moment here made a
+        // date that looked chosen, and the store's own stamp is a millisecond
+        // later — near enough to pass by luck and far enough to fail by it.
+        date: parsed.date || undefined,
+        dueDate: parsed.dueDate || undefined,
         dueTime: parsed.dueTime || '',
         reminderEnabled: !!parsed.dueTime,
         earlyReminderMinutes: 0,

@@ -705,7 +705,6 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
         section="todo"
         defaultTaskType={addingTo || 'todo'}
         viewMode={viewMode}
-        selectedDate={selectedDate}
       />
 
       <TaskDetail
