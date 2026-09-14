@@ -224,8 +224,11 @@ npm run api
 
 Then check it with `curl localhost:3001/health`.
 
-Endpoints: `POST /ai/summary`, `/ai/prioritize`, `/ai/steps`. Unset the key and
-they return 503 while the app falls back to its offline behaviour. Restart the
+One endpoint: `POST /ai/summary`, which backs the optional summary in the daily
+briefing. Unset the key and it returns 503 while the app falls back to its
+offline behaviour — which is all of the app except that one paragraph. Note
+that this is the only thing in DayFlow that sends task titles off the device in
+readable form; everything else the server ever sees is ciphertext. Restart the
 Expo dev server after changing `EXPO_PUBLIC_*` — those are baked in at bundle
 time. Beyond local use, deploy the API server somewhere private and point
 `EXPO_PUBLIC_API_URL` at it; the deployed web app cannot reach your localhost.
@@ -275,6 +278,13 @@ with the same email and password arrives at the same key — which is exactly
 what makes the tasks readable on all three.
 
 **Set it up once:**
+
+> **Checking it worked.** Once two devices are syncing, open **Account →
+> Encryption** in the app. It pulls your own rows back from the server and looks
+> for anything readable in them — plain text, your own task titles, any
+> character that could not have survived encryption. `Unreadable` and a sample
+> of the stored bytes is the answer you want. It beats the dashboard, and it is
+> the only version of this check you can perform on a phone.
 
 1. Create a free project at [supabase.com](https://supabase.com).
 2. Open **SQL Editor → New Query**, paste `supabase/schema.sql`, and run it.

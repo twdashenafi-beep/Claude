@@ -203,18 +203,12 @@ await A.page.waitForTimeout(400);
 // Drive the picker to the minute the task is due.
 const target = { h: now.getHours() % 12 || 12, m: now.getMinutes(), period: now.getHours() >= 12 ? 'PM' : 'AM' };
 await A.page.getByLabel(target.period === 'AM' ? 'Morning' : 'Afternoon').click();
-for (let i = 0; i < 24; i += 1) {
-  const label = await A.page.getByLabel(/^Hour \d/).getAttribute('aria-label');
-  if (Number(label.replace('Hour ', '')) === target.h) break;
-  await A.page.getByLabel('Hour up').click();
-  await A.page.waitForTimeout(20);
-}
-for (let i = 0; i < 60; i += 1) {
-  const label = await A.page.getByLabel(/^Minute \d/).getAttribute('aria-label');
-  if (Number(label.replace('Minute ', '')) === target.m) break;
-  await A.page.getByLabel('Minute up').click();
-  await A.page.waitForTimeout(15);
-}
+// Two clicks, where this was a loop of up to sixty. Every value on the drum is
+// its own button, so the minute can be reached directly instead of stepped to.
+await A.page.getByLabel(`Hour ${target.h}`, { exact: true }).click();
+await A.page.waitForTimeout(250);
+await A.page.getByLabel(`Minute ${String(target.m).padStart(2, '0')}`, { exact: true }).click();
+await A.page.waitForTimeout(250);
 await A.page.getByLabel('Use this time').click();
 await A.page.waitForTimeout(300);
 ok('the picker reached the minute the task is due',

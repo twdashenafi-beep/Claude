@@ -167,12 +167,13 @@ await A.page.getByLabel('Set a time').click();
 await A.page.waitForTimeout(500);
 ok('the time picker opens', (await A.page.locator('text=Hour').count()) === 1);
 
-// 9:00 AM: hours count down from the current hour through the wheel.
+// The drum: every value is a button, so an hour is chosen rather than stepped
+// to. This was a loop, and minutes were worse — sixty taps to cross an hour.
 await A.page.getByLabel('Morning').click();
-for (let i = 0; i < 3; i += 1) {
-  await A.page.getByLabel('Hour up').click();
-  await A.page.waitForTimeout(60);
-}
+await A.page.getByLabel('Hour 9', { exact: true }).click();
+await A.page.waitForTimeout(300);
+await A.page.getByLabel('Minute 00', { exact: true }).click();
+await A.page.waitForTimeout(300);
 const chosen = (await A.page.getByLabel(/^Chosen time /).first().innerText()).trim();
 // The list prints 24-hour; the picker and chips print 12-hour with a period.
 const to24 = label => {
@@ -210,13 +211,17 @@ ok('the existing time is offered as a control, not just printed',
 
 await timeChip.click();
 await A.page.waitForTimeout(400);
-ok('tapping the time clears it', (await A.page.getByLabel('Set a time').count()) === 1);
-
-await A.page.getByLabel('Set a time').click();
-await A.page.waitForTimeout(500);
+// This used to clear the time, so changing one meant clearing it and starting
+// from nothing — while the label promised "change or clear". It opens the
+// picker at the time already set now, and Clear is a word inside it.
+ok('tapping a set time opens the picker rather than wiping it',
+   (await A.page.getByLabel('Use this time').count()) === 1);
+ok('and the picker offers to remove it',
+   (await A.page.getByLabel('Remove the time').count()) === 1);
+await A.page.waitForTimeout(300);
 await A.page.getByLabel('Afternoon').click();
-await A.page.getByLabel('Hour up').click();
-await A.page.waitForTimeout(100);
+await A.page.getByLabel('Hour 4', { exact: true }).click();
+await A.page.waitForTimeout(300);
 const changed = (await A.page.getByLabel(/^Chosen time /).first().innerText()).trim();
 await A.page.getByLabel('Use this time').click();
 await A.page.waitForTimeout(400);
@@ -230,6 +235,63 @@ ok('a time changed on an existing task sticks', (await body(A.page)).includes(to
    `wanted ${to24(changed)}, got ${(await body(A.page)).slice(0, 220)}`);
 ok('and the old time is gone',
    changed === chosen || !(await body(A.page)).includes(to24(chosen)));
+
+// ── The drum behaves like a drum ──
+//
+// Clicking a value is how a mouse, a keyboard and a screen reader use it, and
+// everything above proves that path. This is the other one: a finger flicks it,
+// and the value follows where it lands. The two used to be one pair of plus and
+// minus buttons, and a minute stepped by one — half past the hour was thirty
+// taps away.
+//
+// The sheet was saved and closed above, so the task is reopened to get at the
+// picker again. Its chip reads "Due at ..." now rather than "Set a time",
+// since the task has a time on it.
+await A.page.locator('text=dentist').first().click();
+await A.page.waitForTimeout(900);
+await A.page.getByLabel(/^(Set a time|Due at )/).first().click();
+await A.page.waitForTimeout(700);
+
+const drum = name => A.page.locator(`[data-drum="${name}"]`);
+const chosenOn = async name => A.page.evaluate(n => {
+  const d = document.querySelector(`[data-drum="${n}"]`);
+  const on = d && d.querySelector('[aria-checked="true"]');
+  return on ? on.getAttribute('aria-label') : null;
+}, name);
+
+ok('both drums are on the page',
+   (await drum('hour').count()) === 1 && (await drum('min').count()) === 1);
+ok('each has one value chosen',
+   (await chosenOn('hour')) !== null && (await chosenOn('min')) !== null);
+
+// Every minute is reachable, which is what makes a drum worth having.
+ok('the minute drum carries all sixty',
+   (await drum('min').locator('[aria-label^="Minute "]').count()) === 60);
+ok('and the hour drum twelve',
+   (await drum('hour').locator('[aria-label^="Hour "]').count()) === 12);
+
+// Scroll it as a finger would, and let it settle.
+const before = await chosenOn('min');
+await drum('min').evaluate(el => { el.scrollTop += 44 * 7; });
+await A.page.waitForTimeout(700);
+const after = await chosenOn('min');
+ok('scrolling the drum changes the minute', after !== before, `${before} -> ${after}`);
+ok('and it lands on a whole value, not between two',
+   /^Minute \d{2}$/.test(after || ''), String(after));
+
+// The heading follows it, so what is chosen is legible without reading the band.
+const heading = (await A.page.getByLabel(/^Chosen time /).first().innerText()).trim();
+ok('the heading agrees with the drum',
+   heading.includes(String((after || '').replace('Minute ', ''))), `${heading} vs ${after}`);
+
+// Thirty is reachable in one tap, which was the whole complaint.
+await A.page.getByLabel('Minute 30', { exact: true }).click();
+await A.page.waitForTimeout(400);
+ok('any minute can be chosen outright', (await chosenOn('min')) === 'Minute 30',
+   String(await chosenOn('min')));
+
+await A.page.getByLabel('Cancel choosing a time').click();
+await A.page.waitForTimeout(400);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();

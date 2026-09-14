@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, Modal, Platform,
+  View, Text, TouchableOpacity, StyleSheet, Modal, Platform, ScrollView,
 } from 'react-native';
 import {
   format, startOfMonth, getDay, getDaysInMonth, addMonths, subMonths,
@@ -120,8 +120,103 @@ const calStyles = StyleSheet.create({
 // ── Time Picker Modal ────────────────────────────────────────────────────────
 
 const HOURS_12 = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+const MINUTES = Array.from({ length: 60 }, (_, i) => i);
 
-function TimePickerModal({ visible, hour24, minute, onConfirm, onCancel }) {
+// A drum, as on a phone's own time picker.
+//
+// This was a pair of plus and minus buttons, and minutes stepped by one: going
+// from the hour to half past it took thirty taps. A drum crosses the same
+// distance with one flick, and lands nowhere it could not land before.
+//
+// Every value is also a button that scrolls to itself. That is not decoration:
+// it is how a mouse picks a value, how a keyboard reaches one, and how a screen
+// reader — which can do nothing with a flick — chooses at all.
+const ITEM_H = 44;
+const VISIBLE = 5;
+const DRUM_H = ITEM_H * VISIBLE;
+const PAD = (DRUM_H - ITEM_H) / 2;
+
+function Drum({ label, values, value, format, onChange, nameOf }) {
+  const ref = React.useRef(null);
+  const settle = React.useRef(null);
+  const index = Math.max(0, values.indexOf(value));
+
+  // Put the drum where the value is whenever it is set from outside — opening
+  // the sheet, or the hour changing under a minute that did not move.
+  React.useEffect(() => {
+    const node = ref.current;
+    if (!node) return undefined;
+    const id = setTimeout(() => {
+      try { node.scrollTo({ y: index * ITEM_H, animated: false }); } catch { /* not laid out yet */ }
+    }, 0);
+    return () => clearTimeout(id);
+  }, [index]);
+
+  React.useEffect(() => () => clearTimeout(settle.current), []);
+
+  // Read the value off the scroll position once it stops. onMomentumScrollEnd
+  // is not dependable on the web, so this waits for the scrolling to go quiet
+  // instead of waiting to be told it has.
+  const onScroll = e => {
+    const y = e.nativeEvent.contentOffset.y;
+    clearTimeout(settle.current);
+    settle.current = setTimeout(() => {
+      const i = Math.max(0, Math.min(values.length - 1, Math.round(y / ITEM_H)));
+      if (values[i] !== value) onChange(values[i]);
+    }, 110);
+  };
+
+  const pick = v => {
+    onChange(v);
+    const node = ref.current;
+    if (node) {
+      try { node.scrollTo({ y: values.indexOf(v) * ITEM_H, animated: true }); } catch { /* fine */ }
+    }
+  };
+
+  return (
+    <View style={tp.col}>
+      <Text style={tp.colLabel}>{label}</Text>
+      <View style={tp.drumWrap}>
+        {/* The band the chosen value sits in, drawn behind and ignored by
+            touches so it cannot get between a finger and the drum. */}
+        <View style={tp.band} pointerEvents="none" />
+        <ScrollView
+          ref={ref}
+          style={tp.drum}
+          // eslint-disable-next-line react-native/no-inline-styles
+          contentContainerStyle={{ paddingVertical: PAD }}
+          showsVerticalScrollIndicator={false}
+          snapToInterval={ITEM_H}
+          decelerationRate="fast"
+          scrollEventThrottle={16}
+          onScroll={onScroll}
+          dataSet={{ drum: label.toLowerCase() }}
+          className="drum-scroll"
+        >
+          {values.map(v => {
+            const on = v === value;
+            return (
+              <TouchableOpacity
+                key={v}
+                style={tp.item}
+                onPress={() => pick(v)}
+                accessibilityRole="radio"
+                aria-checked={on}
+                accessibilityLabel={nameOf(v)}
+              >
+                <Text style={[tp.itemText, on && tp.itemTextOn]}>{format(v)}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
+    </View>
+  );
+}
+
+
+function TimePickerModal({ visible, hour24, minute, onConfirm, onCancel, onClear }) {
   const h = parseInt(hour24, 10);
   const [hour, setHour] = React.useState(h === 0 ? 12 : h > 12 ? h - 12 : h);
   const [min, setMin] = React.useState(parseInt(minute, 10));
@@ -135,17 +230,6 @@ function TimePickerModal({ visible, hour24, minute, onConfirm, onCancel }) {
       setPeriod(hh >= 12 ? 'PM' : 'AM');
     }
   }, [visible]);
-
-  const incHour = () => {
-    const idx = HOURS_12.indexOf(hour);
-    setHour(HOURS_12[(idx + 1) % 12]);
-  };
-  const decHour = () => {
-    const idx = HOURS_12.indexOf(hour);
-    setHour(HOURS_12[(idx - 1 + 12) % 12]);
-  };
-  const incMin = () => setMin((min + 1) % 60);
-  const decMin = () => setMin((min - 1 + 60) % 60);
 
   const handleDone = () => {
     let h24;
@@ -173,66 +257,50 @@ function TimePickerModal({ visible, hour24, minute, onConfirm, onCancel }) {
           </Text>
 
           <View style={tp.row}>
-            <View style={tp.col}>
-              <Text style={tp.colLabel}>Hour</Text>
-              <TouchableOpacity
-                style={tp.btn} onPress={incHour}
-                accessibilityRole="button" accessibilityLabel="Hour up"
-              >
-                <Text style={tp.btnText}>+</Text>
-              </TouchableOpacity>
-              <View style={tp.valBox} accessibilityLabel={`Hour ${hour}`}>
-                <Text style={tp.val}>{hour}</Text>
-              </View>
-              <TouchableOpacity
-                style={tp.btn} onPress={decHour}
-                accessibilityRole="button" accessibilityLabel="Hour down"
-              >
-                <Text style={tp.btnText}>−</Text>
-              </TouchableOpacity>
-            </View>
+            <Drum
+              label="Hour"
+              values={HOURS_12}
+              value={hour}
+              format={v => String(v)}
+              nameOf={v => `Hour ${v}`}
+              onChange={setHour}
+            />
 
             <Text style={tp.colon}>:</Text>
 
-            <View style={tp.col}>
-              <Text style={tp.colLabel}>Min</Text>
-              <TouchableOpacity
-                style={tp.btn} onPress={incMin}
-                accessibilityRole="button" accessibilityLabel="Minute up"
-              >
-                <Text style={tp.btnText}>+</Text>
-              </TouchableOpacity>
-              <View style={tp.valBox} accessibilityLabel={`Minute ${String(min).padStart(2, '0')}`}>
-                <Text style={tp.val}>{String(min).padStart(2, '0')}</Text>
-              </View>
-              <TouchableOpacity
-                style={tp.btn} onPress={decMin}
-                accessibilityRole="button" accessibilityLabel="Minute down"
-              >
-                <Text style={tp.btnText}>−</Text>
-              </TouchableOpacity>
-            </View>
+            <Drum
+              label="Min"
+              values={MINUTES}
+              value={min}
+              format={v => String(v).padStart(2, '0')}
+              nameOf={v => `Minute ${String(v).padStart(2, '0')}`}
+              onChange={setMin}
+            />
 
+            {/* Two values are not a drum. A pair of buttons says what it is at
+                a glance and needs no scrolling to reach either one. */}
             <View style={tp.col}>
               <Text style={tp.colLabel}>{' '}</Text>
-              <TouchableOpacity
-                style={[tp.ampm, period === 'AM' && tp.ampmActive]}
-                onPress={() => setPeriod('AM')}
-                accessibilityRole="button"
-                accessibilityLabel="Morning"
-                aria-pressed={period === 'AM'}
-              >
-                <Text style={[tp.ampmText, period === 'AM' && tp.ampmTextActive]}>AM</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[tp.ampm, period === 'PM' && tp.ampmActive]}
-                onPress={() => setPeriod('PM')}
-                accessibilityRole="button"
-                accessibilityLabel="Afternoon"
-                aria-pressed={period === 'PM'}
-              >
-                <Text style={[tp.ampmText, period === 'PM' && tp.ampmTextActive]}>PM</Text>
-              </TouchableOpacity>
+              <View style={tp.ampmStack}>
+                <TouchableOpacity
+                  style={[tp.ampm, period === 'AM' && tp.ampmActive]}
+                  onPress={() => setPeriod('AM')}
+                  accessibilityRole="button"
+                  accessibilityLabel="Morning"
+                  aria-pressed={period === 'AM'}
+                >
+                  <Text style={[tp.ampmText, period === 'AM' && tp.ampmTextActive]}>AM</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[tp.ampm, period === 'PM' && tp.ampmActive]}
+                  onPress={() => setPeriod('PM')}
+                  accessibilityRole="button"
+                  accessibilityLabel="Afternoon"
+                  aria-pressed={period === 'PM'}
+                >
+                  <Text style={[tp.ampmText, period === 'PM' && tp.ampmTextActive]}>PM</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
 
@@ -243,6 +311,17 @@ function TimePickerModal({ visible, hour24, minute, onConfirm, onCancel }) {
             >
               <Text style={tp.cancelText}>Cancel</Text>
             </TouchableOpacity>
+            {onClear ? (
+              <>
+                <View style={tp.footerDiv} />
+                <TouchableOpacity
+                  style={tp.footerBtn} onPress={onClear}
+                  accessibilityRole="button" accessibilityLabel="Remove the time"
+                >
+                  <Text style={tp.cancelText}>Clear</Text>
+                </TouchableOpacity>
+              </>
+            ) : null}
             <View style={tp.footerDiv} />
             <TouchableOpacity
               style={tp.footerBtn} onPress={handleDone}
@@ -273,19 +352,21 @@ const tp = StyleSheet.create({
   },
   col: { alignItems: 'center', gap: 6 },
   colLabel: { fontSize: 11, fontWeight: '600', color: COLORS.inkSoft, marginBottom: 2 },
-  btn: {
-    width: 52, height: 52, borderRadius: 26,
-    backgroundColor: '#F4F1EA', justifyContent: 'center', alignItems: 'center',
+  drumWrap: { height: DRUM_H, width: 72, justifyContent: 'center' },
+  drum: { height: DRUM_H },
+  // The chosen value sits in this band rather than being coloured, so the drum
+  // reads as a dial with a window in it rather than a list with a highlight.
+  band: {
+    position: 'absolute', left: 0, right: 0, top: PAD, height: ITEM_H,
+    backgroundColor: '#F4F1EA', borderRadius: 10,
   },
-  btnText: { fontSize: 26, color: COLORS.accent, fontWeight: '300', marginTop: -2 },
-  valBox: {
-    width: 68, height: 52, borderRadius: 12,
-    backgroundColor: '#F4F1EA', justifyContent: 'center', alignItems: 'center',
-  },
-  val: { fontSize: 32, fontWeight: '700', color: COLORS.ink },
-  colon: { fontSize: 32, fontWeight: '700', color: COLORS.ink, marginTop: 18 },
+  item: { height: ITEM_H, justifyContent: 'center', alignItems: 'center' },
+  itemText: { fontSize: 22, color: COLORS.inkFaint, fontVariant: ['tabular-nums'] },
+  itemTextOn: { fontSize: 26, fontWeight: '700', color: COLORS.ink },
+  colon: { fontSize: 30, fontWeight: '700', color: COLORS.ink },
+  ampmStack: { gap: 8, justifyContent: 'center', height: DRUM_H },
   ampm: {
-    width: 52, height: 52, borderRadius: 12,
+    width: 56, height: 46, borderRadius: 12,
     backgroundColor: '#F4F1EA', justifyContent: 'center', alignItems: 'center',
   },
   ampmActive: { backgroundColor: COLORS.accent },
@@ -389,10 +470,11 @@ export default function DateTimeFields({ value, onChange }) {
           style={[CHIP.chip, timeEnabled && CHIP.chipOn]}
           accessibilityRole="button"
           accessibilityLabel={timeEnabled ? `Due at ${timeLabel}. Change or clear the time.` : 'Set a time'}
-          onPress={() => {
-            if (timeEnabled) commit(selectedDate, '');
-            else setTimePickerOpen(true);
-          }}
+          // It used to clear the time instead, so changing one meant clearing
+          // it and starting from nothing — and the label had been promising
+          // "change or clear" the whole time. Now it opens where the time
+          // already is, and clearing is a word in the picker.
+          onPress={() => setTimePickerOpen(true)}
         >
           <Text style={CHIP.chipIcon}>🕐</Text>
           <Text style={[CHIP.chipLabel, timeEnabled && CHIP.chipLabelOn]}>{timeLabel}</Text>
@@ -411,6 +493,10 @@ export default function DateTimeFields({ value, onChange }) {
         hour24={hour24}
         minute={minute}
         onCancel={() => setTimePickerOpen(false)}
+        onClear={timeEnabled ? () => {
+          commit(selectedDate, '');
+          setTimePickerOpen(false);
+        } : null}
         onConfirm={(h, m) => {
           // A time with no date would never fire, so choosing one implies today.
           commit(dueDate ? selectedDate : new Date(), `${String(h).padStart(2, '0')}:${m}`);

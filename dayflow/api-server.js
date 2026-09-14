@@ -22,9 +22,9 @@ const MODEL = 'claude-opus-5';
 
 // Cost controls.
 //
-// The AI endpoints spend the operator's money, not the caller's, so an
+// The AI endpoint spends the operator's money, not the caller's, so an
 // unmetered /ai/summary is an open invitation to run up a bill — and the app
-// bundle is public, so anyone can find these routes. These are the crude but
+// bundle is public, so anyone can find the route. These are the crude but
 // effective limits: a per-caller quota, a global daily ceiling, and a cap on
 // how many tasks one request may carry.
 const RATE_WINDOW_MS = 60 * 60 * 1000;
@@ -135,50 +135,11 @@ function describeTasks(tasks) {
     .join('\n');
 }
 
-app.post('/ai/prioritize', rateLimit, requireAnthropic, async (req, res) => {
-  const { title, context } = req.body || {};
-  if (!title || !title.trim()) {
-    return res.status(400).json({ error: 'title is required' });
-  }
-  const safeTitle = title.trim().slice(0, MAX_TITLE_LENGTH);
-  try {
-    const text = await askClaude(
-      `Suggest a priority for a new task in a personal task manager.\n\n` +
-        `New task: "${safeTitle}"\n` +
-        `Existing tasks:\n${describeTasks(context)}\n\n` +
-        `Reply with exactly one word: high, medium, or low.`
-    );
-    res.json({ text });
-  } catch (error) {
-    res.status(502).json({ error: error.message });
-  }
-});
-
-app.post('/ai/steps', rateLimit, requireAnthropic, async (req, res) => {
-  const { title } = req.body || {};
-  if (!title || !title.trim()) {
-    return res.status(400).json({ error: 'title is required' });
-  }
-  const safeTitle = title.trim().slice(0, MAX_TITLE_LENGTH);
-  try {
-    const text = await askClaude(
-      `Break this task into 3-5 actionable sub-steps, one concise line each.\n\n` +
-        `Task: "${safeTitle}"\n\n` +
-        `Reply with just the numbered steps, nothing else.`,
-      { effort: 'low', maxTokens: 4096 }
-    );
-    res.json({ text });
-  } catch (error) {
-    res.status(502).json({ error: error.message });
-  }
-});
-
 app.post('/ai/summary', rateLimit, requireAnthropic, async (req, res) => {
-  const { tasks, period } = req.body || {};
-  const window = period === 'week' ? 'weekly' : 'daily';
+  const { tasks } = req.body || {};
   try {
     const text = await askClaude(
-      `Write a brief 2-3 sentence ${window} summary of this task list. ` +
+      `Write a brief 2-3 sentence daily summary of this task list. ` +
         `Say what to focus on, and call out anything high priority.\n\n` +
         `Tasks:\n${describeTasks(tasks)}`,
       { effort: 'low', maxTokens: 4096 }

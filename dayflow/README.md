@@ -16,10 +16,12 @@ AI-powered task manager with end-to-end encryption. Built with React Native (Exp
 - **Daily Briefing** — Progress, high-priority items and owed totals at a glance, with an optional Claude-written summary
 - **Quick Actions** — Double-tap to complete, long-press for options, swipe to delete
 - **Calendar Sync** — Push any dated task to your device calendar from the quick-actions sheet
-- **Owe Me** — A follow-up column for what other people owe *you*: the task, who you are waiting on, and when to chase it
+- **Owe Me** — A follow-up column for what other people owe *you*: the task, who you are waiting on, and when to chase it. Each row says how long it has been waiting, and turns red past a fortnight
+- **How long it has been sitting** — A To Do you have carried far longer than its scope says so too, quietly: red is for somebody else being late, not for you
 - **Reminders** — Local notifications at the due time, with early-reminder options
 - **Persistent Storage** — Tasks survive restarts via encrypted AsyncStorage
 - **Encrypted Sync** — Sign in on each device and they share the same tasks. The server stores only ciphertext; the key is derived from your password and never leaves the device
+- **Check the encryption yourself** — Account → Encryption pulls your own rows back from the server and reads them the way an intruder would, so the central claim is checked on the device rather than taken on trust
 - **Multi-Platform** — iPhone, iPad, Mac (Electron), and Web
 
 ## Quick Start
@@ -107,15 +109,21 @@ dayflow/
 │   │   ├── account.js              # Sign in / sign up (sends only an auth hash)
 │   │   ├── ai.js                   # Claude client (talks to api-server.js)
 │   │   ├── crypto.js               # Key derivation: auth hash vs encryption key
+│   │   ├── secureRandom.js         # A crypto.getRandomValues on platforms lacking one
 │   │   ├── merge.js                # Conflict policy (pure, tested)
 │   │   ├── sync.js                 # Push/pull ciphertext rows
 │   │   ├── calendar.js             # Device calendar sync
 │   │   ├── encryption.js           # AES-256 encryption service
 │   │   ├── nlParser.js             # Natural language parser
+│   │   ├── due.js                  # What a row says about when a task is due
+│   │   ├── age.js                  # How long a task has been sitting there
+│   │   ├── leak.js                 # Whether the server can read any of it (pure, tested)
+│   │   ├── search.js               # Matching and ranking across every list
 │   │   ├── notifications.js        # Local notification scheduling
 │   │   └── supabase.js             # Supabase client (optional)
 │   └── utils/
 │       ├── constants.js            # App constants
+│       ├── text.js                 # Sentence case that leaves iPhone alone
 │       └── id.js                   # Task id generation
 ├── scripts/make-pwa.js             # Adds manifest + service worker post-export
 ├── web/                            # Home-screen icons for the web app

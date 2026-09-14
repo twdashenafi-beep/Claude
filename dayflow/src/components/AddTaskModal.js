@@ -97,7 +97,7 @@ const rs = StyleSheet.create({
 
 // ── Main Component ───────────────────────────────────────────────────────────
 
-export default function AddTaskModal({ visible, onClose, onAdd, section = 'todo', defaultTaskType = 'todo', viewMode, selectedDate: viewDate }) {
+export default function AddTaskModal({ visible, onClose, onAdd, section = 'todo', defaultTaskType = 'todo', viewMode }) {
   // Core fields
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
@@ -121,7 +121,6 @@ export default function AddTaskModal({ visible, onClose, onAdd, section = 'todo'
     const timeStr = due.dueTime || null;
 
     const mappedPriority = priority === 'none' ? 'medium' : priority;
-    const fallbackDate = (viewDate || new Date()).toISOString();
 
     onAdd({
       title: title.trim(),
@@ -131,8 +130,14 @@ export default function AddTaskModal({ visible, onClose, onAdd, section = 'todo'
       section: taskType === 'done_for_me' ? 'owe_me' : section,
       taskType,
       viewScope: viewMode || 'day',
-      date: dateISO || fallbackDate,
-      dueDate: dateISO || fallbackDate,
+      // Nothing when nobody picked anything. This used to invent a date — the
+      // moment the screen was opened — which the rest of the app could not tell
+      // apart from a deadline somebody meant, so an undated task started
+      // calling itself overdue the following morning. Left undefined, the store
+      // stamps the instant the task was made, and a date equal to that instant
+      // is recognisably one nobody chose.
+      date: dateISO || undefined,
+      dueDate: dateISO || undefined,
       dueTime: timeStr,
       reminderEnabled: !!(dateISO && timeStr),
       earlyReminderMinutes: 0,

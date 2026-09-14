@@ -1,4 +1,13 @@
-// Optional AI task intelligence.
+// The optional Claude summary in the daily briefing.
+//
+// This is the app's whole model surface, and deliberately its whole model
+// surface. Everything else — parsing what you typed, deciding what is late,
+// working out how long something has been sitting — is local, instant and
+// works with the aeroplane mode on, which is the behaviour worth protecting.
+//
+// It is also the one place that sends task titles off the device in the clear,
+// which is why it is off unless somebody turns it on: the rest of the app
+// promises the server sees only ciphertext.
 //
 // The client NEVER holds an Anthropic API key. Anything shipped in an app
 // bundle — web, iOS or Android — is readable by anyone who installs it, so all
@@ -30,32 +39,8 @@ async function askServer(endpoint, body) {
   }
 }
 
-export async function autoPrioritize(taskTitle, existingTasks = []) {
-  const context = existingTasks.slice(0, 10).map(t => ({ title: t.title, priority: t.priority }));
-  const result = await askServer('/ai/prioritize', { title: taskTitle, context });
-  const lower = (result || '').toLowerCase().trim();
-  return ['high', 'medium', 'low'].includes(lower) ? lower : 'medium';
-}
-
-export async function breakIntoSteps(taskTitle) {
-  const result = await askServer('/ai/steps', { title: taskTitle });
-  if (!result) return [];
-  return result
-    .split('\n')
-    .filter(line => line.trim())
-    .map(line => line.replace(/^\d+[.)]\s*/, '').trim());
-}
-
 export async function getDailySummary(tasks) {
   return askServer('/ai/summary', {
-    period: 'day',
     tasks: tasks.map(t => ({ title: t.title, priority: t.priority, completed: t.completed })),
-  });
-}
-
-export async function getWeeklySummary(tasks) {
-  return askServer('/ai/summary', {
-    period: 'week',
-    tasks: tasks.slice(0, 15).map(t => ({ title: t.title, priority: t.priority, completed: t.completed })),
   });
 }

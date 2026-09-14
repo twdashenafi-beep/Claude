@@ -11,6 +11,8 @@ import { COLORS, SERIF, SANS } from '../utils/theme';
 // rejects any app that offers sign-up without it — and it is deliberately the
 // last item, behind a typed confirmation, because nothing about it is undoable.
 import { playChime, chimeAvailable } from '../services/chime';
+import { pullTasks } from '../services/sync';
+import { inspectRows } from '../services/leak';
 
 // What to say after trying to play it. The first case is the interesting one:
 // the browser reports a sound played, so if none was heard the cause is
@@ -23,7 +25,7 @@ const SOUND_RESULT = {
   failed: 'Could not play it',
 };
 
-export default function AccountSheet({ visible, email, dataKey, onClose, onLock, onDeleted }) {
+export default function AccountSheet({ visible, email, dataKey, tasks = [], onClose, onLock, onDeleted }) {
   const [view, setView] = useState('menu'); // menu | password | code | delete
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -36,10 +38,43 @@ export default function AccountSheet({ visible, email, dataKey, onClose, onLock,
   // makes a sound has nothing to show when it makes none, and "nothing
   // happened" is the one answer that leaves you no wiser.
   const [sound, setSound] = useState('');
+  // What the server turned out to be holding, last time it was asked.
+  const [seen, setSeen] = useState('');
+  const [exposed, setExposed] = useState(false);
 
   const reset = () => {
     setView('menu'); setPassword(''); setConfirm(''); setTyped('');
     setCode(''); setError(''); setDone('');
+  };
+
+  // Ask the server what it has, and read it back the way an intruder would.
+  //
+  // The rows come from the same call sync uses, before anything decrypts them,
+  // so what is examined here is exactly what is stored — not a copy the app has
+  // already made sense of.
+  const checkEncryption = async () => {
+    setSeen('Asking the server…');
+    setExposed(false);
+    try {
+      const rows = await pullTasks();
+      if (!rows) {
+        setSeen('This device only — nothing is sent anywhere');
+        return;
+      }
+      const result = inspectRows(rows, tasks.map(t => t && t.title));
+      if (result.verdict === 'empty') {
+        setSeen('Nothing has reached the server yet');
+      } else if (result.verdict === 'exposed') {
+        setExposed(true);
+        setSeen(`Readable — ${result.reason}`);
+      } else {
+        // The sample is the point. "It is encrypted" is a claim; the first
+        // characters of the row itself are the thing you came to see.
+        setSeen(`Unreadable · ${result.sample}… · ${result.checked} rows`);
+      }
+    } catch (e) {
+      setSeen(`Could not ask: ${String(e.message || e)}`);
+    }
   };
 
   const close = () => { reset(); onClose(); };
@@ -143,6 +178,18 @@ export default function AccountSheet({ visible, email, dataKey, onClose, onLock,
                     const result = await playChime();
                     setSound(SOUND_RESULT[result] || SOUND_RESULT.failed);
                   }}
+                />
+              ) : null}
+              {/* The app's central claim, checked rather than asserted. It
+                  pulls its own rows back and looks for anything readable in
+                  them, which is the check that otherwise means a desk, a
+                  dashboard and a column of base64 — so in practice never. */}
+              {email ? (
+                <Row
+                  label="Encryption"
+                  detail={seen || 'See what the server is holding'}
+                  danger={exposed}
+                  onPress={checkEncryption}
                 />
               ) : null}
               <Row label="Lock" detail="Close the vault on this device" onPress={() => { close(); onLock(); }} />

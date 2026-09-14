@@ -56,6 +56,43 @@ function dueAt(task) {
   return date;
 }
 
+// Whether the date on a task is the one the app put there.
+//
+// `dueDate` falls back to the moment the task was created — the very same
+// value, to the millisecond, as `createdAt`. So an untouched date is not merely
+// probably the default: it is provably the default, and nothing a person picks
+// can collide with it short of choosing the exact millisecond they were typing.
+//
+// This is what the rule below was missing. Recognising the stamp only by "is it
+// today" worked on the day the task was made and not one morning longer: every
+// undated task read "Overdue" from the next day onwards, which is precisely the
+// flood this module exists to prevent.
+function isDefaultStamp(task) {
+  if (!task || !task.createdAt || !task.dueDate) return false;
+  const made = new Date(task.createdAt);
+  const due = new Date(task.dueDate);
+  if (Number.isNaN(made.getTime()) || Number.isNaN(due.getTime())) return false;
+
+  // Written now: the very same instant, because nothing was sent and the store
+  // stamped both fields from one clock reading.
+  if (due.getTime() === made.getTime()) return true;
+
+  // Written by earlier versions, which invented a date instead of leaving it
+  // alone: the moment the screen had been opened, or the tick just before the
+  // store's own stamp. Both land a little before the task was made and on the
+  // same day as it. Tasks already in a vault are the reason this is worth
+  // matching — without it the fix would only ever help tasks made from here on,
+  // and every task already written would go on calling itself overdue.
+  //
+  // A date somebody actually chose and did not put a time on is either today —
+  // which the rule below silences anyway — or another day entirely, so nothing
+  // deliberate is swallowed by this. The one it cannot see is a task added
+  // after midnight to a screen that was opened the evening before; that one
+  // keeps the old behaviour until it is next edited.
+  return due.getTime() < made.getTime()
+    && startOfDay(due).getTime() === startOfDay(made).getTime();
+}
+
 // { text, late } — or null when there is nothing worth saying.
 export function dueLabel(task, now = new Date()) {
   if (!task || task.completed) return null;
@@ -67,8 +104,11 @@ export function dueLabel(task, now = new Date()) {
   const hasTime = time !== null;
   const offset = daysBetween(now, at);
 
-  // A date of today with no time is the default stamp, not a deadline.
-  if (!hasTime && offset === 0) return null;
+  // Nothing anyone chose: either the stamp the app put there when the task was
+  // made, or a date of today with no time — which says nothing a bare task in
+  // today's list was not already saying. The second still has to be checked on
+  // its own, for tasks made before `createdAt` could be relied upon.
+  if (!hasTime && (isDefaultStamp(task) || offset === 0)) return null;
 
   // One word. How late it is belongs in the task, not in a list you are
   // scanning — what you need here is which ones to look at.

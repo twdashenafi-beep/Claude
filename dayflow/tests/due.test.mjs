@@ -34,6 +34,63 @@ ok('a task with an unreadable date is silent', label({ dueDate: 'not a date' }) 
 ok('nothing at all is silent', label(null) === null);
 ok('undefined is silent', label(undefined) === null);
 
+// ── The stamp is still the stamp a week later ──
+//
+// This is the case the "is it today" rule could not see. `dueDate` falls back
+// to `createdAt`, to the millisecond, so an undated task carries a date in the
+// past from the morning after it was made — and every one of them read
+// "Overdue" until the two fields were compared to each other.
+const MADE = '2026-09-02T16:22:41.318Z';
+const undated = (extra = {}) => ({ createdAt: MADE, dueDate: MADE, dueTime: '', ...extra });
+
+ok('an undated task made a week ago still says nothing', label(undated()) === null);
+ok('nor one made a year ago',
+   label({ createdAt: '2025-04-01T09:00:00.000Z', dueDate: '2025-04-01T09:00:00.000Z' }) === null);
+ok('and it is not called late', late(undated()) === false);
+
+// The stamp is only the stamp while nobody has touched it. A time on the same
+// date is a deadline, because nothing sets a time by accident.
+ok('a time on the stamped date is a real deadline',
+   text(undated({ dueTime: '09:00' })) === 'Overdue');
+ok('and a date that differs from when it was made is one too',
+   text({ createdAt: MADE, dueDate: '2026-09-04T10:00:00', dueTime: '' }) === 'Overdue');
+ok('including a future one',
+   text({ createdAt: MADE, dueDate: '2026-09-10T10:00:00', dueTime: '' }) === 'Tomorrow');
+
+// ── Dates invented by older versions ──
+//
+// Before this, adding a task stamped it with the moment the screen had been
+// opened — hours earlier in a long session, and never equal to createdAt. Those
+// tasks are sitting in vaults now, so the stamp has to be recognisable when it
+// is a little before the task was made and on the same day as it.
+ok('a date from when the screen was opened is not a deadline',
+   label({ createdAt: '2026-09-02T16:22:41.318Z', dueDate: '2026-09-02T13:04:02.771Z' }) === null);
+ok('nor one a millisecond earlier',
+   label({ createdAt: '2026-09-02T16:22:41.318Z', dueDate: '2026-09-02T16:22:41.317Z' }) === null);
+
+// What it must not swallow is a date somebody chose, and the ordinary way to
+// choose one in the past is to pick a day that is not the day you are on.
+ok('but last month with no time is still a deadline',
+   text({ createdAt: '2026-09-02T16:22:41.318Z', dueDate: '2026-08-15T00:00:00' }) === 'Overdue');
+ok('and so is yesterday',
+   text({ createdAt: '2026-09-02T16:22:41.318Z', dueDate: '2026-09-01T00:00:00' }) === 'Overdue');
+ok('and a time on the day it was made is one',
+   text({ createdAt: '2026-09-09T16:22:41.318Z', dueDate: '2026-09-09T13:04:02.771Z',
+          dueTime: '13:04' }) === 'Overdue');
+
+// A date after the task was made is always something chosen — nothing defaults
+// forwards.
+ok('a date later the same day is a deadline',
+   text({ createdAt: '2026-09-09T06:00:00', dueDate: '2026-09-09T06:00:01', dueTime: '17:30' })
+     === '17:30');
+
+// A task from before createdAt could be relied upon has only the old rule to
+// fall back on, and must not start throwing.
+ok('a task with a date but no createdAt still follows the old rule',
+   label({ dueDate: '2026-09-09T10:00:00', dueTime: '' }) === null);
+ok('an unreadable createdAt does not make the date vanish',
+   text({ createdAt: 'whenever', dueDate: '2026-09-08T10:00:00' }) === 'Overdue');
+
 // ── Late ──
 ok('a time earlier today is overdue', text(on('2026-09-09', '09:00')) === 'Overdue');
 ok('and it is marked late', late(on('2026-09-09', '09:00')));
@@ -106,7 +163,7 @@ ok('and silence stays silent', dueSpoken(on('2026-09-09'), NOW) === null);
     const ymd = d => d.getFullYear() + '-' +
       String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
     const out = [];
-    for (const iso of process.argv.slice(2)) {
+    for (const iso of process.argv.slice(1)) {
       const now = new Date(iso);
       const task = day => ({ dueDate: day + 'T12:00:00', dueTime: '' });
       const text = t => { const r = dueLabel(t, now); return r ? r.text : 'SILENT'; };
