@@ -228,18 +228,15 @@ await A.page.waitForTimeout(400);
 // ── Moving an existing task into a project ──
 await A.page.getByLabel('All tasks not in a project').click();
 await A.page.waitForTimeout(700);
-const row = A.page.locator('text=Buy milk').first();
-const at = await row.boundingBox();
-await A.page.mouse.move(at.x + at.width / 2, at.y + at.height / 2);
-await A.page.mouse.down();
-await A.page.waitForTimeout(700);
-await A.page.mouse.up();
-await A.page.waitForTimeout(600);
+// A tap, not a hold: holding a row picks it up to be carried now, and what a
+// long press used to answer has moved into the task's own sheet.
+await A.page.locator('text=Buy milk').first().click();
+await A.page.waitForTimeout(900);
 
-ok('the sheet offers the projects', (await A.page.getByLabel('Move to Kitchen').count()) === 1);
-ok('and does not offer the one it is already in',
-   (await A.page.getByLabel('Already in Everything').count()) === 1);
-await A.page.getByLabel('Move to Kitchen').click();
+ok('the sheet offers the projects', (await A.page.getByLabel('Put in Kitchen').count()) === 1);
+await A.page.getByLabel('Put in Kitchen').click();
+await A.page.waitForTimeout(300);
+await A.page.getByText('Save', { exact: true }).last().click();
 await A.page.waitForTimeout(900);
 
 ok('the task leaves the main list', !(await shows('Buy milk')));

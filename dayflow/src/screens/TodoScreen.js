@@ -6,6 +6,7 @@ import { useTasks } from '../context/TaskContext';
 import { sortForDisplay, targetIndex, shiftFor, moveWithin } from '../services/ordering';
 import { pendingAlerts, alertBody, pruneShown } from '../services/alerts';
 import { EVERYTHING, projectOf, projectName } from '../services/projects';
+import { moveTick } from '../services/haptics';
 import { ARCHIVE, deletionOf } from '../services/archive';
 import { loadShown, saveShown } from '../services/alertStore';
 import { alertPermission, requestAlertPermission, showSystemAlert } from '../services/notifications';
@@ -19,7 +20,6 @@ import AddTaskModal from '../components/AddTaskModal';
 import TaskDetail from '../components/TaskDetail';
 import AIInput from '../components/AIInput';
 import DailyBriefing from '../components/DailyBriefing';
-import QuickActions from '../components/QuickActions';
 import ConfettiOverlay from '../components/ConfettiOverlay';
 import AccountSheet from '../components/AccountSheet';
 import { VIEW_MODES } from '../utils/constants';
@@ -49,9 +49,15 @@ const SYNC_LABEL = {
 
 // One of the two columns. Both are always on the page — the whole point of the
 // layout is seeing what you owe and what you are owed side by side.
+// How close to the top or bottom of the screen a held row has to get before the
+// page starts coming with it, and how fast it does.
+const EDGE = 96;
+const EDGE_STEP = 9;
+
 function Column({
   tasks, showCompleted, onToggleCompleted, emptyText, total,
-  onToggle, onDelete, onPress, onLongPress, onReorder, onReopenAll, onClearAll,
+  onToggle, onDelete, onPress, onReorder, onReopenAll, onClearAll,
+  scrollRef, scrollY,
 }) {
   const open = useMemo(
     () => sortForDisplay(tasks.filter(t => !t.completed), t => PRIORITY_ORDER[t.priority]),
@@ -70,22 +76,81 @@ function Column({
   const dragRef = useRef(null);
   const setDragState = value => { dragRef.current = value; setDrag(value); };
 
+  // Where the page was when the row was picked up, how far the finger has
+  // travelled since, and the timer that walks the page along at the edges.
+  const dragFromScroll = useRef(0);
+  const lastDy = useRef(0);
+  const autoScroll = useRef(null);
+  // How far the page has moved since the lift. The row is carried by the
+  // finger, but it sits in a page that is sliding underneath it, so without
+  // this it slips out from under the thumb as soon as the edge scrolling
+  // starts.
+  const [drift, setDrift] = useState(0);
+
+  const stopAutoScroll = useCallback(() => {
+    clearInterval(autoScroll.current);
+    autoScroll.current = null;
+  }, []);
+
+  // A drag abandoned by leaving the page must not leave a timer running.
+  useEffect(() => () => clearInterval(autoScroll.current), []);
+
   const startDrag = useCallback(id => {
     const from = open.findIndex(t => t.id === id);
-    if (from >= 0) setDragState({ id, from, to: from });
+    if (from < 0) return;
+    // Where the page was when the row came up. Everything below is measured
+    // against this, because the page can move under the finger from here on.
+    dragFromScroll.current = scrollY.current;
+    setDrift(0);
+    setDragState({ id, from, to: from });
   }, [open]);
 
-  const moveDrag = useCallback(dy => {
+  // Recomputed from the last finger position and however far the page has
+  // scrolled since — the row has to be judged against the list, and the list
+  // has been moving.
+  const placeUnderFinger = useCallback(() => {
     const current = dragRef.current;
     if (!current) return;
+    const travelled = scrollY.current - dragFromScroll.current;
     const sizes = open.map(t => heights.current[t.id] || 0);
-    const to = targetIndex(sizes, current.from, dy);
-    if (to !== current.to) setDragState({ ...current, to });
+    const to = targetIndex(sizes, current.from, lastDy.current + travelled);
+    if (to !== current.to) {
+      moveTick();
+      setDragState({ ...current, to });
+    }
   }, [open]);
 
+  const moveDrag = useCallback((dy, pageY) => {
+    if (!dragRef.current) return;
+    lastDy.current = dy;
+    placeUnderFinger();
+
+    // Carrying a row to the top of a long list used to be impossible rather
+    // than difficult: nothing scrolled, so a row could only travel as far as a
+    // thumb reaches in one go. Near either edge the page now comes along.
+    const height = typeof window === 'undefined' ? 800 : window.innerHeight;
+    const near = typeof pageY !== 'number' ? 0
+      : pageY < EDGE ? -1
+      : pageY > height - EDGE ? 1
+      : 0;
+    if (near === 0) { stopAutoScroll(); return; }
+    if (autoScroll.current) return;
+    autoScroll.current = setInterval(() => {
+      const next = Math.max(0, scrollY.current + near * EDGE_STEP);
+      if (next === scrollY.current) return;
+      scrollY.current = next;
+      setDrift(next - dragFromScroll.current);
+      if (scrollRef.current) scrollRef.current.scrollTo({ y: next, animated: false });
+      placeUnderFinger();
+    }, 16);
+  }, [placeUnderFinger]);
+
   const endDrag = useCallback(() => {
+    stopAutoScroll();
     const current = dragRef.current;
     setDragState(null);
+    setDrift(0);
+    lastDy.current = 0;
     if (!current || current.to === current.from) return;
     const changes = moveWithin(open, current.from, current.to);
     if (changes.length) onReorder(changes);
@@ -95,10 +160,10 @@ function Column({
     <TaskItem
       key={task.id}
       task={task}
+      drift={drag && drag.id === task.id ? drift : 0}
       onToggle={onToggle}
       onDelete={onDelete}
       onPress={onPress}
-      onLongPress={onLongPress}
       onMeasure={measure}
       onDragStart={startDrag}
       onDragMove={moveDrag}
@@ -130,7 +195,6 @@ function Column({
               onToggle={onToggle}
               onDelete={onDelete}
               onPress={onPress}
-              onLongPress={onLongPress}
             />
           ))
         : null}
@@ -193,7 +257,6 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
   const [selectedDate] = useState(new Date());
   const [detailTask, setDetailTask] = useState(null);
   const [showBriefing, setShowBriefing] = useState(false);
-  const [quickTask, setQuickTask] = useState(null);
   const [banner, setBanner] = useState(null);
 
   // Which project's sheet is on screen. Empty is the main list, and the bar
@@ -262,6 +325,21 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
 
   // Where a task sits in its column, so the sheet can grey out the moves that
   // would do nothing.
+  // The page itself, so a row held against the top or bottom of the screen can
+  // bring it along rather than running out of room.
+  const scrollRef = useRef(null);
+  const scrollY = useRef(0);
+
+  const announceScope = useCallback(scope => {
+    const name = SCOPE_NAMES[scope] || scope;
+    setBanner({
+      text: `Moved to ${name}`,
+      action: 'VIEW',
+      label: `Switch to ${name}`,
+      run: () => setViewMode(scope),
+    });
+  }, []);
+
   const placeOf = useCallback(id => {
     const task = tasks.find(t => t.id === id);
     if (!task) return null;
@@ -333,14 +411,25 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
   // Saying where it went, with a way to follow it, beats it just disappearing.
   const moveScope = useCallback((id, scope) => {
     updateTask(id, { viewScope: scope });
-    const name = SCOPE_NAMES[scope] || scope;
-    setBanner({
-      text: `Moved to ${name}`,
-      action: 'VIEW',
-      label: `Switch to ${name}`,
-      run: () => setViewMode(scope),
-    });
-  }, [updateTask]);
+    announceScope(scope);
+  }, [updateTask, announceScope]);
+
+  // Saving the task sheet can move a task clean out of the view you are looking
+  // at — a different scope, or the other column. Without a word it simply
+  // vanishes from the page, which reads as having lost it rather than moved it.
+  const saveTask = useCallback((id, updates) => {
+    const before = tasks.find(t => t.id === id);
+    updateTask(id, updates);
+    if (!before) return;
+    if (updates.viewScope && updates.viewScope !== before.viewScope) {
+      announceScope(updates.viewScope);
+      return;
+    }
+    if (updates.taskType && updates.taskType !== before.taskType) {
+      const name = updates.taskType === 'done_for_me' ? 'Owe Me' : 'To Do';
+      setBanner({ text: `Moved to ${name}` });
+    }
+  }, [tasks, updateTask, announceScope]);
 
   useEffect(() => {
     if (!banner) return undefined;
@@ -455,13 +544,15 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
     onToggle: toggleTask,
     onDelete: removeTask,
     onPress: setDetailTask,
-    onLongPress: setQuickTask,
     onReorder: reorderTasks,
   };
 
   return (
     <SafeAreaView style={s.desk}>
       <ScrollView
+        ref={scrollRef}
+        onScroll={e => { scrollY.current = e.nativeEvent.contentOffset.y; }}
+        scrollEventThrottle={16}
         contentContainerStyle={s.scroll}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -659,6 +750,8 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
             <View style={s.columns}>
               <View style={[s.columnWrap, { paddingRight: columnGap / 2 }]}>
                 <Column
+                  scrollRef={scrollRef}
+                  scrollY={scrollY}
                   tasks={todo}
                   emptyText={
                     viewMode === VIEW_MODES.DAY
@@ -679,6 +772,8 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
 
               <View style={[s.columnWrap, { paddingLeft: columnGap / 2 }]}>
                 <Column
+                  scrollRef={scrollRef}
+                  scrollY={scrollY}
                   tasks={oweMe}
                   total={oweSummary}
                   emptyText="Not waiting on anyone."
@@ -711,7 +806,9 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
         task={detailTask}
         visible={!!detailTask}
         onClose={() => setDetailTask(null)}
-        onSave={updateTask}
+        onSave={saveTask}
+        onMove={moveTask}
+        place={detailTask ? placeOf(detailTask.id) : null}
         projects={projects}
       />
 
@@ -774,21 +871,6 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
         onDeleted={onDeleted}
       />
 
-      <QuickActions
-        visible={!!quickTask}
-        task={quickTask}
-        onClose={() => setQuickTask(null)}
-        onComplete={toggleTask}
-        onEdit={setDetailTask}
-        onDelete={removeTask}
-        onPriority={(id, p) => updateTask(id, { priority: p })}
-        onScope={moveScope}
-        onMove={moveTask}
-        projects={projects}
-        onProject={moveTaskToProject}
-        currentProject={quickTask ? projectOf(quickTask) : EVERYTHING}
-        place={quickTask ? placeOf(quickTask.id) : null}
-      />
     </SafeAreaView>
   );
 }

@@ -183,20 +183,22 @@ async function order() {
 // Press and hold opens the sheet; a click would open the task instead.
 async function hold(title) {
   const row = A.page.locator(`text=${title}`).first();
-  const at = await row.boundingBox();
-  await A.page.mouse.move(at.x + at.width / 2, at.y + at.height / 2);
-  await A.page.mouse.down();
-  await A.page.waitForTimeout(700);
-  await A.page.mouse.up();
-  await A.page.waitForTimeout(600);
+  await row.click();
+  await A.page.waitForTimeout(900);
+}
+
+// The sheet has to be shut again between moves, since each move closes it.
+async function escape() {
+  const cancel = A.page.getByText('Cancel', { exact: true }).last();
+  if (await cancel.count()) { await cancel.click(); await A.page.waitForTimeout(600); }
 }
 
 ok('newest task is at the top', (await order()) === 'Charlie,Bravo,Alpha', await order());
 
 // ── Down ──
 await hold('Charlie');
-ok('the sheet says where the task sits',
-   /1 of 3 in this list/.test(await body(A.page)), (await body(A.page)).slice(0, 300));
+ok('the task sheet offers the order buttons',
+   /\bORDER\b/i.test(await body(A.page)), (await body(A.page)).slice(0, 400));
 ok('it cannot be moved up from the top',
    (await A.page.getByLabel('Move up one place').getAttribute('aria-disabled')) === 'true');
 ok('nor to the top', (await A.page.getByLabel('Move to the top of the list').getAttribute('aria-disabled')) === 'true');
@@ -220,8 +222,7 @@ ok('top sends it all the way up', (await order()) === 'Charlie,Bravo,Alpha', awa
 await hold('Charlie');
 ok('the bottom move is offered from the top',
    (await A.page.getByLabel('Move down one place').getAttribute('aria-disabled')) !== 'true');
-await A.page.keyboard.press('Escape');
-await A.page.waitForTimeout(300);
+await escape();
 
 // ── It has to survive a reload, like a drag does ──
 await A.page.reload({ waitUntil: 'networkidle' });
@@ -232,22 +233,27 @@ await A.page.getByText('UNLOCK', { exact: false }).first().click();
 await A.page.waitForTimeout(3000);
 ok('the order survives a reload', (await order()) === 'Charlie,Bravo,Alpha', await order());
 
-// ── And the handle no longer invites a text selection ──
+// ── And holding a row does not select the text under it ──
+//
+// A long press is how text is selected everywhere else on a page, so the row
+// has to say the touch is ours. touch-action is deliberately not among these
+// at rest: claiming it before the row is picked up would take vertical swipes
+// away from the page scroll.
 const guarded = await A.page.evaluate(() => {
-  const grip = document.querySelector('[data-grip]');
   const row = document.querySelector('[data-taskrow]');
-  if (!grip || !row) return null;
-  const g = getComputedStyle(grip);
+  if (!row) return null;
   const r = getComputedStyle(row);
   return {
-    touchAction: g.touchAction,
-    gripSelect: g.userSelect || g.webkitUserSelect,
     rowSelect: r.userSelect || r.webkitUserSelect,
+    touchAction: r.touchAction,
+    lifted: row.dataset.lifted,
   };
 });
-ok('the handle claims its own touches', guarded && guarded.touchAction === 'none', JSON.stringify(guarded));
-ok('the handle cannot be selected', guarded && guarded.gripSelect === 'none', JSON.stringify(guarded));
-ok('nor can the row it sits in', guarded && guarded.rowSelect === 'none', JSON.stringify(guarded));
+ok('a row is not selectable text', guarded && guarded.rowSelect === 'none', JSON.stringify(guarded));
+ok('and at rest it still leaves scrolling to the page',
+   guarded && guarded.touchAction !== 'none', JSON.stringify(guarded));
+ok('and reports itself as not picked up', guarded && guarded.lifted === 'false',
+   JSON.stringify(guarded));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();

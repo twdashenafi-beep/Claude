@@ -180,20 +180,46 @@ async function order() {
 
 ok('newest task sits at the top', (await order()) === 'Charlie,Bravo,Alpha', await order());
 
-// Every row offers a handle.
-ok('each row has a reorder handle',
-   (await A.page.getByLabel('Reorder Charlie').count()) === 1);
+// There is no handle to find any more. The row is the handle.
+ok('no row carries a separate drag handle',
+   (await A.page.getByLabel(/^Reorder /).count()) === 0);
+
+// Moving straight away, without holding, must not pick anything up — that is
+// what leaves vertical swipes to the page scroll, and a list that cannot be
+// scrolled is worse than one that cannot be reordered.
+async function swipeWithoutHolding(title, dy) {
+  const box = await A.page.locator(`text=${title}`).first().boundingBox();
+  const x = box.x + box.width / 2;
+  const y = box.y + box.height / 2;
+  await A.page.mouse.move(x, y);
+  await A.page.mouse.down();
+  for (let i = 1; i <= 8; i += 1) {
+    await A.page.mouse.move(x, y + (dy * i) / 8);
+    await A.page.waitForTimeout(20);
+  }
+  await A.page.mouse.up();
+  await A.page.waitForTimeout(700);
+}
+const settled = await order();
+await swipeWithoutHolding('Charlie', 120);
+ok('a swipe that does not pause moves nothing', (await order()) === settled, await order());
 
 // Drag Charlie from the top down past two rows.
+// Hold the row still until it comes up, then carry it.
+//
+// The hold is the whole point: it is what separates picking a row up from
+// scrolling past it, and it is why the row can be the handle at all.
 async function dragBy(title, dy) {
-  const handle = A.page.getByLabel(`Reorder ${title}`);
-  const box = await handle.boundingBox();
-  await A.page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  const box = await A.page.locator(`text=${title}`).first().boundingBox();
+  const x = box.x + box.width / 2;
+  const y = box.y + box.height / 2;
+  await A.page.mouse.move(x, y);
   await A.page.mouse.down();
+  await A.page.waitForTimeout(400);           // longer than the lift
   // In steps: a single jump gives the responder one move event and reads as a
   // tap rather than a drag.
   for (let i = 1; i <= 8; i += 1) {
-    await A.page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + (dy * i) / 8);
+    await A.page.mouse.move(x, y + (dy * i) / 8);
     await A.page.waitForTimeout(30);
   }
   await A.page.mouse.up();
