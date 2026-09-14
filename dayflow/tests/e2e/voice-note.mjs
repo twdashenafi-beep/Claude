@@ -135,6 +135,11 @@ const closeSheet = async (word) => {
 // Hold the mic, wait, let go — the gesture a person actually makes.
 async function holdMic(ms) {
   const mic = page.getByLabel('Record a voice note');
+  // The sheet has grown a section since this was written, so the mic can sit
+  // below the fold. A bounding box off the bottom of the window is a place the
+  // mouse cannot go.
+  await mic.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(250);
   const box = await mic.boundingBox();
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();

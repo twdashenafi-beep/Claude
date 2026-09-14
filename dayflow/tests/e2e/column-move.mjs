@@ -169,6 +169,10 @@ await openTask(MOVER);
 await page.getByPlaceholder('Add notes...').fill('Reading is on the cupboard door');
 // A recording too, because losing one of those is the worst of the losses.
 const mic = page.getByLabel('Record a voice note');
+// Scrolled to first: the sheet is taller than it was, so the mic can be below
+// the fold and a box off-screen is not somewhere the mouse can reach.
+await mic.scrollIntoViewIfNeeded();
+await page.waitForTimeout(250);
 const mb = await mic.boundingBox();
 await page.mouse.move(mb.x + mb.width / 2, mb.y + mb.height / 2);
 await page.mouse.down();
