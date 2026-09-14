@@ -198,10 +198,17 @@ await A.page.waitForTimeout(900);
 // still got if it is eight, and overdue if it is ten — so the expectation has to
 // be the rule rather than the string, or the test is only asserting that nobody
 // ran it late.
-const [chosenH, chosenM] = to24(chosen).split(':').map(Number);
-const chosenMoment = new Date();
-chosenMoment.setHours(chosenH, chosenM, 0, 0);
-const expected = chosenMoment.getTime() < Date.now() ? 'Overdue' : to24(chosen);
+// What a row says about a time today depends on the hour the suite is run at:
+// nine o'clock is a time you have still got at eight and overdue at ten. So
+// every check below asks for the rule rather than the string, or it is only
+// asserting that nobody ran the tests late.
+const readsAs = label => {
+  const [h, m] = to24(label).split(':').map(Number);
+  const at = new Date();
+  at.setHours(h, m, 0, 0);
+  return at.getTime() < Date.now() ? 'Overdue' : to24(label);
+};
+const expected = readsAs(chosen);
 ok('the task carries its time into the list', (await body(A.page)).includes(expected),
    `wanted ${expected} in ${(await body(A.page)).slice(0, 200)}`);
 
@@ -240,10 +247,15 @@ const save = A.page.locator('text=Save').first();
 if (await save.count()) await save.click();
 await A.page.waitForTimeout(1200);
 
-ok('a time changed on an existing task sticks', (await body(A.page)).includes(to24(changed)),
-   `wanted ${to24(changed)}, got ${(await body(A.page)).slice(0, 220)}`);
+ok('a time changed on an existing task sticks', (await body(A.page)).includes(readsAs(changed)),
+   `wanted ${readsAs(changed)}, got ${(await body(A.page)).slice(0, 220)}`);
+// Only meaningful while the old time still had something of its own to say. If
+// both times have gone by, both read "Overdue" and the row cannot tell them
+// apart — so the check that it changed is the one above, on the task itself.
 ok('and the old time is gone',
-   changed === chosen || !(await body(A.page)).includes(to24(chosen)));
+   changed === chosen
+   || readsAs(chosen) === readsAs(changed)
+   || !(await body(A.page)).includes(to24(chosen)));
 
 // ── The drum behaves like a drum ──
 //
