@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, PanResponder } from 'react-native';
 import {
   useAudioRecorder, useAudioPlayer, useAudioPlayerStatus,
   setAudioModeAsync, requestRecordingPermissionsAsync, RecordingPresets,
@@ -18,6 +18,9 @@ import { toDurableUri } from '../services/audio';
 // it shares with every typed task does not fill up with one of them.
 const MAX_SECONDS = 60;
 
+// A hold rather than a tap, so brushing the mic does not record.
+const HOLD_MS = 200;
+
 export default function VoiceRecorder({ onRecordingComplete, existingUri, onDelete }) {
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const [isRecording, setIsRecording] = useState(false);
@@ -29,6 +32,11 @@ export default function VoiceRecorder({ onRecordingComplete, existingUri, onDele
   // Said in place of the label when a recording could not be kept, because
   // silently dropping one is how you find out a fortnight later.
   const [problem, setProblem] = useState('');
+  // The responder is created once and would otherwise call whichever version of
+  // these existed at mount.
+  const holdTimer = useRef(null);
+  const startRef = useRef(() => {});
+  const stopRef = useRef(() => {});
 
   // Closing the sheet mid-recording has to stop the recording.
   //
@@ -104,6 +112,60 @@ export default function VoiceRecorder({ onRecordingComplete, existingUri, onDele
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isRecording, duration]);
 
+  useEffect(() => {
+    startRef.current = startRecording;
+    stopRef.current = stopRecording;
+  });
+  useEffect(() => () => clearTimeout(holdTimer.current), []);
+
+  // One button, whatever it is currently saying, and it keeps the gesture it
+  // was given.
+  //
+  // It used to be two — a mic, and a separate recording row that replaced it
+  // the instant recording began. That swap happened in the middle of your
+  // press, so the element you were holding unmounted and the one that took its
+  // place had never been pressed. Releasing therefore did nothing at all: the
+  // row said "Release to stop" and releasing did not stop it. One element
+  // through the whole gesture fixed that.
+  //
+  // It was still a touchable, though, and a touchable inside a scrolling sheet
+  // can be taken off you: the scroll view asks for the gesture and the press
+  // ends as a press-out. Since a press-out is how recording stops, holding the
+  // mic anywhere the sheet had been scrolled started a recording and ended it
+  // in the same breath — a voice note a few milliseconds long, with no sign
+  // that anything had gone wrong. The sheet grew a section and put the mic
+  // below the fold, which is how it was finally noticed.
+  //
+  // So the gesture is held rather than borrowed: this claims the touch itself
+  // and refuses to hand it over. Moving before the hold completes gives it up,
+  // so a swipe that happens to begin on the mic is still a swipe.
+  const gesture = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      // The whole point. Without this the sheet takes the gesture back the
+      // moment it fancies scrolling, and recording ends before it began.
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderGrant: () => {
+        clearTimeout(holdTimer.current);
+        // A hold, not a tap: a brush against the mic should not record.
+        holdTimer.current = setTimeout(() => startRef.current(), HOLD_MS);
+      },
+      onPanResponderMove: (_, gs) => {
+        if (recording.current) return;
+        if (Math.abs(gs.dx) > 10 || Math.abs(gs.dy) > 10) clearTimeout(holdTimer.current);
+      },
+      onPanResponderRelease: () => {
+        clearTimeout(holdTimer.current);
+        if (recording.current) stopRef.current();
+      },
+      onPanResponderTerminate: () => {
+        clearTimeout(holdTimer.current);
+        if (recording.current) stopRef.current();
+      },
+    })
+  ).current;
+
+
   const formatTime = secs => `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
 
   if (existingUri) {
@@ -120,30 +182,10 @@ export default function VoiceRecorder({ onRecordingComplete, existingUri, onDele
     );
   }
 
-  // One button, whatever it is currently saying.
-  //
-  // It used to be two — a mic, and a separate recording row that replaced it
-  // the instant recording began. That swap happened in the middle of your
-  // press, so the element you were holding unmounted and the one that took its
-  // place had never been pressed. Releasing therefore did nothing at all: the
-  // row said "Release to stop" and releasing did not stop it, which is a promise
-  // the app was in no position to keep. Recording only ever ended if you pressed
-  // the row a second time, and nothing said so.
-  //
-  // Keeping one element through the whole gesture is the fix. React holds the
-  // same instance, so it is still the responder when your finger comes up and
-  // onPressOut fires where it never used to. A second press stopping it still
-  // works — that is the same handler — so the accidental habit anybody formed
-  // is not taken away from them.
   return (
-    <TouchableOpacity
+    <View
       style={isRecording ? st.recordingRow : st.micBtn}
-      onLongPress={startRecording}
-      delayLongPress={200}
-      // Read from the ref rather than the state: this closure is the one the
-      // press began with, and the state it captured said "not recording".
-      onPressOut={() => { if (recording.current) stopRecording(); }}
-      activeOpacity={isRecording ? 0.8 : 0.6}
+      {...gesture.panHandlers}
       accessibilityRole="button"
       accessibilityLabel={isRecording ? 'Stop recording' : 'Record a voice note'}
       accessibilityHint={
@@ -166,7 +208,7 @@ export default function VoiceRecorder({ onRecordingComplete, existingUri, onDele
           </Text>
         </>
       )}
-    </TouchableOpacity>
+    </View>
   );
 }
 

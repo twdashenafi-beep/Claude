@@ -166,23 +166,21 @@ await A.page.waitForTimeout(900);
 const shows = async () => (await body(A.page)).includes('Renew the passport');
 ok('a new task starts under Day', await shows());
 
-// ── Move it to Week from the quick actions ──
-// A press and hold, not a click: a click opens the task sheet instead.
-const row = A.page.locator('text=Renew the passport').first();
-const at = await row.boundingBox();
-await A.page.mouse.move(at.x + at.width / 2, at.y + at.height / 2);
-await A.page.mouse.down();
-await A.page.waitForTimeout(700);
-await A.page.mouse.up();
-await A.page.waitForTimeout(600);
+// ── Move it to Week from the task's own sheet ──
+//
+// A tap, not a hold. Holding a row now picks it up to be carried, and the
+// sheet that used to answer a long press has gone: everything it offered lives
+// in the task sheet, one tap away, beside everything else about the task.
+await A.page.locator('text=Renew the passport').first().click();
+await A.page.waitForTimeout(900);
 
-ok('holding a task offers where to show it',
-   (await A.page.getByLabel('Move to Week').count()) === 1,
-   (await body(A.page)).slice(0, 200));
-ok('the scope it is already under is not offered as a move',
-   (await A.page.getByLabel('Already under Day').count()) === 1);
+ok('the task sheet offers where to show it',
+   (await A.page.getByLabel('Show under Week').count()) === 1,
+   (await body(A.page)).slice(0, 300));
 
-await A.page.getByLabel('Move to Week').click();
+await A.page.getByLabel('Show under Week').click();
+await A.page.waitForTimeout(300);
+await A.page.getByText('Save', { exact: true }).last().click();
 await A.page.waitForTimeout(900);
 
 let text = await body(A.page);

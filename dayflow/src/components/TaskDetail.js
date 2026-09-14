@@ -8,7 +8,7 @@ import { COLORS } from '../utils/theme';
 import DateTimeFields from './DateTimeFields';
 import VoiceRecorder from './VoiceRecorder';
 
-export default function TaskDetail({ task, visible, onClose, onSave, projects = [] }) {
+export default function TaskDetail({ task, visible, onClose, onSave, onMove, place, projects = [] }) {
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
   const [priority, setPriority] = useState('medium');
@@ -141,8 +141,43 @@ export default function TaskDetail({ task, visible, onClose, onSave, projects = 
             />
           </View>
 
-          {/* Which horizon it shows under. Fixed at creation until now, so a
-              task that turned out to be a this-month job was stuck on today. */}
+          {/* Where it sits, without having to drag it there.
+              Prioritising is usually "this one first" rather than a precise
+              placement, and a button says that in one tap where a drag asks for
+              a held finger and a steady hand. Dragging is still there for the
+              placements a button cannot express. */}
+          <View style={styles.section}>
+            <Text style={styles.label}>Order</Text>
+            <View style={styles.scopeRow}>
+              {[
+                { key: 'top', to: 'top', label: '⤒ To the top', can: !!place && place.index > 0 },
+                { key: 'up', to: -1, label: '↑ Up', can: !!place && place.index > 0 },
+                { key: 'down', to: 1, label: '↓ Down', can: !!place && place.index < place.total - 1 },
+              ].map(step => (
+                <TouchableOpacity
+                  key={step.key}
+                  style={[styles.scopeBtn, !step.can && styles.scopeBtnOff]}
+                  disabled={!step.can}
+                  aria-disabled={!step.can}
+                  onPress={() => { onMove(task.id, step.to); onClose(); }}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    step.key === 'top' ? 'Move to the top of the list'
+                      : step.key === 'up' ? 'Move up one place' : 'Move down one place'
+                  }
+                >
+                  <Text style={[styles.scopeText, !step.can && styles.scopeTextOff]}>
+                    {step.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Which column it lives in — for a long time the one thing about a
+              task that could not be changed. The only way across was to delete
+              it and type it again on the other side, losing its date, its notes
+              and its recording: not a move, a retype with casualties. */}
           <View style={styles.section}>
             <Text style={styles.label}>Column</Text>
             <View style={styles.scopeRow}>
@@ -168,16 +203,8 @@ export default function TaskDetail({ task, visible, onClose, onSave, projects = 
             </View>
           </View>
 
-          {/* Which column it lives in — the one thing about a task that could
-              not be changed.
-
-              The two columns are the whole app, and until now the only way to
-              move between them was to delete the task and type it again
-              somewhere else, losing its date, its notes and its recording on
-              the way. Which is not a move; it is a retype with casualties.
-
-              It is the same control as the two below it because it is the same
-              kind of choice: one of a short list, one at a time. */}
+          {/* Which horizon it shows under. Fixed at creation until now, so a
+              task that turned out to be a this-month job was stuck on today. */}
           <View style={styles.section}>
             <Text style={styles.label}>Show under</Text>
             <View style={styles.scopeRow}>
@@ -380,6 +407,8 @@ const styles = StyleSheet.create({
     borderRadius: 8, borderWidth: 1, borderColor: '#E5E5EA',
   },
   scopeBtnOn: { backgroundColor: '#00000010', borderColor: '#C7C2B4' },
+  scopeBtnOff: { opacity: 0.35 },
+  scopeTextOff: { color: '#B5AFA1' },
   scopeText: { fontSize: 14, color: '#8E8E93' },
   scopeTextOn: { color: '#3A362C', fontWeight: '600' },
   label: {
