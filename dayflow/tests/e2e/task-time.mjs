@@ -193,8 +193,17 @@ ok('the chip shows the chosen time, not the word Time',
 
 await A.page.getByLabel('Add to To Do').click();
 await A.page.waitForTimeout(900);
-ok('the task carries its time into the list', (await body(A.page)).includes(to24(chosen)),
-   `wanted ${to24(chosen)} in ${(await body(A.page)).slice(0, 200)}`);
+// What the row says depends on the hour the suite is run at, which is why this
+// used to fail every morning after nine. A task due at nine is a time you have
+// still got if it is eight, and overdue if it is ten — so the expectation has to
+// be the rule rather than the string, or the test is only asserting that nobody
+// ran it late.
+const [chosenH, chosenM] = to24(chosen).split(':').map(Number);
+const chosenMoment = new Date();
+chosenMoment.setHours(chosenH, chosenM, 0, 0);
+const expected = chosenMoment.getTime() < Date.now() ? 'Overdue' : to24(chosen);
+ok('the task carries its time into the list', (await body(A.page)).includes(expected),
+   `wanted ${expected} in ${(await body(A.page)).slice(0, 200)}`);
 
 // ── Changing it afterwards, which was the part that did not work ──
 // A single tap opens the task; two in quick succession would tick it off.
