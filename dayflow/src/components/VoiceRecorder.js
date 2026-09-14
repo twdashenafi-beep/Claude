@@ -5,6 +5,7 @@ import {
   setAudioModeAsync, requestRecordingPermissionsAsync, RecordingPresets,
 } from 'expo-audio';
 import { COLORS, SANS } from '../utils/theme';
+import { toDurableUri } from '../services/audio';
 
 // Voice notes, on expo-audio.
 //
@@ -12,6 +13,10 @@ import { COLORS, SANS } from '../utils/theme';
 // voice notes would have broken on the next SDK upgrade. The replacement is
 // hook-based rather than imperative: the recorder and player are objects owned
 // by the component tree, so there is no create/unload lifecycle to get wrong.
+
+// Long enough to say what the task is really about, short enough that the vault
+// it shares with every typed task does not fill up with one of them.
+const MAX_SECONDS = 60;
 
 export default function VoiceRecorder({ onRecordingComplete, existingUri, onDelete }) {
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
@@ -21,6 +26,9 @@ export default function VoiceRecorder({ onRecordingComplete, existingUri, onDele
   // Read by the unmount cleanup, which is created once and so cannot see the
   // state.
   const recording = useRef(false);
+  // Said in place of the label when a recording could not be kept, because
+  // silently dropping one is how you find out a fortnight later.
+  const [problem, setProblem] = useState('');
 
   // Closing the sheet mid-recording has to stop the recording.
   //
@@ -70,11 +78,31 @@ export default function VoiceRecorder({ onRecordingComplete, existingUri, onDele
       // Recording holds the audio session; hand it back so playback elsewhere
       // is not routed to the earpiece afterwards.
       await setAudioModeAsync({ allowsRecording: false });
-      if (recorder.uri && onRecordingComplete) onRecordingComplete(recorder.uri, duration);
+      if (!recorder.uri || !onRecordingComplete) return;
+
+      // What the recorder hands back is only valid where it was made — on the
+      // web, in this one tab, until the next refresh. Turn it into the
+      // recording itself before it is attached to anything.
+      const durable = await toDurableUri(recorder.uri);
+      if (durable === null) {
+        setProblem('That was too long to keep — try a shorter one');
+        return;
+      }
+      setProblem('');
+      onRecordingComplete(durable, duration);
     } catch (err) {
       console.warn('Failed to stop recording:', err.message);
     }
   };
+
+  // A cap, because nothing else stops a pocket from recording for an hour. The
+  // take up to this point is kept rather than discarded: it ends the recording,
+  // it does not throw it away.
+  useEffect(() => {
+    if (isRecording && duration >= MAX_SECONDS) stopRecording();
+    // stopRecording is redefined every render; what decides this is the clock.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isRecording, duration]);
 
   const formatTime = secs => `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
 
@@ -92,28 +120,52 @@ export default function VoiceRecorder({ onRecordingComplete, existingUri, onDele
     );
   }
 
-  if (isRecording) {
-    return (
-      <TouchableOpacity style={st.recordingRow} onPressOut={stopRecording} activeOpacity={0.8}>
-        <View style={st.recordDot} />
-        <Text style={st.recordTime}>{formatTime(duration)}</Text>
-        <Text style={st.recordHint}>Release to stop</Text>
-      </TouchableOpacity>
-    );
-  }
-
+  // One button, whatever it is currently saying.
+  //
+  // It used to be two — a mic, and a separate recording row that replaced it
+  // the instant recording began. That swap happened in the middle of your
+  // press, so the element you were holding unmounted and the one that took its
+  // place had never been pressed. Releasing therefore did nothing at all: the
+  // row said "Release to stop" and releasing did not stop it, which is a promise
+  // the app was in no position to keep. Recording only ever ended if you pressed
+  // the row a second time, and nothing said so.
+  //
+  // Keeping one element through the whole gesture is the fix. React holds the
+  // same instance, so it is still the responder when your finger comes up and
+  // onPressOut fires where it never used to. A second press stopping it still
+  // works — that is the same handler — so the accidental habit anybody formed
+  // is not taken away from them.
   return (
     <TouchableOpacity
-      style={st.micBtn}
+      style={isRecording ? st.recordingRow : st.micBtn}
       onLongPress={startRecording}
       delayLongPress={200}
-      activeOpacity={0.6}
+      // Read from the ref rather than the state: this closure is the one the
+      // press began with, and the state it captured said "not recording".
+      onPressOut={() => { if (recording.current) stopRecording(); }}
+      activeOpacity={isRecording ? 0.8 : 0.6}
       accessibilityRole="button"
-      accessibilityLabel="Record a voice note"
-      accessibilityHint="Press and hold to record, release to stop"
+      accessibilityLabel={isRecording ? 'Stop recording' : 'Record a voice note'}
+      accessibilityHint={
+        isRecording ? 'Release, or press again, to stop' : 'Press and hold to record'
+      }
     >
-      <Text style={st.micIcon}>🎙</Text>
-      <Text style={st.micLabel}>Hold to record</Text>
+      {isRecording ? (
+        <>
+          <View style={st.recordDot} />
+          <Text style={st.recordTime}>
+            {formatTime(duration)} / {formatTime(MAX_SECONDS)}
+          </Text>
+          <Text style={st.recordHint}>Release to stop</Text>
+        </>
+      ) : (
+        <>
+          <Text style={st.micIcon}>🎙</Text>
+          <Text style={[st.micLabel, problem && st.micProblem]}>
+            {problem || 'Hold to record'}
+          </Text>
+        </>
+      )}
     </TouchableOpacity>
   );
 }
@@ -154,6 +206,7 @@ const st = StyleSheet.create({
   micBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10 },
   micIcon: { fontSize: 17 },
   micLabel: { fontFamily: SANS, fontSize: 13.5, color: COLORS.inkFaint },
+  micProblem: { color: COLORS.accent },
 
   recordingRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10,

@@ -380,6 +380,22 @@ export function TaskProvider({ children, encryptionKey, synced }) {
       prev.map(t => {
         if (t.id !== id) return t;
         const updated = { ...t, ...updates, updatedAt: stamp() };
+
+        // A task that has changed columns needs a place in the one it arrives
+        // in. Order is kept per column per project, so the value it carried was
+        // measured against a list it has just left — bringing it along drops
+        // the task into the middle of its new column, which reads as having
+        // lost it. It goes to the top instead, where a new task goes, because
+        // arriving is what it has just done.
+        if (updates.taskType && updates.taskType !== t.taskType) {
+          updated.order = orderForNewTask(
+            prev.filter(other =>
+              isTask(other)
+              && other.id !== id
+              && other.taskType === updates.taskType
+              && projectOf(other) === projectOf(updated))
+          );
+        }
         // Renaming goes through the same rule as naming, or a task edited
         // afterwards would be the one lowercase entry in the list.
         if (typeof updates.title === 'string') updated.title = capitalizeTitle(updates.title);

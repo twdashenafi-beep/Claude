@@ -6,6 +6,7 @@ import { PRIORITY, PRIORITY_COLORS } from '../utils/constants';
 import { EARLY_REMINDER_OPTIONS } from '../services/notifications';
 import { COLORS } from '../utils/theme';
 import DateTimeFields from './DateTimeFields';
+import VoiceRecorder from './VoiceRecorder';
 
 export default function TaskDetail({ task, visible, onClose, onSave, projects = [] }) {
   const [title, setTitle] = useState('');
@@ -18,6 +19,8 @@ export default function TaskDetail({ task, visible, onClose, onSave, projects = 
   const [owePerson, setOwePerson] = useState('');
   const [viewScope, setViewScope] = useState('day');
   const [projectId, setProjectId] = useState('');
+  const [voiceNoteUri, setVoiceNoteUri] = useState(null);
+  const [taskType, setTaskType] = useState('todo');
 
   useEffect(() => {
     if (task) {
@@ -33,6 +36,8 @@ export default function TaskDetail({ task, visible, onClose, onSave, projects = 
       setOwePerson(task.owePerson || '');
       setViewScope(task.viewScope || 'day');
       setProjectId(task.projectId || '');
+      setVoiceNoteUri(task.voiceNoteUri || null);
+      setTaskType(task.taskType === 'done_for_me' || task.section === 'owe_me' ? 'done_for_me' : 'todo');
     }
   }, [task]);
 
@@ -40,7 +45,15 @@ export default function TaskDetail({ task, visible, onClose, onSave, projects = 
 
   const handleSave = () => {
     const earlyMinutes = EARLY_REMINDER_OPTIONS[earlyReminderIdx]?.minutes || 0;
+    const owed = taskType === 'done_for_me';
     onSave(task.id, {
+      // Both, always. They are read in different places, and a task whose type
+      // and section disagree looks like one kind and behaves like the other.
+      taskType,
+      section: owed ? 'owe_me' : 'todo',
+      // A name on a To Do reads as though somebody owes you your own task: the
+      // row prints whoever is named whichever column it is in.
+      owePerson: owed ? owePerson : '',
       title: title.trim() || task.title,
       notes,
       priority,
@@ -48,9 +61,9 @@ export default function TaskDetail({ task, visible, onClose, onSave, projects = 
       dueTime,
       reminderEnabled: reminderEnabled || earlyMinutes > 0,
       earlyReminderMinutes: earlyMinutes,
-      owePerson,
       viewScope,
       projectId,
+      voiceNoteUri,
     });
     onClose();
   };
@@ -60,7 +73,9 @@ export default function TaskDetail({ task, visible, onClose, onSave, projects = 
   };
 
 
-  const isOweMe = task.taskType === 'done_for_me' || task.section === 'owe_me';
+  // What you have just chosen, not what was saved — so asking for Owe Me puts
+  // the name field there at once, rather than after a save and a reopen.
+  const isOweMe = taskType === 'done_for_me';
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
@@ -128,6 +143,41 @@ export default function TaskDetail({ task, visible, onClose, onSave, projects = 
 
           {/* Which horizon it shows under. Fixed at creation until now, so a
               task that turned out to be a this-month job was stuck on today. */}
+          <View style={styles.section}>
+            <Text style={styles.label}>Column</Text>
+            <View style={styles.scopeRow}>
+              {[
+                { key: 'todo', label: 'To Do' },
+                { key: 'done_for_me', label: 'Owe Me' },
+              ].map(col => (
+                <TouchableOpacity
+                  key={col.key}
+                  style={[styles.scopeBtn, taskType === col.key && styles.scopeBtnOn]}
+                  onPress={() => setTaskType(col.key)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: taskType === col.key }}
+                  accessibilityLabel={
+                    taskType === col.key ? `Already in ${col.label}` : `Move to ${col.label}`
+                  }
+                >
+                  <Text style={[styles.scopeText, taskType === col.key && styles.scopeTextOn]}>
+                    {col.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Which column it lives in — the one thing about a task that could
+              not be changed.
+
+              The two columns are the whole app, and until now the only way to
+              move between them was to delete the task and type it again
+              somewhere else, losing its date, its notes and its recording on
+              the way. Which is not a move; it is a retype with casualties.
+
+              It is the same control as the two below it because it is the same
+              kind of choice: one of a short list, one at a time. */}
           <View style={styles.section}>
             <Text style={styles.label}>Show under</Text>
             <View style={styles.scopeRow}>
@@ -225,7 +275,14 @@ export default function TaskDetail({ task, visible, onClose, onSave, projects = 
             </View>
           )}
 
-          {/* Notes */}
+          {/* Notes, typed and spoken.
+              A voice note is a note you did not want to type, so it lives
+              under the same heading rather than earning one of its own. It sits
+              directly under the box in the add sheet too — the two sheets
+              putting the same thing in two places is how a person learns that
+              one of them cannot do it. Which, until now, was true: a note could
+              only ever be attached in the seconds before a task existed, and
+              the moment you pressed Add the offer was withdrawn for good. */}
           <View style={styles.section}>
             <Text style={styles.label}>Notes</Text>
             <TextInput
@@ -236,6 +293,11 @@ export default function TaskDetail({ task, visible, onClose, onSave, projects = 
               placeholderTextColor="#C7C7CC"
               multiline
               textAlignVertical="top"
+            />
+            <VoiceRecorder
+              existingUri={voiceNoteUri}
+              onRecordingComplete={uri => setVoiceNoteUri(uri)}
+              onDelete={() => setVoiceNoteUri(null)}
             />
           </View>
 
