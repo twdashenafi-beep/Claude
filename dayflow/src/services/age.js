@@ -65,7 +65,10 @@ export function daysSince(iso, now = new Date()) {
 //
 // Shared by both columns on purpose. Two ways of saying three weeks would be
 // two voices on one page.
-function span(days) {
+// Exported so a chase can say "asked 3 weeks ago" in the same words the row
+// uses for "waiting 3 weeks". Two ways of saying three weeks would be two
+// voices for one fact.
+export function span(days) {
   if (days < 14) return `${days} days`;
   if (days < 60) return `${Math.round(days / 7)} weeks`;
   if (days < 365) return `${Math.round(days / 30)} months`;
