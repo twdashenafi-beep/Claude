@@ -152,8 +152,7 @@ export default function AddTaskModal({ visible, onClose, onAdd, section = 'todo'
     });
 
     // Reset
-    setTitle(''); setNotes(''); setVoiceNoteUri(null);
-    setVoiceNotes([]);
+    setTitle(''); setNotes(''); setVoiceNotes([]);
     setDue({ dueDate: '', dueTime: '' });
     setPriority('none');
     setOwePerson('');
