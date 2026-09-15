@@ -8,7 +8,7 @@ AI-powered task manager with end-to-end encryption. Built with React Native (Exp
 ## Features
 
 - **Natural Language Input** — Type or speak "Call Mekdi tomorrow at 11am urgent" and the task is created with the right date, time and priority
-- **Voice Commands** — Speak naturally to create tasks (web speech recognition). The recording is kept with the task, so a thought can be captured without naming it first and a mishearing is recoverable
+- **Voice Commands** — Speak naturally to create tasks (web speech recognition). What it heard is shown as you speak, so a mishearing is caught before the task exists rather than after
 - **Voice Notes** — Hold to record a voice memo, on a new task or on one that already exists. Recordings are stored inside the encrypted task itself, so they survive a reload and reach your other devices
 - **End-to-End Encryption** — Task titles, notes, amounts and names are encrypted with AES-256 before they touch storage. Only you have the key.
 - **One Page, Two Columns** — To Do and Owe Me sit side by side on a single A4-proportioned sheet, divided by a ruled line. A task can be moved between them from its own sheet, keeping its date, notes and recording
@@ -17,6 +17,7 @@ AI-powered task manager with end-to-end encryption. Built with React Native (Exp
 - **Quick Actions** — Double-tap to complete, long-press for options, swipe to delete
 - **Calendar Sync** — Push any dated task to your device calendar from the quick-actions sheet
 - **Owe Me** — A follow-up column for what other people owe *you*: the task, who you are waiting on, and when to chase it. Each row says how long it has been waiting, and turns red past a fortnight
+- **Chase** — One tap on an Owe Me task writes the message asking for it back, covering *everything* that person owes you rather than one task at a time, and hands it to the phone's share sheet
 - **How long it has been sitting** — A To Do you have carried far longer than its scope says so too, quietly: red is for somebody else being late, not for you
 - **Reminders** — Local notifications at the due time, with early-reminder options
 - **Persistent Storage** — Tasks survive restarts via encrypted AsyncStorage
@@ -119,7 +120,8 @@ dayflow/
 │   │   ├── age.js                  # How long a task has been sitting there
 │   │   ├── leak.js                 # Whether the server can read any of it (pure, tested)
 │   │   ├── audio.js                # Making a recording outlast the page that made it
-│   │   ├── capture.js              # Keeping the audio of what you dictated
+│   │   ├── chase.js                # Writing the message that asks for it back (pure, tested)
+│   │   ├── share.js                # Handing text to the device's share sheet
 │   │   ├── search.js               # Matching and ranking across every list
 │   │   ├── notifications.js        # Local notification scheduling
 │   │   └── supabase.js             # Supabase client (optional)

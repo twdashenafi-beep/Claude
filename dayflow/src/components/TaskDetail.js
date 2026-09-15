@@ -8,8 +8,10 @@ import { COLORS } from '../utils/theme';
 import DateTimeFields from './DateTimeFields';
 import VoiceRecorder from './VoiceRecorder';
 import { notesOf, noteFields } from '../services/voiceNotes';
+import { chaseMessage, owedBy } from '../services/chase';
+import { shareText } from '../services/share';
 
-export default function TaskDetail({ task, visible, onClose, onSave, onMove, place, projects = [] }) {
+export default function TaskDetail({ task, visible, onClose, onSave, onMove, place, projects = [], tasks = [] }) {
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
   const [priority, setPriority] = useState('medium');
@@ -22,6 +24,8 @@ export default function TaskDetail({ task, visible, onClose, onSave, onMove, pla
   const [projectId, setProjectId] = useState('');
   const [voiceNotes, setVoiceNotes] = useState([]);
   const [taskType, setTaskType] = useState('todo');
+  // What happened the last time a chase was sent from here.
+  const [chased, setChased] = useState('');
 
   useEffect(() => {
     if (task) {
@@ -39,6 +43,7 @@ export default function TaskDetail({ task, visible, onClose, onSave, onMove, pla
       setProjectId(task.projectId || '');
       setVoiceNotes(notesOf(task));
       setTaskType(task.taskType === 'done_for_me' || task.section === 'owe_me' ? 'done_for_me' : 'todo');
+      setChased('');
     }
   }, [task]);
 
@@ -73,6 +78,31 @@ export default function TaskDetail({ task, visible, onClose, onSave, onMove, pla
     onClose();
   };
 
+
+  // Everything this person still owes, this task included.
+  //
+  // Read against the sheet as it stands rather than as it was saved: typing a
+  // name in and chasing them should not need a save and a reopen in between,
+  // and a title edited a moment ago should be the title that gets asked for.
+  const asEdited = (tasks || []).map(t => (
+    t && t.id === task.id
+      ? { ...t, owePerson, taskType, title: title.trim() || t.title }
+      : t
+  ));
+  const owedHere = owePerson.trim() ? owedBy(asEdited, owePerson) : [];
+
+  const sendChase = async () => {
+    const message = chaseMessage(asEdited, owePerson, new Date());
+    if (!message) return;
+    setChased('');
+    const result = await shareText(message);
+    setChased({
+      shared: '',
+      cancelled: '',
+      copied: 'Copied — paste it wherever you talk to them',
+      unavailable: 'Nothing on this device could take it. Long-press the text to copy.',
+    }[result] ?? '');
+  };
 
   // What you have just chosen, not what was saved — so asking for Owe Me puts
   // the name field there at once, rather than after a save and a reopen.
@@ -300,6 +330,35 @@ export default function TaskDetail({ task, visible, onClose, onSave, onMove, pla
                 placeholder="Who owes you?"
                 placeholderTextColor="#C7C7CC"
               />
+
+              {/* Asking for it back.
+                  The column has always known who owes you what and how long it
+                  has been, and has never once helped you ask. Chasing is also
+                  not done a task at a time: if the agent owes you the inventory
+                  and the meter reading, that is one message, not two. So this
+                  writes for the person rather than for the task — everything
+                  they owe, oldest first — and hands it to the share sheet,
+                  which is where the choice of WhatsApp or mail already lives
+                  and where the words can be changed before they go. */}
+              {owedHere.length > 0 ? (
+                <TouchableOpacity
+                  style={styles.chaseBtn}
+                  onPress={sendChase}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    owedHere.length > 1
+                      ? `Write a chase to ${owePerson.trim()} for ${owedHere.length} things`
+                      : `Write a chase to ${owePerson.trim()}`
+                  }
+                >
+                  <Text style={styles.chaseText}>
+                    {owedHere.length > 1
+                      ? `✎  Chase ${owePerson.trim()} — ${owedHere.length} things`
+                      : `✎  Chase ${owePerson.trim()}`}
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
+              {chased ? <Text style={styles.chaseNote}>{chased}</Text> : null}
             </View>
           )}
 
@@ -409,6 +468,9 @@ const styles = StyleSheet.create({
   },
   scopeBtnOn: { backgroundColor: '#00000010', borderColor: '#C7C2B4' },
   scopeBtnOff: { opacity: 0.35 },
+  chaseBtn: { marginTop: 10, alignSelf: 'flex-start', paddingVertical: 6 },
+  chaseText: { fontSize: 14, color: COLORS.accent, fontWeight: '600' },
+  chaseNote: { marginTop: 6, fontSize: 12.5, color: '#8E8E93' },
   scopeTextOff: { color: '#B5AFA1' },
   scopeText: { fontSize: 14, color: '#8E8E93' },
   scopeTextOn: { color: '#3A362C', fontWeight: '600' },

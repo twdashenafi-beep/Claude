@@ -809,6 +809,7 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
         onSave={saveTask}
         onMove={moveTask}
         place={detailTask ? placeOf(detailTask.id) : null}
+        tasks={tasks}
         projects={projects}
       />
 
