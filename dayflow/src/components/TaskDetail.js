@@ -7,6 +7,7 @@ import { EARLY_REMINDER_OPTIONS } from '../services/notifications';
 import { COLORS } from '../utils/theme';
 import DateTimeFields from './DateTimeFields';
 import VoiceRecorder from './VoiceRecorder';
+import { notesOf, noteFields } from '../services/voiceNotes';
 
 export default function TaskDetail({ task, visible, onClose, onSave, onMove, place, projects = [] }) {
   const [title, setTitle] = useState('');
@@ -19,7 +20,7 @@ export default function TaskDetail({ task, visible, onClose, onSave, onMove, pla
   const [owePerson, setOwePerson] = useState('');
   const [viewScope, setViewScope] = useState('day');
   const [projectId, setProjectId] = useState('');
-  const [voiceNoteUri, setVoiceNoteUri] = useState(null);
+  const [voiceNotes, setVoiceNotes] = useState([]);
   const [taskType, setTaskType] = useState('todo');
 
   useEffect(() => {
@@ -36,7 +37,7 @@ export default function TaskDetail({ task, visible, onClose, onSave, onMove, pla
       setOwePerson(task.owePerson || '');
       setViewScope(task.viewScope || 'day');
       setProjectId(task.projectId || '');
-      setVoiceNoteUri(task.voiceNoteUri || null);
+      setVoiceNotes(notesOf(task));
       setTaskType(task.taskType === 'done_for_me' || task.section === 'owe_me' ? 'done_for_me' : 'todo');
     }
   }, [task]);
@@ -63,7 +64,7 @@ export default function TaskDetail({ task, visible, onClose, onSave, onMove, pla
       earlyReminderMinutes: earlyMinutes,
       viewScope,
       projectId,
-      voiceNoteUri,
+      ...noteFields(voiceNotes),
     });
     onClose();
   };
@@ -322,9 +323,9 @@ export default function TaskDetail({ task, visible, onClose, onSave, onMove, pla
               textAlignVertical="top"
             />
             <VoiceRecorder
-              existingUri={voiceNoteUri}
-              onRecordingComplete={uri => setVoiceNoteUri(uri)}
-              onDelete={() => setVoiceNoteUri(null)}
+              notes={voiceNotes}
+              onAdd={uri => setVoiceNotes(list => [...list, uri])}
+              onRemove={i => setVoiceNotes(list => list.filter((_, at) => at !== i))}
             />
           </View>
 

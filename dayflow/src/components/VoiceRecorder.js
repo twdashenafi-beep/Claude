@@ -6,6 +6,7 @@ import {
 } from 'expo-audio';
 import { COLORS, SANS } from '../utils/theme';
 import { toDurableUri } from '../services/audio';
+import { MAX_NOTES, canAddNote } from '../services/voiceNotes';
 
 // Voice notes, on expo-audio.
 //
@@ -21,7 +22,7 @@ const MAX_SECONDS = 60;
 // A hold rather than a tap, so brushing the mic does not record.
 const HOLD_MS = 200;
 
-export default function VoiceRecorder({ onRecordingComplete, existingUri, onDelete }) {
+export default function VoiceRecorder({ notes = [], onAdd, onRemove }) {
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const [isRecording, setIsRecording] = useState(false);
   const [duration, setDuration] = useState(0);
@@ -86,7 +87,7 @@ export default function VoiceRecorder({ onRecordingComplete, existingUri, onDele
       // Recording holds the audio session; hand it back so playback elsewhere
       // is not routed to the earpiece afterwards.
       await setAudioModeAsync({ allowsRecording: false });
-      if (!recorder.uri || !onRecordingComplete) return;
+      if (!recorder.uri || !onAdd) return;
 
       // What the recorder hands back is only valid where it was made — on the
       // web, in this one tab, until the next refresh. Turn it into the
@@ -97,7 +98,7 @@ export default function VoiceRecorder({ onRecordingComplete, existingUri, onDele
         return;
       }
       setProblem('');
-      onRecordingComplete(durable, duration);
+      onAdd(durable, duration);
     } catch (err) {
       console.warn('Failed to stop recording:', err.message);
     }
@@ -168,21 +169,40 @@ export default function VoiceRecorder({ onRecordingComplete, existingUri, onDele
 
   const formatTime = secs => `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
 
-  if (existingUri) {
-    return (
-      <View style={st.existing}>
-        <VoicePlayButton uri={existingUri} />
-        <Text style={st.existingLabel}>Voice note</Text>
-        {onDelete ? (
-          <TouchableOpacity onPress={onDelete} style={st.deleteBtn}>
-            <Text style={st.deleteText}>Remove</Text>
-          </TouchableOpacity>
-        ) : null}
-      </View>
-    );
-  }
+  const room = canAddNote(notes);
 
   return (
+    <View>
+      {/* What is already here. Each one plays and each one can go; the mic
+          stays underneath, which is the whole of the fix — a task that had a
+          note used to show this list and nothing else, so the one recording it
+          arrived with was also the last it could ever have. */}
+      {notes.map((uri, i) => (
+        <View key={`${i}-${uri.slice(-12)}`} style={st.existing}>
+          <VoicePlayButton uri={uri} />
+          <Text style={st.existingLabel}>
+            {notes.length > 1 ? `Voice note ${i + 1}` : 'Voice note'}
+          </Text>
+          {onRemove ? (
+            <TouchableOpacity
+              onPress={() => onRemove(i)}
+              style={st.deleteBtn}
+              accessibilityRole="button"
+              accessibilityLabel={
+                notes.length > 1 ? `Remove voice note ${i + 1}` : 'Remove voice note'
+              }
+            >
+              <Text style={st.deleteText}>Remove</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      ))}
+
+      {!room ? (
+        <Text style={st.micLabel}>
+          {`That is as many as one task can hold. Remove one to record another.`}
+        </Text>
+      ) : (
     <View
       style={isRecording ? st.recordingRow : st.micBtn}
       {...gesture.panHandlers}
@@ -207,6 +227,8 @@ export default function VoiceRecorder({ onRecordingComplete, existingUri, onDele
             {problem || 'Hold to record'}
           </Text>
         </>
+      )}
+    </View>
       )}
     </View>
   );

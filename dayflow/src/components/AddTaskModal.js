@@ -16,6 +16,7 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
 
 import DateTimeFields from './DateTimeFields';
 import VoiceRecorder from './VoiceRecorder';
+import { noteFields } from '../services/voiceNotes';
 import { COLORS, SERIF } from '../utils/theme';
 
 function SectionRow({ icon, label, value, onPress, isFirst, isLast, children, rightElement }) {
@@ -101,7 +102,7 @@ export default function AddTaskModal({ visible, onClose, onAdd, section = 'todo'
   // Core fields
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
-  const [voiceNoteUri, setVoiceNoteUri] = useState(null);
+  const [voiceNotes, setVoiceNotes] = useState([]);
 
 
   // Date & time, as the shared fields speak it.
@@ -146,12 +147,12 @@ export default function AddTaskModal({ visible, onClose, onAdd, section = 'todo'
       owePerson: owePerson.trim(),
       oweDescription: '',
       notes: notes.trim(),
-      voiceNoteUri,
+      ...noteFields(voiceNotes),
       attachments: [],
     });
 
     // Reset
-    setTitle(''); setNotes(''); setVoiceNoteUri(null);
+    setTitle(''); setNotes(''); setVoiceNotes([]);
     setDue({ dueDate: '', dueTime: '' });
     setPriority('none');
     setOwePerson('');
@@ -215,9 +216,9 @@ export default function AddTaskModal({ visible, onClose, onAdd, section = 'todo'
           {/* Voice note */}
           <View style={{ paddingHorizontal: 20, paddingBottom: 16 }}>
             <VoiceRecorder
-              existingUri={voiceNoteUri}
-              onRecordingComplete={(uri) => setVoiceNoteUri(uri)}
-              onDelete={() => setVoiceNoteUri(null)}
+              notes={voiceNotes}
+              onAdd={uri => setVoiceNotes(list => [...list, uri])}
+              onRemove={i => setVoiceNotes(list => list.filter((_, at) => at !== i))}
             />
           </View>
 
