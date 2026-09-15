@@ -173,20 +173,27 @@ async function recordInSheet(ms = 1400) {
   await page.waitForTimeout(2000);
 }
 
-// ── A task made by voice, exactly as reported ──
+// ── A task made by voice ──
+//
+// Dictation used to keep the audio of what you said and attach it, which cost a
+// hundred and ten kilobytes against six hundred and eighty-four bytes for the
+// same task typed — about forty-five spoken tasks before the vault was full —
+// in exchange for a safety net that stopped being useful the moment you had
+// glanced at the title. It does not any more, and the first thing to prove is
+// that a spoken task now arrives clean.
 await dictate('To Do call Dereb');
 ok('the spoken task is made', await shows('Call Dereb'), (await body()).slice(0, 300));
-ok('and carries the recording of what was said', (await playButtons()) === 1);
+ok('and carries no recording with it', (await playButtons()) === 0);
 
 await openTask('Call Dereb');
-ok('the sheet shows the recording it came with', await shows('Voice note'));
-
-// This is the bug: the mic was gone entirely once a note existed.
-ok('and still offers the microphone',
-   (await page.getByLabel('Record a voice note').count()) === 1,
+ok('the sheet offers the microphone', (await page.getByLabel('Record a voice note').count()) === 1,
    (await body()).slice(-300));
 
-// ── Adding one ──
+// One recorded by hand, so the rest of this has something to add to.
+await recordInSheet();
+ok('a note recorded by hand is kept', await shows('Voice note'));
+
+// ── Adding a second ──
 await recordInSheet();
 ok('a second note can be recorded', (await noteRows()) === 2, String(await noteRows()));
 ok('and they are numbered once there is more than one', await shows('Voice note 2'));
