@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { format, parseISO, isToday, isYesterday } from 'date-fns';
 import { VoicePlayButton } from './VoiceRecorder';
+import { latestNote } from '../services/voiceNotes';
 import { groupByDay } from '../services/archive';
 import { projectName } from '../services/projects';
 import { COLORS, SANS, SERIF } from '../utils/theme';
@@ -110,9 +111,9 @@ export default function ArchiveSheet({ tasks, projects, onRestore, onDelete, onE
                   </>
                 ) : null}
 
-                {task.voiceNoteUri ? (
+                {latestNote(task) ? (
                   <View style={s.voice}>
-                    <VoicePlayButton uri={task.voiceNoteUri} />
+                    <VoicePlayButton uri={latestNote(task)} />
                   </View>
                 ) : null}
               </View>

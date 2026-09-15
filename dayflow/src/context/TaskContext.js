@@ -267,6 +267,7 @@ export function TaskProvider({ children, encryptionKey, synced }) {
       owePerson: taskData.owePerson || '',
       notes: taskData.notes || '',
       voiceNoteUri: taskData.voiceNoteUri || null,
+      voiceNotes: Array.isArray(taskData.voiceNotes) ? taskData.voiceNotes : [],
       attachments: taskData.attachments || [],
       createdAt: now,
       updatedAt: now,

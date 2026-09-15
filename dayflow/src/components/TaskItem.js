@@ -4,6 +4,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { VoicePlayButton } from './VoiceRecorder';
+import { latestNote } from '../services/voiceNotes';
 import { Platform } from 'react-native';
 import { dueLabel, dueSpoken } from '../services/due';
 import { ageLabel } from '../services/age';
@@ -292,7 +293,10 @@ export default function TaskItem({
           ) : null}
         </TouchableOpacity>
 
-        {task.voiceNoteUri ? <VoicePlayButton uri={task.voiceNoteUri} /> : null}
+        {/* One button, and it plays the most recent note: the oldest is
+            usually the dictation that made the task, and anything added since
+            was added because it had more to say. */}
+        {latestNote(task) ? <VoicePlayButton uri={latestNote(task)} /> : null}
 
         {/* Removing something you are no longer going to do is not the same as
             finishing it, and it was only reachable by swiping or holding —
