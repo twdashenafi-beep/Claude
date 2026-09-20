@@ -42,14 +42,13 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
 // An entry in one of the two columns. The column is narrow, so the title takes
 // the full width and everything else — who owes, how much, when — sits on a
 // second line beneath it rather than competing for the same row.
-export default function TaskItem({
+function TaskItem({
   task, onToggle, onDelete, onPress,
   onMeasure, onDragStart, onDragMove, onDragEnd, dragging, shift = 0, drift = 0,
 }) {
   const translateX = useRef(new Animated.Value(0)).current;
   const dragY = useRef(new Animated.Value(0)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
-  const lastTap = useRef(0);
 
   // PanResponder.create runs once, so its handlers close over the props as they
   // were at mount. Both of the callbacks below are rebuilt whenever the task
@@ -190,18 +189,17 @@ export default function TaskItem({
     if (dragging) dragY.setValue(lastDy.current + drift);
   }, [drift, dragging]);
 
-  const handleTap = () => {
-    const now = Date.now();
-    if (now - lastTap.current < 300) {
-      onToggle(task.id);
-      lastTap.current = 0;
-    } else {
-      lastTap.current = now;
-      setTimeout(() => {
-        if (lastTap.current === now) onPress && onPress(task);
-      }, 300);
-    }
-  };
+  // Opening a task is the commonest thing anybody does here, and it used to
+  // wait three hundred milliseconds before doing it — every tap, on every
+  // device, watching for a second tap that would have marked the task done
+  // instead.
+  //
+  // That second way of finishing a task was never needed: the checkbox has
+  // always been there, one tap, and a bigger target than the row. So the whole
+  // row was being slowed down permanently to support a gesture that duplicated
+  // the control beside it. Taking the gesture away is what makes opening
+  // instant — the improvement is the deletion.
+  const handleTap = () => { onPress && onPress(task); };
 
   // On a phone the two columns leave a title about a hundred points of width,
   // which is a dozen characters a line — "Call the letting agent about the
@@ -266,7 +264,7 @@ export default function TaskItem({
             task.priority === 'high' ? 'high priority' : null,
             done ? 'completed' : null,
           ].filter(Boolean).join(', ')}
-          accessibilityHint="Opens the task. Double tap to mark it done. Hold to pick it up and move it."
+          accessibilityHint="Opens the task. Hold to pick it up and move it."
         >
           <Text style={[st.title, done && st.titleDone]} numberOfLines={narrow ? 3 : 2}>
             {!done && task.priority === 'high' ? (
@@ -364,3 +362,15 @@ const st = StyleSheet.create({
   },
   removeMark: { fontFamily: SANS, fontSize: 17, lineHeight: 19, color: '#C4BEB0' },
 });
+
+// Rendered only when something about this row changed.
+//
+// Without this, anything that re-rendered the page re-rendered every row in
+// both columns — closing a task sheet went from twenty milliseconds at twenty
+// tasks to three hundred at two hundred, on a desktop, which on a phone is most
+// of a second of the screen sitting still after you have tapped Cancel.
+//
+// A shallow comparison is enough because the props are stable by construction:
+// a task object keeps its identity unless that task is edited, and everything
+// else passed in is either a primitive or a callback that does not change.
+export default React.memo(TaskItem);
