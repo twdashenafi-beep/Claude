@@ -87,6 +87,16 @@ function Column({
   // starts.
   const [drift, setDrift] = useState(0);
 
+  // The open list, read at the moment a gesture needs it rather than captured
+  // when the handlers were built.
+  //
+  // Those handlers are passed to every row. Rebuilding them whenever the list
+  // changes changes a prop on all of them, which defeats the memo on the row
+  // and re-renders both columns for a single tick — the cost of which grows
+  // with the number of tasks, which is exactly the wrong way round.
+  const openRef = useRef(open);
+  openRef.current = open;
+
   const stopAutoScroll = useCallback(() => {
     clearInterval(autoScroll.current);
     autoScroll.current = null;
@@ -96,14 +106,14 @@ function Column({
   useEffect(() => () => clearInterval(autoScroll.current), []);
 
   const startDrag = useCallback(id => {
-    const from = open.findIndex(t => t.id === id);
+    const from = openRef.current.findIndex(t => t.id === id);
     if (from < 0) return;
     // Where the page was when the row came up. Everything below is measured
     // against this, because the page can move under the finger from here on.
     dragFromScroll.current = scrollY.current;
     setDrift(0);
     setDragState({ id, from, to: from });
-  }, [open]);
+  }, []);
 
   // Recomputed from the last finger position and however far the page has
   // scrolled since — the row has to be judged against the list, and the list
@@ -112,13 +122,13 @@ function Column({
     const current = dragRef.current;
     if (!current) return;
     const travelled = scrollY.current - dragFromScroll.current;
-    const sizes = open.map(t => heights.current[t.id] || 0);
+    const sizes = openRef.current.map(t => heights.current[t.id] || 0);
     const to = targetIndex(sizes, current.from, lastDy.current + travelled);
     if (to !== current.to) {
       moveTick();
       setDragState({ ...current, to });
     }
-  }, [open]);
+  }, []);
 
   const moveDrag = useCallback((dy, pageY) => {
     if (!dragRef.current) return;
@@ -152,9 +162,9 @@ function Column({
     setDrift(0);
     lastDy.current = 0;
     if (!current || current.to === current.from) return;
-    const changes = moveWithin(open, current.from, current.to);
+    const changes = moveWithin(openRef.current, current.from, current.to);
     if (changes.length) onReorder(changes);
-  }, [open, onReorder]);
+  }, [onReorder]);
 
   const row = (task, index) => (
     <TaskItem

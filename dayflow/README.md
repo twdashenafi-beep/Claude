@@ -14,7 +14,7 @@ AI-powered task manager with end-to-end encryption. Built with React Native (Exp
 - **One Page, Two Columns** — To Do and Owe Me sit side by side on a single A4-proportioned sheet, divided by a ruled line. A task can be moved between them from its own sheet, keeping its date, notes and recording
 - **Day/Week/Month Views** — Tasks are scoped to their view for clear separation
 - **Daily Briefing** — Progress, high-priority items and owed totals at a glance, with an optional Claude-written summary
-- **Quick Actions** — Double-tap to complete, long-press for options, swipe to delete
+- **Quick Actions** — Tap the checkbox to complete, hold a row to pick it up and move it, swipe to delete
 - **Calendar Sync** — Push any dated task to your device calendar from the quick-actions sheet
 - **Owe Me** — A follow-up column for what other people owe *you*: the task, who you are waiting on, and when to chase it. Each row says how long it has been waiting, and turns red past a fortnight
 - **Chase** — One tap on an Owe Me task writes the message asking for it back, covering *everything* that person owes you rather than one task at a time, and hands it to the phone's share sheet
