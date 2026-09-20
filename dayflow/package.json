@@ -1,0 +1,20 @@
+{
+  "name": "dayflow",
+  "version": "1.0.0",
+  "private": true,
+  "description": "DayFlow — a local-first day planner with a To Do / Owe Me board, natural-language capture, and an MCP server so Claude can manage your tasks.",
+  "type": "module",
+  "main": "server.js",
+  "bin": {
+    "dayflow": "./server.js"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {},
+  "license": "MIT"
+}

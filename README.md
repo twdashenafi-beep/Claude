@@ -1,3 +1,7 @@
+> **This repo holds two self-contained projects:**
+> **World Monitor** (below, `index.html`) and **[DayFlow](dayflow/)** — a
+> local-first day planner with an MCP server so Claude can manage your tasks.
+
 # World Monitor — Horn of Africa & Strategic Commodities
 
 A self-contained, single-file **situational-awareness dashboard** in the

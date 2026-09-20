@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "dayflow": {
+      "command": "node",
+      "args": ["/absolute/path/to/dayflow/mcp/index.js"],
+      "env": {
+        "DAYFLOW_PORT": "3001",
+        "DAYFLOW_HOST": "127.0.0.1"
+      }
+    }
+  }
+}

@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DayFlow</title>
+<meta name="description" content="DayFlow — your day, two columns: what you owe the day, and what the day owes you.">
+<link rel="icon" href="/favicon.svg">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<a class="skip" href="#board">Skip to board</a>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="mark" aria-hidden="true"></span>
+    <span class="wordmark">Day<b>Flow</b></span>
+  </div>
+
+  <nav class="views" aria-label="Time scope">
+    <button class="view-btn is-on" data-view="day">Day</button>
+    <button class="view-btn" data-view="week">Week</button>
+    <button class="view-btn" data-view="month">Month</button>
+  </nav>
+
+  <div class="datenav">
+    <button id="prev" class="icon-btn" title="Previous" aria-label="Previous period">‹</button>
+    <button id="today" class="chip-btn">Today</button>
+    <button id="next" class="icon-btn" title="Next" aria-label="Next period">›</button>
+    <span id="range" class="range"></span>
+  </div>
+
+  <div class="spacer"></div>
+
+  <label class="search">
+    <span class="sr-only">Search tasks</span>
+    <input id="search" type="search" placeholder="Search…" autocomplete="off">
+  </label>
+
+  <span id="status" class="status" title="Connection to the DayFlow server">
+    <i class="dot"></i><span class="status-text">connecting</span>
+  </span>
+  <button id="theme" class="icon-btn" title="Switch theme" aria-label="Switch theme">◐</button>
+</header>
+
+<main>
+  <form id="capture" class="capture" autocomplete="off">
+    <input id="capture-input" name="text" type="text" required
+           placeholder="Call Mekdi at 7pm today — or “Abel owes me $20 by friday”"
+           aria-label="Add a task in plain language">
+    <button type="submit" class="primary">Add</button>
+    <p id="preview" class="preview" aria-live="polite"></p>
+  </form>
+
+  <section id="stats" class="stats" aria-label="Summary"></section>
+
+  <div id="board" class="board">
+    <section class="column" data-section="todo">
+      <header class="col-head">
+        <h2>To&nbsp;Do <span class="count" data-count="todo">0</span></h2>
+        <p class="col-sub">What you owe the day</p>
+      </header>
+      <ul class="list" data-list="todo"></ul>
+    </section>
+
+    <section class="column" data-section="owe_me">
+      <header class="col-head">
+        <h2>Owe&nbsp;Me <span class="count" data-count="owe_me">0</span></h2>
+        <p class="col-sub">What the day owes you</p>
+      </header>
+      <ul class="list" data-list="owe_me"></ul>
+    </section>
+  </div>
+
+  <section class="done">
+    <div class="done-head">
+      <button id="toggle-done" class="chip-btn" aria-expanded="false">
+        Show completed <span class="count" data-count="done">0</span>
+      </button>
+      <button id="clear-done" class="chip-btn danger" hidden>Clear completed</button>
+    </div>
+    <ul class="list done-list" data-list="done" hidden></ul>
+  </section>
+</main>
+
+<footer class="foot">
+  <span>Local-first — tasks live in a JSON file on this machine.</span>
+  <span class="kbd-hint"><kbd>/</kbd> search · <kbd>n</kbd> new task · <kbd>Esc</kbd> cancel</span>
+</footer>
+
+<template id="task-tpl">
+  <li class="task">
+    <button class="check" aria-label="Toggle complete"><span></span></button>
+    <div class="body">
+      <p class="title"></p>
+      <p class="meta"></p>
+      <p class="notes"></p>
+    </div>
+    <div class="row-actions">
+      <button class="icon-btn edit" title="Edit" aria-label="Edit task">✎</button>
+      <button class="icon-btn del" title="Delete" aria-label="Delete task">🗑</button>
+    </div>
+  </li>
+</template>
+
+<script src="/app.js" type="module"></script>
+</body>
+</html>
