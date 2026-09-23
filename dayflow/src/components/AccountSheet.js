@@ -13,6 +13,8 @@ import { COLORS, SERIF, SANS } from '../utils/theme';
 import { playChime, chimeAvailable } from '../services/chime';
 import { pullTasks } from '../services/sync';
 import { inspectRows } from '../services/leak';
+import { buildBackup, backupText, backupFilename, describe } from '../services/backup';
+import { saveTextFile } from '../services/saveFile';
 
 // What to say after trying to play it. The first case is the interesting one:
 // the browser reports a sound played, so if none was heard the cause is
@@ -25,7 +27,18 @@ const SOUND_RESULT = {
   failed: 'Could not play it',
 };
 
-export default function AccountSheet({ visible, email, dataKey, tasks = [], onClose, onLock, onDeleted }) {
+// What to say after trying to write the file. Cancelling is not a failure and
+// must not read like one; the two that are failures say which one it is.
+const SAVE_RESULT = {
+  cancelled: 'Cancelled — nothing was saved',
+  toolarge: 'Too large to send from here — export from the browser instead',
+  unavailable: 'This device cannot save a file',
+};
+
+export default function AccountSheet({
+  visible, email, dataKey, tasks = [], archived = [], projects = [],
+  onClose, onLock, onDeleted,
+}) {
   const [view, setView] = useState('menu'); // menu | password | code | delete
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -41,6 +54,8 @@ export default function AccountSheet({ visible, email, dataKey, tasks = [], onCl
   // What the server turned out to be holding, last time it was asked.
   const [seen, setSeen] = useState('');
   const [exposed, setExposed] = useState(false);
+  // What happened the last time a copy was asked for.
+  const [saved, setSaved] = useState('');
 
   const reset = () => {
     setView('menu'); setPassword(''); setConfirm(''); setTyped('');
@@ -74,6 +89,30 @@ export default function AccountSheet({ visible, email, dataKey, tasks = [], onCl
       }
     } catch (e) {
       setSeen(`Could not ask: ${String(e.message || e)}`);
+    }
+  };
+
+  // Everything, in a file you keep.
+  //
+  // The vault is encrypted with a key derived from a password nothing can
+  // recover — that is the point of it, and it is also why this has to exist.
+  // One forgotten password and the tasks are gone for good, and until now there
+  // was no way to hold a copy of what was in there.
+  //
+  // Nothing is awaited before the file is handed over. A browser only allows a
+  // share sheet during the gesture that asked for one, and an await here would
+  // spend that permission before the sheet was ever reached.
+  const exportCopy = async () => {
+    setSaved('Gathering…');
+    try {
+      const backup = buildBackup({ tasks, archived, projects, email });
+      const text = backupText(backup);
+      const result = await saveTextFile(backupFilename(), text);
+      setSaved(result === 'saved'
+        ? `Saved · ${describe(backup, text)}`
+        : SAVE_RESULT[result] || 'Could not save it');
+    } catch (e) {
+      setSaved(`Could not save it: ${String(e.message || e)}`);
     }
   };
 
@@ -165,6 +204,15 @@ export default function AccountSheet({ visible, email, dataKey, tasks = [], onCl
               <View style={s.rule} />
               <Row label="Change password" detail="Your tasks are not re-encrypted" onPress={() => setView('password')} />
               <Row label="New recovery code" detail="Replaces the code you saved" onPress={() => setView('code')} />
+              {/* The other half of not being locked out. A recovery code gets
+                  you back into the account; this is what you would have left if
+                  the vault itself were gone. It sits with the password and the
+                  code because all three are the same worry. */}
+              <Row
+                label="Export a copy"
+                detail={saved || 'Every task, in one file you keep'}
+                onPress={exportCopy}
+              />
               {/* Somewhere to hear it without setting a task and waiting for
                   it to come due, which is no way to find out whether a sound
                   works. Pressing it is also a gesture, which is what a browser
