@@ -877,6 +877,8 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
         email={account}
         dataKey={dataKey}
         tasks={tasks}
+        archived={archived}
+        projects={projects}
         onClose={() => setShowAccount(false)}
         onLock={onLock}
         onDeleted={onDeleted}
