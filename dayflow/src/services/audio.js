@@ -21,6 +21,33 @@
 // answer is a note, not a monologue.
 export const MAX_NOTE_BYTES = 700 * 1024;
 
+// The other end of the same scale.
+//
+// The microphone starts after a fifth of a second of holding, so a brush is
+// already meant to do nothing — but a brush that lasts a little longer used to
+// leave a moment of room tone attached to the task, indistinguishable from a
+// real note until you played it. Below this, the hold was a slip.
+//
+// Measured from when the recorder actually opened, not from when the finger
+// went down, and the gap between those two is most of why this number is low.
+// Starting is not instant: permission, the audio session and preparing the
+// recorder are all awaited, and they cost a few hundred milliseconds on a cold
+// first press. A threshold set where a short note sounds like it ends — say
+// three quarters of a second — therefore throws away nine-tenths of a second
+// of holding, which is a real note by anybody's reckoning. Under four hundred
+// milliseconds there is no room for a word.
+export const MIN_NOTE_MS = 400;
+
+// Whether a recording is too brief to have been meant.
+//
+// Only says yes when the length is actually known. If something could not be
+// timed the answer is no: throwing away audio on a measurement we do not have
+// is the one outcome worth avoiding here.
+export function tooShort(ms) {
+  if (typeof ms !== 'number' || !Number.isFinite(ms) || ms < 0) return false;
+  return ms < MIN_NOTE_MS;
+}
+
 // A URI that will still mean something tomorrow, or null if the recording was
 // too large to keep.
 //

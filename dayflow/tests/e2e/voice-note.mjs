@@ -144,7 +144,10 @@ async function holdMic(ms) {
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
   await page.waitForTimeout(ms);
-  const recording = await shows('Release to stop');
+  // What the button says while it is running. It used to read "Release to
+  // stop"; the release is obvious while you are holding it, and the hint is
+  // now spent on the part that is not — that sliding up keeps it going.
+  const recording = await shows('Slide up to keep going');
   await page.mouse.up();
   await page.waitForTimeout(1800);
   return recording;
@@ -166,7 +169,7 @@ ok('under Notes, where a note belongs', await shows('NOTES'));
 // because the button you were holding had been swapped for a different one.
 const began = await holdMic(1500);
 ok('holding it starts recording', began);
-ok('and letting go stops', !(await shows('Release to stop')));
+ok('and letting go stops', !(await shows('Slide up to keep going')));
 ok('and leaves a note behind', await shows('Voice note'));
 ok('which can be removed again', await shows('Remove'));
 
@@ -240,7 +243,7 @@ await page.getByPlaceholder('What needs to be done?').fill('Chase the deposit');
 ok('the add sheet offers the mic', await shows('Hold to record'));
 const beganAdd = await holdMic(1400);
 ok('holding it records there too', beganAdd);
-ok('and letting go stops there too', !(await shows('Release to stop')));
+ok('and letting go stops there too', !(await shows('Slide up to keep going')));
 await page.getByLabel('Add to To Do').click();
 await page.waitForTimeout(1200);
 ok('a task created with a note has one', (await playButtons()) === 1);

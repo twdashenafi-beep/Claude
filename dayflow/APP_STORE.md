@@ -425,22 +425,31 @@ failing to save, which was the more urgent half of the problem.
 
 ---
 
-## Known limitation: voice notes do not travel
+## Known limitation: voice notes may not travel from a native build
 
-A voice note is stored as a file path on the device that recorded it
-(`src/components/VoiceRecorder.js` keeps `recorder.uri`). That path means
-nothing on any other device, so a note recorded on the iPhone shows a play
-button on the Mac that cannot play anything. On the web build the URI is a
-`blob:` URL, which does not even survive a page reload.
+This used to say that voice notes do not travel at all, because what was stored
+was the path the recorder handed back — meaningless on any other device, and on
+the web a `blob:` URL that did not survive a reload.
 
-Everything else about a task syncs correctly — this is specific to the audio.
+That is fixed on the web. `src/services/audio.js` turns the recording into a
+`data:` URI before it is attached, so the audio itself goes inside the encrypted
+blob and reaches every device by the path every other field already takes. Notes
+over about 700 KB are refused rather than quietly filling a vault measured in a
+few megabytes.
 
-Fixing it means putting the audio itself inside the encrypted blob rather than a
-pointer to it: read the file, base64 it, and let it ride along with the task the
-way notes do. That is a real piece of work with a size question attached (a
-minute of audio is roughly 1 MB, and a row that large is worth thinking about),
-so it is called out here rather than done quietly. It is not a blocker for
-submission — the feature works on the device that recorded it.
+**What no test here can prove** is that the same conversion works on a device.
+It reads the recording with `fetch` and `FileReader`, both of which a browser
+provides and neither of which React Native guarantees for a `file://` URI. If
+either is missing the original path is handed back untouched — deliberately, so
+a native build is no worse than it was — and a note recorded on the iPhone would
+again be a play button the Mac cannot use.
+
+**So add this to the TestFlight list in section 3**: record a note on the phone,
+then open the same account in a browser and play it. If it plays, the conversion
+works on the device. If it does not, the fix is to read the file through
+`expo-file-system` (`readAsStringAsync` with base64 encoding) inside
+`toDurableUri` — the shape of the rest, including the size limit, stays as it
+is.
 
 ---
 

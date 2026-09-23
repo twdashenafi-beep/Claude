@@ -12,7 +12,7 @@
 // megabytes that every typed task lives in.
 //
 // Run with `npm test`.
-import { toDurableUri, MAX_NOTE_BYTES } from '../src/services/audio.js';
+import { toDurableUri, MAX_NOTE_BYTES, MIN_NOTE_MS, tooShort } from '../src/services/audio.js';
 
 let pass = 0, fail = 0;
 const ok = (label, cond, extra = '') => {
@@ -120,6 +120,31 @@ restore();
 // ── The cap is a real number ──
 ok('the cap is about a minute of speech',
    MAX_NOTE_BYTES > 300 * 1024 && MAX_NOTE_BYTES < 2 * 1024 * 1024, String(MAX_NOTE_BYTES));
+
+// ── Too short to have been meant ──
+//
+// The microphone starts after a fifth of a second of holding, so the accident
+// this guards against is not the brush — it is the hold that lasts just long
+// enough to record a quarter-second of room tone, which then sits in the list
+// looking exactly like a real note.
+ok('a slip is not a note', tooShort(250));
+ok('nor is one that only just started', tooShort(MIN_NOTE_MS - 1));
+ok('but the threshold itself counts', !tooShort(MIN_NOTE_MS));
+ok('and anything said into is kept', !tooShort(1500));
+ok('as is a long one', !tooShort(60000));
+
+// The other direction matters more than it looks. If the length could not be
+// measured, the answer has to be no: discarding somebody's recording on the
+// strength of a number we do not have is the one outcome worth avoiding.
+ok('an unknown length is never discarded', !tooShort(null));
+ok('nor an undefined one', !tooShort(undefined));
+ok('nor a NaN', !tooShort(NaN));
+ok('nor an infinite one', !tooShort(Infinity));
+ok('nor a nonsense one', !tooShort('700'));
+ok('nor a negative one, which is a clock that moved', !tooShort(-50));
+
+// It has to be shorter than the shortest useful note and longer than a slip.
+ok('the floor is under a second', MIN_NOTE_MS > 300 && MIN_NOTE_MS < 1200, String(MIN_NOTE_MS));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
