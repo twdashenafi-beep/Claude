@@ -248,13 +248,9 @@ archive, search results, and a reminder arriving.
 
 ### Privacy nutrition label
 
-DayFlow's honest answers:
-
-- **Data collected:** none linked to the user by DayFlow itself.
-- The email address is used only to derive the encryption key and to sign in to
-  *your own* Supabase project. Task content is end-to-end encrypted before it
-  leaves the device.
-- No tracking, no analytics, no third-party SDKs that collect anything.
+The answers are in section 4b, along with why an earlier draft of them was
+wrong. In short: declare the email address and the task content, both **linked**
+to the user, both for **App Functionality**, and **no** to tracking.
 
 ### Export compliance — declared
 
@@ -304,7 +300,7 @@ brackets and every line below is inside them.
 
 **Keywords** [100] — commas, no spaces, no words already in the name
 
-    todo,owe,chase,follow up,reminders,encrypted,private,projects,planner,day,week,month,tasks
+    todo,owe,chase,follow up,voice note,reminders,encrypted,private,projects,planner,day,week,tasks
 
 **Description** [4000]
 
@@ -337,11 +333,27 @@ brackets and every line below is inside them.
     Overdue says overdue. A task nobody dated stays quiet — a list that cries
     wolf is worse than one that says nothing.
 
+    SAY IT INSTEAD OF TYPING IT
+    Hold the button and talk. A voice note lives on the task, encrypted with
+    everything else, so it survives a reload and reaches your other devices —
+    up to five per task, for the things that are quicker said than written.
+
+    CHASING, WRITTEN FOR YOU
+    One tap on anything in Owe Me writes the message asking for it back, and
+    covers everything that person owes you rather than one item at a time.
+    Each row says how long it has been waiting, and turns red past a fortnight.
+
     PRIVATE BY CONSTRUCTION
     Your tasks are encrypted on the device with a key your master password
     unlocks, before anything is sent anywhere. The server stores an unreadable
     blob and a timestamp. It cannot read your tasks, and neither can we,
     because there is nothing to read and no key to read it with.
+
+    A COPY YOU KEEP
+    The honest cost of that is that nobody can recover your password for you.
+    So the app will write your whole list — finished and archived items
+    included — to a single plain file whenever you ask, to keep wherever you
+    keep a password.
 
     YOUR DEVICES, YOUR SERVER
     DayFlow syncs through a Supabase project you own. No account with us, no
@@ -355,22 +367,45 @@ brackets and every line below is inside them.
 
 ## 4b. Privacy — the answers, and why
 
-Apple asks what you collect. The honest answers are short:
+This section used to say **Data collected: None**, and to suggest that if the
+form insisted on the email address it was "not linked to the user". Both were
+wrong, and wrong in the direction that gets an app rejected or pulled later.
+Apple defines "linked to you" as data associated with a user's identity through
+their account — an address you sign in with is the definition of that, not an
+exception to it. And a reviewer who sees a sign-up screen, a server and a label
+saying nothing is collected does not go looking for the subtlety.
+
+Fill it in like this:
 
 | Question | Answer |
 | --- | --- |
-| Data collected | **None** |
-| Tracking | **No** |
+| Contact Info → Email Address | Collected · **Linked to you** · App Functionality |
+| User Content → Other User Content | Collected · **Linked to you** · App Functionality |
+| Used for tracking | **No** |
 | Third-party analytics | **None** |
+| Data used to advertise | **None** |
 
-The email address is used to derive the encryption key and to sign in to *your
-own* Supabase project. It is not collected by the app's publisher, because
-there is no publisher-side server. Task content is encrypted before it leaves
-the device.
+**Why over-declaring is the right way to be wrong.** Whether encrypted task
+content counts as "collected" is genuinely arguable: it is stored as ciphertext
+in a Supabase project *you* own, and the app's publisher has no server and no
+key. But the rows do leave the device and sit somewhere, and Apple's test is
+about what leaves, not about who can read it. Declaring more than is strictly
+required has never cost anybody a release. Declaring less is how apps get taken
+down months after approval.
 
-If the form insists on an entry for the email address, the accurate shape is
-"Contact Info → Email Address", used for "App Functionality", **not** linked to
-the user and **not** used for tracking.
+**What to say if a reviewer asks**, in one breath: the email signs you in and
+derives your key; the task content is encrypted on the device with AES-256
+before any of it is sent, so the only thing stored is ciphertext and a
+timestamp; there is no analytics SDK, no advertising identifier, and nothing is
+shared with anyone. The privacy policy at the URL above says the same in the
+same order, which is the part that makes it check out.
+
+**One thing in DayFlow's favour, worth knowing you have.** Guideline 5.1.1(i)
+objects to apps that demand an account for things that do not need one. DayFlow
+runs entirely without an account, offline, against local encrypted storage; the
+account exists only to sync between devices. Say so if it comes up. And 5.1.1(v)
+— account deletion from inside the app — is already there under
+**Account → Delete account**.
 
 ---
 
