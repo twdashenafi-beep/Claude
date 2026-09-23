@@ -491,9 +491,20 @@ is.
 ## 7. Version numbers
 
 `eas.json` sets `"appVersionSource": "remote"` and `autoIncrement` on the
-production profile, so the build number rises on its own. The user-facing
-version is `expo.version` in `app.json` — raise that by hand when a release is
-worth naming.
+production profile, so the build number rises on its own, kept on EAS's side
+rather than in the repository. The user-facing version is `expo.version` in
+`app.json` — raise that by hand when a release is worth naming.
+
+`ios.buildNumber` and `android.versionCode` used to sit in `app.json` as well,
+and the first real build said what that was worth:
+
+    ios.buildNumber field in app config is ignored when version source is set
+    to remote
+
+Ignored, but still shipped in the manifest, where anything reading it through
+`expo-constants` would get a number that stopped being true after the first
+build. They are gone. If you ever move the version source back to `local`, they
+come back — that is the switch that makes them mean something again.
 
 ---
 
