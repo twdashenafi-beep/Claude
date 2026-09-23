@@ -43,18 +43,61 @@ title in it, stop and say so.
 
 ## 1. Accounts
 
-The Apple Developer Program is **done**. The only other account is an Expo one,
-which is free: [expo.dev](https://expo.dev). Sign up before the first command
-below, or `eas login` will offer to make one.
+There are now two Apple accounts in this story: the first enrolment, which
+stalled on a payment the bank never received a request for, and a second
+developer account created after it. Before touching any command below, settle
+which one is real — it is the difference between a ten-minute setup and a lost
+afternoon.
+
+**An Apple ID with a developer account attached is not the same as completed,
+paid enrolment.** EAS reports the gap in a way that sounds like something else
+entirely:
+
+    You have no team associated with your Apple account
+
+That is not a permissions problem and no amount of signing in again fixes it.
+It means enrolment has not finished being paid for and approved. Check at
+[developer.apple.com/account](https://developer.apple.com/account): under
+**Membership details** you want a **Team ID** and an expiry roughly a year out.
+No Team ID, no signing, and every build below fails at the same place.
+
+### Pointing EAS at the new account
+
+EAS caches the Apple ID it last signed in with and does not offer to change it.
+The first attempt here used a mistyped address, and that typo survived every
+retry until the cache was deleted:
+
+```bash
+rm -rf ~/.app-store
+```
+
+The next `eas build` then asks for an Apple ID again. Give it the new one.
+
+Two consequences of the account being new, both easy to trip over:
+
+- **The App Store Connect app record belongs to a team.** Nothing created under
+  the abandoned enrolment carries over. Section 4 is written as a first-time
+  setup, which is now exactly what it is.
+- **The bundle identifier is unchanged.** `com.tewodros.dayflow` was never
+  registered against the old team, so there is nothing to release or transfer.
+  Switching account changes signing, and only signing.
+
+The only other account needed is an Expo one, which is free:
+[expo.dev](https://expo.dev). Sign up before the first command below, or
+`eas login` will offer to make one.
 
 No Mac is required for any of this. EAS builds on Apple hardware in the cloud.
 
-Two things in `app.json` are still blank because only you can fill them:
+### What `app.json` already carries
 
-- `extra.eas.projectId` — written automatically by `eas init` in step 2.
-  **Commit that change**; without it every machine builds a different project.
-- `ios.config.usesNonExemptEncryption` — a legal declaration, deliberately left
-  out. See section 4.
+Both blanks this file used to list are filled and committed:
+
+- `extra.eas.projectId` — `b5d74812-ef07-41f7-8fd6-ea31f0c8673d`. `eas init` in
+  step 2 will now find that project instead of creating one. If you happen to be
+  signed in as a different Expo account, it will offer to make a second project
+  — decline, and sign in as the owner instead.
+- `ios.config.usesNonExemptEncryption` — `false`. A legal declaration rather
+  than a setting; the reasoning is in section 4.
 
 ---
 
@@ -104,9 +147,9 @@ eas login
 eas init
 ```
 
-`eas init` creates the project on Expo and writes `extra.eas.projectId` into
-`app.json`. **Commit that change** — without it, every machine builds a
-different project.
+`extra.eas.projectId` is already committed, so `eas init` should link to the
+existing project rather than write a new id. If it offers to create one, you
+are signed in as the wrong Expo account — decline and sign in as the owner.
 
 ```bash
 eas build --platform ios --profile production
@@ -382,22 +425,31 @@ failing to save, which was the more urgent half of the problem.
 
 ---
 
-## Known limitation: voice notes do not travel
+## Known limitation: voice notes may not travel from a native build
 
-A voice note is stored as a file path on the device that recorded it
-(`src/components/VoiceRecorder.js` keeps `recorder.uri`). That path means
-nothing on any other device, so a note recorded on the iPhone shows a play
-button on the Mac that cannot play anything. On the web build the URI is a
-`blob:` URL, which does not even survive a page reload.
+This used to say that voice notes do not travel at all, because what was stored
+was the path the recorder handed back — meaningless on any other device, and on
+the web a `blob:` URL that did not survive a reload.
 
-Everything else about a task syncs correctly — this is specific to the audio.
+That is fixed on the web. `src/services/audio.js` turns the recording into a
+`data:` URI before it is attached, so the audio itself goes inside the encrypted
+blob and reaches every device by the path every other field already takes. Notes
+over about 700 KB are refused rather than quietly filling a vault measured in a
+few megabytes.
 
-Fixing it means putting the audio itself inside the encrypted blob rather than a
-pointer to it: read the file, base64 it, and let it ride along with the task the
-way notes do. That is a real piece of work with a size question attached (a
-minute of audio is roughly 1 MB, and a row that large is worth thinking about),
-so it is called out here rather than done quietly. It is not a blocker for
-submission — the feature works on the device that recorded it.
+**What no test here can prove** is that the same conversion works on a device.
+It reads the recording with `fetch` and `FileReader`, both of which a browser
+provides and neither of which React Native guarantees for a `file://` URI. If
+either is missing the original path is handed back untouched — deliberately, so
+a native build is no worse than it was — and a note recorded on the iPhone would
+again be a play button the Mac cannot use.
+
+**So add this to the TestFlight list in section 3**: record a note on the phone,
+then open the same account in a browser and play it. If it plays, the conversion
+works on the device. If it does not, the fix is to read the file through
+`expo-file-system` (`readAsStringAsync` with base64 encoding) inside
+`toDurableUri` — the shape of the rest, including the size limit, stays as it
+is.
 
 ---
 
@@ -412,10 +464,16 @@ worth naming.
 
 ## What is not done, and is not mine to do
 
-- Apple Developer Program enrolment
-- The export-compliance declaration in section 4
+- **Completing Apple Developer Program enrolment**, to the point where
+  [developer.apple.com/account](https://developer.apple.com/account) shows a
+  Team ID. A created account is not an enrolled one. See section 1.
 - A legal read of `pages/terms.html` and `pages/privacy.html`
 - A real VoiceOver pass on a device
-- **Supabase: turn "Allow new users to sign up" back OFF.** The publishable key
-  is public by design, so while that setting is on, anyone who has it can create
-  an account against your project.
+
+Two that were open and are now closed, recorded so they are not chased again:
+
+- The export-compliance declaration — made, in `app.json`. Section 4 says what
+  it asserts.
+- Supabase's **"Allow new users to sign up"** — off. It matters because the
+  publishable key is public by design: while that setting is on, anyone holding
+  it can create an account against the project.

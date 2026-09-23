@@ -244,9 +244,142 @@ await page.waitForTimeout(500);
 ok('removing one gives the microphone back',
    (await page.getByLabel('Record a voice note').count()) === 1);
 
+// ── Where the button is ──
+//
+// It used to sit at the left margin: the one control in the app you have to
+// hold down for up to a minute, placed under the hand that has to reach across
+// the phone to get to it. Measured rather than eyeballed, because a style that
+// quietly stops applying is exactly the kind of thing that survives a review.
+const placed = await page.evaluate(() => {
+  const btn = document.querySelector('[aria-label="Record a voice note"]');
+  if (!btn) return null;
+  const b = btn.getBoundingClientRect();
+  const row = btn.parentElement.getBoundingClientRect();
+  return {
+    fromLeft: Math.round(b.left - row.left),
+    fromRight: Math.round(row.right - b.right),
+    width: Math.round(b.width),
+    height: Math.round(b.height),
+  };
+});
+ok('the record button is at the right-hand end',
+   placed && placed.fromRight < placed.fromLeft, JSON.stringify(placed));
+ok('hard against that end rather than merely past the middle',
+   placed && placed.fromRight <= 2, JSON.stringify(placed));
+ok('and is a thumb across, which is what Apple asks for',
+   placed && placed.width >= 44 && placed.height >= 44, JSON.stringify(placed));
+
+// ── A slip is not a note ──
+//
+// The microphone opens after a fifth of a second of holding, so what this
+// catches is the press that lasts just long enough to record a moment of room
+// tone — indistinguishable from a real note in the list until you play it.
+const before = await noteRows();
+{
+  const mic = page.getByLabel('Record a voice note');
+  await mic.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(200);
+  const box = await mic.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(320);
+  await page.mouse.up();
+  await page.waitForTimeout(1800);
+}
+ok('a hold too short to have meant anything leaves no note',
+   (await noteRows()) === before, `${await noteRows()} vs ${before}`);
+ok('and says so rather than going quiet', await shows('Too short'),
+   (await body()).slice(-300));
+
+// ── Hands-free ──
+//
+// Holding a phone still for a minute to leave a minute-long note is a demand no
+// other recorder makes. Slide up and it keeps going without you; tap it to
+// stop.
+{
+  const mic = page.getByLabel('Record a voice note');
+  await mic.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(200);
+  const box = await mic.boundingBox();
+  const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  await page.waitForTimeout(450);
+  await page.mouse.move(cx, cy - 70, { steps: 8 });
+  await page.waitForTimeout(350);
+  await page.mouse.up();
+  await page.waitForTimeout(700);
+}
+ok('sliding up keeps it recording after the finger has gone',
+   await shows('Tap to stop'), (await body()).slice(-300));
+ok('and the button is now a stop',
+   (await page.getByLabel('Stop recording').count()) === 1);
+
+const locked = await noteRows();
+await page.waitForTimeout(900);
+await page.getByLabel('Stop recording').click();
+await page.waitForTimeout(2200);
+ok('tapping it stops, and keeps what was said',
+   (await noteRows()) === locked + 1, `${await noteRows()} vs ${locked}`);
+ok('and it is a microphone again, or the task is full',
+   !(await shows('Tap to stop')));
+
+// ── One voice at a time ──
+//
+// Each note owns its own player, which is what lets a row play without knowing
+// about the rest of the list — and which meant that tapping a second note while
+// the first was talking played both at once, over each other, with no way back
+// but to find the first one again.
+const playingRows = () => page.evaluate(() => [...document.querySelectorAll('[aria-label="Stop voice note"]')]
+  .map(e => (e.innerText || '').replace(/\s+/g, ' ').trim()));
+
+// Named rather than counted: the row behind the sheet carries a play button of
+// its own, so an index here would be one off in a way nothing would notice.
+// Polled for the named one specifically, not merely for something playing. A
+// row that has just been stopped goes on saying it is playing for a frame or
+// two — the status arrives from the player rather than from the tap — so
+// "anything is playing" would have been satisfied by the note this one was
+// sent to interrupt, and the test would have proved nothing.
+const playOne = async name => {
+  const row = page.locator('[aria-label="Play voice note"]').filter({ hasText: name }).first();
+  await row.scrollIntoViewIfNeeded();
+  await row.click();
+  for (let i = 0; i < 25; i += 1) {
+    if ((await playingRows()).some(t => t.includes(name))) break;
+    await page.waitForTimeout(100);
+  }
+  // And then a moment to let the other one catch up with having been stopped.
+  // If it has not been, it is a second or two long and will still be there.
+  await page.waitForTimeout(400);
+};
+
+// The last one recorded is the longest — the hands-free take above — so it is
+// the one still talking when the second tap arrives.
+await playOne('Voice note 5');
+const first = await playingRows();
+ok('a note plays when its row is tapped', first.length === 1, JSON.stringify(first));
+if (first.length) {
+  await playOne('Voice note 1');
+  const second = await playingRows();
+  ok('and starting another does not leave two of them talking',
+     second.length === 1, JSON.stringify(second));
+  ok('the one playing is the one just tapped',
+     second.length === 1 && second[0].includes('Voice note 1'), JSON.stringify([first, second]));
+  if (await page.getByLabel('Stop voice note').count()) {
+    await page.getByLabel('Stop voice note').first().click();
+    await page.waitForTimeout(400);
+  }
+}
+
 if (process.env.SHOT) {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.waitForTimeout(400);
+  // The task is full at this point, and a full task shows no microphone — which
+  // is the one thing a picture of this sheet is taken to look at.
+  if ((await page.getByLabel('Record a voice note').count()) === 0) {
+    await page.getByLabel('Remove voice note 1').click();
+    await page.waitForTimeout(600);
+  }
   const mic = page.getByLabel('Record a voice note');
   if (await mic.count()) await mic.scrollIntoViewIfNeeded();
   await page.waitForTimeout(500);
