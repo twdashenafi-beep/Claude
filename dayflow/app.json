@@ -14,7 +14,6 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.tewodros.dayflow",
-      "buildNumber": "1",
       "infoPlist": {
         "NSCalendarsUsageDescription": "DayFlow adds a task to your calendar when you choose to put it there.",
         "NSCalendarsFullAccessUsageDescription": "DayFlow adds a task to your calendar when you choose to put it there.",
@@ -27,7 +26,6 @@
     },
     "android": {
       "package": "com.tewodros.dayflow",
-      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#ffffff",
         "foregroundImage": "./assets/adaptive-icon.png"
