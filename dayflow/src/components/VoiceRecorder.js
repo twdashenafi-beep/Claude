@@ -56,6 +56,11 @@ const HOLD_MS = 200;
 // without you. Far enough that no ordinary press drifts into it.
 const LOCK_DY = 44;
 
+// How far a finger may travel before a press stops looking like a hold. A thumb
+// arriving on a small round button is not still — it lands and rolls — and ten
+// pixels is inside that roll rather than outside it.
+const SETTLE = 24;
+
 const clock = secs => `${Math.floor(secs / 60)}:${String(Math.floor(secs % 60)).padStart(2, '0')}`;
 
 export default function VoiceRecorder({ notes = [], onAdd, onRemove }) {
@@ -66,9 +71,15 @@ export default function VoiceRecorder({ notes = [], onAdd, onRemove }) {
   // Read by the unmount cleanup, which is created once and so cannot see the
   // state.
   const recording = useRef(false);
-  // When the recording was actually started, so a hold that turned out to be a
-  // slip can be told from one that had something to say.
-  const startedAt = useRef(0);
+  // When the finger landed, which is not when the microphone opened.
+  //
+  // Opening it is awaited — permission, the audio session, preparing the
+  // recorder — and on a phone that can eat most of a short hold. Judging a slip
+  // by how much audio came back therefore punished the person for the app's own
+  // latency: hold for a second on an iPhone, get three hundred milliseconds of
+  // sound and be told it was too short. What decides whether a press was meant
+  // is how long it lasted, which is this.
+  const pressedAt = useRef(0);
   // Said in place of the label when something needs saying, because silently
   // dropping a recording is how you find out a fortnight later — and a button
   // that quietly does nothing is worse still.
@@ -155,7 +166,6 @@ export default function VoiceRecorder({ notes = [], onAdd, onRemove }) {
       recorder.record();
 
       recording.current = true;
-      startedAt.current = Date.now();
       setIsRecording(true);
       setDuration(0);
       say('');
@@ -177,7 +187,7 @@ export default function VoiceRecorder({ notes = [], onAdd, onRemove }) {
 
   const stopRecording = async () => {
     clearInterval(timer.current);
-    const held = startedAt.current ? Date.now() - startedAt.current : null;
+    const held = pressedAt.current ? Date.now() - pressedAt.current : null;
     recording.current = false;
     locked.current = false;
     setIsRecording(false);
@@ -272,14 +282,26 @@ export default function VoiceRecorder({ notes = [], onAdd, onRemove }) {
           return;
         }
         wanted.current = true;
+        pressedAt.current = Date.now();
         // A hold, not a tap: a brush against the mic should not record.
         holdTimer.current = setTimeout(() => startRef.current(), HOLD_MS);
       },
       onPanResponderMove: (_, gs) => {
         if (!recording.current) {
-          if (Math.abs(gs.dx) > 10 || Math.abs(gs.dy) > 10) {
+          // Cancels the hold that has not happened yet, and nothing else.
+          //
+          // It used to clear `wanted` here as well, which was the same word
+          // being used for two different facts: "the finger is still down" and
+          // "this still looks like a hold rather than a swipe". A thumb landing
+          // on a forty-four pixel button rolls as it settles, and once the hold
+          // had already fired, that roll said the finger had gone. Setting up
+          // the microphone takes a few hundred milliseconds, and when it
+          // finished it found `wanted` false and stood down — so holding the
+          // button for three seconds produced "Ready — hold to record" and no
+          // recording at all. Whether the finger is down is the release's to
+          // say, and only the release's.
+          if (Math.abs(gs.dx) > SETTLE || Math.abs(gs.dy) > SETTLE) {
             clearTimeout(holdTimer.current);
-            wanted.current = false;
           }
           return;
         }
