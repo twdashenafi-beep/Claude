@@ -291,6 +291,108 @@ ok('a hold too short to have meant anything leaves no note',
 ok('and says so rather than going quiet', await shows('Too short'),
    (await body()).slice(-300));
 
+// ── What a slow phone does to a hold ──
+//
+// Two failures were reported from an iPhone and an iPad, and both come from the
+// same place: opening the microphone is awaited, and on a phone it takes long
+// enough to matter. On a desktop it is tens of milliseconds, which is why
+// nothing here caught either one until the wait was made real.
+//
+// Everything in this section runs with the microphone taking a second to open,
+// which is all a slow phone is from the app's point of view.
+await page.evaluate(() => {
+  const media = navigator.mediaDevices;
+  window.__realGUM = media.getUserMedia.bind(media);
+  media.getUserMedia = async (...args) => {
+    // Long enough to outlast the two-hundred-millisecond hold and land the
+    // thumb-roll inside the wait, short enough that a deliberate hold still
+    // reaches the microphone. expo-audio asks for the stream twice — once for
+    // permission, once to prepare — so the real wait is double this.
+    await new Promise(r => setTimeout(r, 350));
+    return window.__realGUM(...args);
+  };
+});
+
+// Room to work: each of these keeps a note, and a full task has no microphone.
+const roomFor = async n => {
+  while ((await noteRows()) > n) {
+    await page.getByLabel('Remove voice note 1').click();
+    await page.waitForTimeout(500);
+  }
+};
+await roomFor(2);
+
+async function holdMic({ ms, roll = false }) {
+  const mic = page.getByLabel('Record a voice note');
+  await mic.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(200);
+  const box = await mic.boundingBox();
+  const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  if (roll) {
+    // A thumb settling, not a swipe: fifteen pixels, and downwards so it cannot
+    // be mistaken for the slide that locks recording on. Late enough that the
+    // hold has already completed and the microphone is still opening, which is
+    // exactly where the damage was done.
+    await page.waitForTimeout(400);
+    await page.mouse.move(cx + 9, cy + 12, { steps: 3 });
+    await page.waitForTimeout(ms - 400);
+  } else {
+    await page.waitForTimeout(ms);
+  }
+  await page.mouse.up();
+  await page.waitForTimeout(2600);
+}
+
+// ── A thumb that moves, which is every thumb ──
+//
+// Reported from an iPhone: hold the button and it says "Ready — hold to record"
+// and records nothing, however long you hold. A finger landing on a
+// forty-four pixel button rolls as it settles, and that roll was read as the
+// finger having gone — so the microphone finished opening, found nobody
+// holding, and stood down. Whether the finger is down is the release's to say.
+{
+  const before = await noteRows();
+  await holdMic({ ms: 1600, roll: true });
+  ok('a hold survives the finger settling on the button',
+     (await noteRows()) === before + 1, `${await noteRows()} vs ${before}`);
+  ok('and is not told it is ready for the hold it just did',
+     !(await shows('Ready — hold to record')), (await body()).slice(-300));
+}
+
+// ── A hold the app spent on itself ──
+//
+// The other half. A slip was judged by how much audio came back, so when the
+// microphone took most of a short hold to open, a deliberate press came back
+// as "Too short — hold while you talk". That is the app's latency being
+// charged to the person holding the button. What decides whether a press was
+// meant is how long it lasted.
+await roomFor(2);
+{
+  const before = await noteRows();
+  await holdMic({ ms: 1050 });
+  ok('a deliberate hold is kept even when the microphone was slow to open',
+     (await noteRows()) === before + 1, `${await noteRows()} vs ${before}`);
+  ok('and is not called too short', !(await shows('Too short')),
+     (await body()).slice(-300));
+}
+
+// A brush is still a brush, however slow the microphone is: this one never
+// reaches the point of recording at all.
+await roomFor(2);
+{
+  const before = await noteRows();
+  await holdMic({ ms: 120 });
+  ok('but a brush still leaves nothing behind', (await noteRows()) === before,
+     `${await noteRows()} vs ${before}`);
+}
+
+await page.evaluate(() => {
+  if (window.__realGUM) navigator.mediaDevices.getUserMedia = window.__realGUM;
+});
+await roomFor(2);
+
 // ── The very first hold anybody ever makes ──
 //
 // Asking for the microphone puts a system dialog on the screen, and you cannot
@@ -398,8 +500,12 @@ const playOne = async name => {
 };
 
 // The last one recorded is the longest — the hands-free take above — so it is
-// the one still talking when the second tap arrives.
-await playOne('Voice note 5');
+// the one still talking when the second tap arrives. Counted rather than named:
+// how many notes this task has depends on what the sections above kept, and a
+// hard-coded number goes stale the moment one of them changes.
+const noteCount = await noteRows();
+ok('there are notes to play with', noteCount >= 2, String(noteCount));
+await playOne(`Voice note ${noteCount}`);
 const first = await playingRows();
 ok('a note plays when its row is tapped', first.length === 1, JSON.stringify(first));
 if (first.length) {
