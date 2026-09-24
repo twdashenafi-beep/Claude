@@ -69,9 +69,16 @@ export default function VoiceRecorder({ notes = [], onAdd, onRemove }) {
   // When the recording was actually started, so a hold that turned out to be a
   // slip can be told from one that had something to say.
   const startedAt = useRef(0);
-  // Said in place of the label when a recording could not be kept, because
-  // silently dropping one is how you find out a fortnight later.
-  const [problem, setProblem] = useState('');
+  // Said in place of the label when something needs saying, because silently
+  // dropping a recording is how you find out a fortnight later — and a button
+  // that quietly does nothing is worse still.
+  //
+  // Toned, because these are not all the same kind of news. "Too short" is a
+  // warning about something that did not survive; "ready" is an instruction.
+  // Printing both in the red the app reserves for lateness and lost work would
+  // make one of them a lie.
+  const [problem, setProblem] = useState(null);
+  const say = (text, tone = 'warn') => setProblem(text ? { text, tone } : null);
   // Hands-free: the gesture has been let go and the recording is still running.
   const [isLocked, setIsLocked] = useState(false);
   const locked = useRef(false);
@@ -110,30 +117,52 @@ export default function VoiceRecorder({ notes = [], onAdd, onRemove }) {
 
   const startRecording = async () => {
     try {
-      const { granted } = await requestRecordingPermissionsAsync();
-      if (!granted) return;
+      const permission = await requestRecordingPermissionsAsync();
+      if (!permission || !permission.granted) {
+        // Said, rather than nothing happening. A button that does absolutely
+        // nothing when you hold it is indistinguishable from a broken one, and
+        // the reason is not on screen: it is in a dialog you answered a moment
+        // ago, or in a settings page two apps away.
+        say(permission && permission.canAskAgain === false
+          ? 'The microphone is turned off for DayFlow — allow it in Settings'
+          : 'Allow the microphone, then hold again');
+        return;
+      }
 
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
       // record() is synchronous, but the recorder has to be prepared first or
       // it starts against nothing.
       await recorder.prepareToRecordAsync();
+
+      // Let go while all that was happening.
+      //
+      // The first hold of all is the one this is really for. Asking for the
+      // microphone puts a system dialog on the screen, and you cannot answer it
+      // without lifting your finger off the button — so the very first attempt
+      // always ends here, with permission newly granted and nothing recorded.
+      //
+      // It used to end here saying "Too short — hold while you talk", which is
+      // both wrong and rude: the hold was three seconds long and what took the
+      // time was the app asking for something. Nothing has been recorded at
+      // this point, so there is nothing to discard and nothing to apologise
+      // for — only the next move to name.
+      if (!wanted.current) {
+        await setAudioModeAsync({ allowsRecording: false }).catch(() => {});
+        say('Ready — hold to record', 'note');
+        return;
+      }
+
       recorder.record();
 
       recording.current = true;
       startedAt.current = Date.now();
       setIsRecording(true);
       setDuration(0);
-      setProblem('');
+      say('');
       // The screen is under your thumb at this point. The buzz is the part you
       // can perceive.
       liftTick();
       timer.current = setInterval(() => setDuration(d => d + 1), 1000);
-
-      // Let go while that was happening. Nothing was recording when the release
-      // came, so nothing was stopped: end it here instead. It is by definition
-      // too short to keep, and is discarded on that footing rather than this
-      // one.
-      if (!wanted.current) stopRef.current();
     } catch (err) {
       console.warn('Failed to start recording:', err.message);
     }
@@ -164,7 +193,7 @@ export default function VoiceRecorder({ notes = [], onAdd, onRemove }) {
       // quarter-second of room tone looks exactly like a real note in the list
       // and only reveals itself when you play it.
       if (tooShort(held)) {
-        setProblem('Too short — hold while you talk');
+        say('Too short — hold while you talk');
         return;
       }
 
@@ -173,10 +202,10 @@ export default function VoiceRecorder({ notes = [], onAdd, onRemove }) {
       // recording itself before it is attached to anything.
       const durable = await toDurableUri(recorder.uri);
       if (durable === null) {
-        setProblem('That was too long to keep — try a shorter one');
+        say('That was too long to keep — try a shorter one');
         return;
       }
-      setProblem('');
+      say('');
       dropTick();
       onAdd(durable, duration);
     } catch (err) {
@@ -306,8 +335,11 @@ export default function VoiceRecorder({ notes = [], onAdd, onRemove }) {
               </Text>
             </>
           ) : (
-            <Text style={[st.micLabel, problem && st.micProblem]} numberOfLines={2}>
-              {problem || (full
+            <Text
+              style={[st.micLabel, problem && problem.tone === 'warn' && st.micProblem]}
+              numberOfLines={2}
+            >
+              {problem ? problem.text : (full
                 ? 'That is as many as one task can hold. Remove one to record another.'
                 : 'Hold to record')}
             </Text>

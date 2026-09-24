@@ -291,6 +291,50 @@ ok('a hold too short to have meant anything leaves no note',
 ok('and says so rather than going quiet', await shows('Too short'),
    (await body()).slice(-300));
 
+// ── The very first hold anybody ever makes ──
+//
+// Asking for the microphone puts a system dialog on the screen, and you cannot
+// answer it without lifting your finger off the button. So the first attempt
+// always ends with permission newly granted and nothing recorded — and it used
+// to end with "Too short — hold while you talk" in the red this app keeps for
+// lateness and lost work, after a hold of three full seconds. Wrong, and rude
+// with it.
+//
+// Reproduced by making the permission call slow, which is all a dialog is from
+// the app's point of view.
+const beforeAsking = await noteRows();
+await page.evaluate(() => {
+  const media = navigator.mediaDevices;
+  window.__realGUM = media.getUserMedia.bind(media);
+  media.getUserMedia = async (...args) => {
+    await new Promise(r => setTimeout(r, 1600));
+    return window.__realGUM(...args);
+  };
+});
+{
+  const mic = page.getByLabel('Record a voice note');
+  await mic.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(200);
+  const box = await mic.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  // Long enough that this is unmistakably a real hold, not a brush.
+  await page.waitForTimeout(700);
+  await page.mouse.up();
+}
+// Long enough for the permission call, and the prepare behind it, to finish.
+await page.waitForTimeout(5000);
+await page.evaluate(() => {
+  if (window.__realGUM) navigator.mediaDevices.getUserMedia = window.__realGUM;
+});
+
+ok('a hold spent answering the permission dialog records nothing',
+   (await noteRows()) === beforeAsking, `${await noteRows()} vs ${beforeAsking}`);
+ok('and is not called too short, because it was not',
+   !(await shows('Too short')), (await body()).slice(-300));
+ok('it says what to do next instead', await shows('Ready — hold to record'),
+   (await body()).slice(-300));
+
 // ── Hands-free ──
 //
 // Holding a phone still for a minute to leave a minute-long note is a demand no
