@@ -616,7 +616,7 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
             <View style={s.mastheadActions}>
               <TouchableOpacity
                 onPress={() => setShowBriefing(true)}
-                hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+                style={s.navHit}
                 accessibilityRole="button"
                 accessibilityLabel="Open the daily briefing"
               >
@@ -624,7 +624,7 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => setShowProjects(v => !v)}
-                hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+                style={s.navHit}
                 accessibilityRole="button"
                 aria-expanded={showProjects || project !== EVERYTHING}
                 accessibilityLabel="Projects"
@@ -633,7 +633,7 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => { setSearching(v => !v); setQuery(''); }}
-                hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+                style={s.navHit}
                 accessibilityRole="button"
                 aria-expanded={searching}
                 accessibilityLabel="Search"
@@ -642,7 +642,7 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => setShowAccount(true)}
-                hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+                style={s.navHit}
                 accessibilityRole="button"
                 accessibilityLabel="Account settings"
               >
@@ -767,7 +767,7 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
                 <Text style={s.headText} accessibilityRole="header">To Do</Text>
                 <TouchableOpacity
                   onPress={() => setAddingTo('todo')}
-                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  style={s.plusHit}
                   accessibilityRole="button"
                   accessibilityLabel="Add a task to To Do"
                 >
@@ -781,7 +781,7 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
                 <Text style={s.headText} accessibilityRole="header">Owe Me</Text>
                 <TouchableOpacity
                   onPress={() => setAddingTo('done_for_me')}
-                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  style={s.plusHit}
                   accessibilityRole="button"
                   accessibilityLabel="Add something you are waiting on to Owe Me"
                 >
@@ -996,6 +996,15 @@ const s = StyleSheet.create({
     flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end',
     flexShrink: 1, gap: 14, rowGap: 6,
   },
+  // The four words along the top are eleven and a half point, which makes them
+  // twelve pixels tall — and twelve pixels is not a target, it is a dare.
+  // hitSlop is the React Native answer and react-native-web ignores it
+  // entirely, so on the device this app is actually used on these were as small
+  // as they looked. Padding makes the box; the negative margins take it back
+  // out of the layout, so nothing moves and the row is no taller than it was.
+  navHit: { paddingVertical: 9, marginVertical: -9 },
+  // Same, and worth more: this one is eleven pixels wide.
+  plusHit: { paddingVertical: 8, paddingHorizontal: 12, marginVertical: -8, marginHorizontal: -12 },
   lock: {
     fontFamily: SANS, fontSize: 11.5, letterSpacing: 0.6,
     textTransform: 'uppercase', color: COLORS.inkSoft, fontWeight: '600',

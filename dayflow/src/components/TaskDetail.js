@@ -141,6 +141,7 @@ export default function TaskDetail({ task, visible, onClose, onSave, onMove, pla
             <Text style={styles.label}>Title</Text>
             <TextInput
               style={styles.titleInput}
+              accessibilityLabel="Task title"
               value={title}
               onChangeText={setTitle}
               placeholder="Task title"
@@ -417,6 +418,7 @@ export default function TaskDetail({ task, visible, onClose, onSave, onMove, pla
             <Text style={styles.label}>Notes</Text>
             <TextInput
               style={styles.notesInput}
+              accessibilityLabel="Notes"
               value={notes}
               onChangeText={setNotes}
               placeholder="Add notes..."

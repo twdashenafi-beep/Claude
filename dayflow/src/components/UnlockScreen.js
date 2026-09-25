@@ -309,7 +309,13 @@ const s = StyleSheet.create({
     fontFamily: SERIF, fontSize: 12.5, fontStyle: 'italic',
     color: COLORS.inkFaint, lineHeight: 18, marginBottom: 20,
   },
-  checkRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 18 },
+  // The one thing standing between somebody and losing their vault for good, at
+  // seventeen pixels tall. The padding is the target; the margin keeps the
+  // spacing below it as it was.
+  checkRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingVertical: 12, marginTop: -12, marginBottom: 6,
+  },
   checkbox: {
     width: 17, height: 17, borderRadius: 2, borderWidth: 1, borderColor: '#B5AFA1',
     justifyContent: 'center', alignItems: 'center',

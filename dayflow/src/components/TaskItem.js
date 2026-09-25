@@ -242,16 +242,22 @@ function TaskItem({
         ]}
         {...panResponder.panHandlers}
       >
+        {/* The box you can see is fifteen pixels; the box you can hit is not.
+            hitSlop does that on a phone and nothing at all on the web, which is
+            where this app is actually used — so the target is made of padding,
+            and taken back out of the layout with the margins, leaving the tick
+            exactly where it was. */}
         <TouchableOpacity
-          style={[st.check, done && st.checkDone]}
+          style={st.checkHit}
           onPress={() => onToggle(task.id)}
           activeOpacity={0.6}
-          hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}
           accessibilityRole="checkbox"
           aria-checked={done}
           accessibilityLabel={done ? `Mark ${task.title} as not done` : `Mark ${task.title} as done`}
         >
-          {done && <Text style={st.checkMark}>✓</Text>}
+          <View style={[st.check, done && st.checkDone]}>
+            {done && <Text style={st.checkMark}>✓</Text>}
+          </View>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -339,16 +345,25 @@ const st = StyleSheet.create({
     shadowColor: '#3B3628', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.12, shadowRadius: 6, elevation: 2,
   },
+  checkHit: {
+    alignSelf: 'flex-start',
+    marginTop: 3,
+    // The ten pixels to the right of the box are the padding, not a margin on
+    // top of it: having both moved every row in the app ten pixels across.
+    paddingVertical: 11, paddingHorizontal: 10,
+    marginVertical: -11, marginLeft: -10,
+  },
   check: {
     width: 15, height: 15, borderRadius: 2,
     borderWidth: 1, borderColor: '#B5AFA1',
     justifyContent: 'center', alignItems: 'center',
-    marginRight: 10, marginTop: 3,
   },
   checkDone: { backgroundColor: COLORS.check, borderColor: COLORS.check },
   checkMark: { fontSize: 10, color: COLORS.sheet, fontWeight: '700', marginTop: -1 },
 
-  body: { flex: 1 },
+  // Same trick as the checkbox: a row of one short line is nineteen pixels of
+  // text, and opening a task is the commonest thing anybody does here.
+  body: { flex: 1, paddingVertical: 9, marginVertical: -9 },
   priority: { fontFamily: SERIF, fontWeight: '700', color: COLORS.accent },
   title: { fontFamily: SANS, fontSize: 14.5, lineHeight: 19, color: COLORS.ink },
   titleDone: { color: COLORS.done, textDecorationLine: 'line-through' },
@@ -362,8 +377,12 @@ const st = StyleSheet.create({
   // Faint until reached for: present on every row, but the checkbox is what
   // the eye should land on.
   remove: {
-    width: 20, alignItems: 'center', justifyContent: 'center',
-    marginLeft: 4, marginTop: 1, alignSelf: 'flex-start', paddingTop: 1,
+    // No fixed width: box-sizing is border-box here, so `width: 20` ate the
+    // padding meant to make this hittable and left it twenty pixels across.
+    minWidth: 20, alignItems: 'center', justifyContent: 'center',
+    alignSelf: 'flex-start',
+    paddingVertical: 10, paddingHorizontal: 10,
+    marginTop: -9, marginBottom: -10, marginLeft: -6, marginRight: -10,
   },
   removeMark: { fontFamily: SANS, fontSize: 17, lineHeight: 19, color: '#C4BEB0' },
 });

@@ -167,7 +167,12 @@ export default function AddTaskModal({ visible, onClose, onAdd, section = 'todo'
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
       <View style={s.container}>
         <View style={s.header}>
-          <TouchableOpacity onPress={onClose} accessibilityRole="button">
+          <TouchableOpacity
+            onPress={onClose}
+            style={s.headerHit}
+            accessibilityRole="button"
+            accessibilityLabel="Cancel, and add nothing"
+          >
             <Text style={s.cancel}>Cancel</Text>
           </TouchableOpacity>
 
@@ -181,6 +186,7 @@ export default function AddTaskModal({ visible, onClose, onAdd, section = 'todo'
           <TouchableOpacity
             onPress={handleAdd}
             disabled={!canAdd}
+            style={s.headerHit}
             accessibilityRole="button"
             accessibilityLabel={isOwe ? 'Add to Owe Me' : 'Add to To Do'}
             aria-disabled={!canAdd}
@@ -193,6 +199,7 @@ export default function AddTaskModal({ visible, onClose, onAdd, section = 'todo'
           {/* Title */}
           <TextInput
             style={s.titleInput}
+            accessibilityLabel={isOwe ? 'What are you waiting on?' : 'What needs to be done?'}
             placeholder={isOwe ? 'What are you waiting on?' : 'What needs to be done?'}
             placeholderTextColor="#C7C7CC"
             value={title}
@@ -206,6 +213,7 @@ export default function AddTaskModal({ visible, onClose, onAdd, section = 'todo'
           {/* Notes */}
           <TextInput
             style={s.notesInput}
+            accessibilityLabel="Notes"
             placeholder="Notes"
             placeholderTextColor="#D1D1D6"
             value={notes}
@@ -274,6 +282,8 @@ const s = StyleSheet.create({
     paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#F4F1EA',
   },
+  // A sheet's two actions, at twenty pixels tall before this.
+  headerHit: { paddingVertical: 12, paddingHorizontal: 6, marginVertical: -12, marginHorizontal: -6 },
   cancel: { fontSize: 17, color: COLORS.accent },
   save: { fontSize: 17, fontWeight: '600', color: COLORS.accent },
   saveOff: { color: '#C4BEB0' },
