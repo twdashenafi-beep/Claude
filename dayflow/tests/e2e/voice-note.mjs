@@ -177,6 +177,35 @@ ok('which can be removed again', await shows('Remove'));
 await closeSheet('Save');
 ok('the row now offers to play it', (await playButtons()) === 1);
 
+// Big enough to hit, and not underneath anything.
+//
+// The accessibility pass measured every control it could find, and missed this
+// one entirely: no task on any surface it walked had a voice note, so the
+// smallest button in the app was never in the sample. It was sixteen by
+// fourteen. Worse, making the delete beside it hittable put the delete on top
+// of it — the click went to the wrong button, which a measurement would never
+// have shown and pressing it did.
+{
+  const geometry = await page.evaluate(() => {
+    const play = document.querySelector('[aria-label="Play voice note"]');
+    if (!play) return null;
+    const r = play.getBoundingClientRect();
+    const mid = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return {
+      w: Math.round(r.width),
+      h: Math.round(r.height),
+      // What is actually on top at the middle of it.
+      hits: mid ? (mid.closest('[aria-label]') || {}).getAttribute
+        ? mid.closest('[aria-label]').getAttribute('aria-label')
+        : null : null,
+    };
+  });
+  ok('the play button is big enough to hit',
+     geometry && geometry.w >= 24 && geometry.h >= 24, JSON.stringify(geometry));
+  ok('and nothing else is sitting on top of it',
+     geometry && geometry.hits === 'Play voice note', JSON.stringify(geometry));
+}
+
 await openTask(TASK);
 ok('and the task still has it when reopened', await shows('Voice note'));
 await closeSheet('Cancel');

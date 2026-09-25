@@ -553,7 +553,15 @@ const st = StyleSheet.create({
   },
   progressFill: { height: 2, backgroundColor: COLORS.accent },
 
-  listMic: { paddingHorizontal: 2 },
+  // Twelve-point glyph in two pixels of padding came to sixteen by fourteen.
+  // It is the only control on a row that is neither the task nor the delete,
+  // and it sits between them, so it grows evenly and takes its space back with
+  // the margins.
+  listMic: {
+    paddingHorizontal: 8, paddingVertical: 10,
+    marginHorizontal: -6, marginVertical: -10,
+    alignItems: 'center', justifyContent: 'center',
+  },
   listMicIcon: { fontSize: 12, color: COLORS.inkFaint },
   listMicPlaying: { color: COLORS.accent },
 });

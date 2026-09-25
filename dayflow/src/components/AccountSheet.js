@@ -183,6 +183,7 @@ export default function AccountSheet({
         <View style={s.header}>
           <TouchableOpacity
             onPress={view === 'menu' ? close : reset}
+            style={s.headerHit}
             accessibilityRole="button"
             accessibilityLabel={view === 'menu' ? 'Close account settings' : 'Back to account settings'}
           >
@@ -327,6 +328,8 @@ const s = StyleSheet.create({
     paddingHorizontal: 20, paddingTop: 16, paddingBottom: 14,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COLORS.rule,
   },
+  // Seventeen pixels of text, and the only way out of this sheet.
+  headerHit: { paddingVertical: 11, paddingRight: 16, marginVertical: -11, marginRight: -16 },
   headerAction: { fontFamily: SANS, fontSize: 15, color: COLORS.accent, width: 46 },
   headerTitle: { fontFamily: SERIF, fontSize: 16, color: COLORS.ink },
   body: { padding: 20 },

@@ -42,7 +42,7 @@ export default function SearchSheet({ query, onQuery, tasks, projects, onOpen, o
             onPress={() => onQuery('')}
             accessibilityRole="button"
             accessibilityLabel="Clear the search"
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            style={s.actionHit}
           >
             <Text style={s.action}>CLEAR</Text>
           </TouchableOpacity>
@@ -51,7 +51,7 @@ export default function SearchSheet({ query, onQuery, tasks, projects, onOpen, o
           onPress={onClose}
           accessibilityRole="button"
           accessibilityLabel="Close search"
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          style={s.actionHit}
         >
           <Text style={s.action}>DONE</Text>
         </TouchableOpacity>
@@ -121,6 +121,8 @@ const s = StyleSheet.create({
     fontFamily: SANS, fontSize: 15, color: COLORS.ink,
     paddingVertical: 6,
   },
+  // Twelve pixels of uppercase, and the way out of the search.
+  actionHit: { paddingVertical: 11, paddingHorizontal: 8, marginVertical: -11, marginHorizontal: -8 },
   action: {
     fontFamily: SANS, fontSize: 10.5, fontWeight: '700', letterSpacing: 1,
     color: COLORS.inkSoft,

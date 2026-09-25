@@ -36,11 +36,15 @@ export async function requestAlertPermission() {
   }
 }
 
-export async function showSystemAlert(title, body, tag) {
+export async function showSystemAlert(title, body, tag, data) {
   // silent: false is the default, but stated because it is the whole point of
   // a reminder. Whether a sound actually plays is then the operating system's
   // to decide — macOS and iOS each have a per-app setting for it.
-  const options = { body, tag, silent: false };
+  //
+  // `data` is what makes the notification worth tapping: it carries the task's
+  // id, which the service worker reads when the notification is clicked so the
+  // app can open the task rather than merely opening.
+  const options = { body, tag, silent: false, data: data || {} };
   if (!WEB_ALERTS || Notification.permission !== 'granted') return false;
   try {
     // iOS raises notifications only through the service worker registration;
@@ -137,6 +141,79 @@ export async function scheduleTaskNotifications(task) {
       });
     }
   }
+}
+
+// Tapping a reminder, wherever it came from.
+//
+// Two different mechanisms answer to the same idea, so they are both behind
+// this one function rather than spread through the screen that uses it. On the
+// web the service worker handles the click and messages whichever window is
+// open; on a native build it is expo-notifications' own response listener.
+//
+// The URL is read as well as the message, for the case where there was no
+// window and one had to be started: the app is not listening yet when the
+// message is sent, so the id travels in the address instead.
+//
+// Returns a function that stops listening.
+export function onAlertOpened(handler) {
+  if (typeof handler !== 'function') return () => {};
+
+  if (SUPPORTED) {
+    try {
+      const sub = Notifications.addNotificationResponseReceivedListener(response => {
+        const data = response
+          && response.notification
+          && response.notification.request
+          && response.notification.request.content
+          && response.notification.request.content.data;
+        if (data && data.taskId) handler(String(data.taskId));
+      });
+      return () => { try { sub.remove(); } catch { /* already gone */ } };
+    } catch {
+      return () => {};
+    }
+  }
+
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return () => {};
+
+  const fromMessage = event => {
+    const data = event && event.data;
+    if (data && data.type === 'dayflow-open-task' && data.taskId) handler(String(data.taskId));
+  };
+
+  let stopped = false;
+  try {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', fromMessage);
+    }
+  } catch {
+    // No service worker here; the address below is the only route.
+  }
+
+  // Read once, and removed from the address so that reloading the page later
+  // does not open the same task again.
+  try {
+    const match = /[#&]task=([^&]+)/.exec(window.location.hash || '');
+    if (match) {
+      const id = decodeURIComponent(match[1]);
+      const clean = (window.location.hash || '').replace(/[#&]task=[^&]+/, '');
+      window.history.replaceState(null, '', window.location.pathname + window.location.search + (clean === '#' ? '' : clean));
+      // After the caller has finished mounting, not during it.
+      setTimeout(() => { if (!stopped) handler(id); }, 0);
+    }
+  } catch {
+    // A locked-down browser refusing history or location is not a reason to
+    // fail the whole screen.
+  }
+
+  return () => {
+    stopped = true;
+    try {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('message', fromMessage);
+      }
+    } catch { /* nothing to remove */ }
+  };
 }
 
 export async function cancelTaskNotifications(taskId) {

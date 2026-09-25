@@ -208,12 +208,18 @@ export default function ProjectBar({
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => { onDelete(editing.id); setEditing(null); setError(''); }}
+            style={s.actionHit}
             accessibilityRole="button"
             accessibilityLabel={`Delete the project ${editing.name}`}
           >
             <Text style={[s.action, s.danger]}>DELETE</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => { setEditing(null); setError(''); }} accessibilityRole="button" accessibilityLabel="Cancel">
+          <TouchableOpacity
+            onPress={() => { setEditing(null); setError(''); }}
+            style={s.actionHit}
+            accessibilityRole="button"
+            accessibilityLabel="Cancel"
+          >
             <Text style={s.action}>CANCEL</Text>
           </TouchableOpacity>
         </View>
@@ -326,11 +332,17 @@ export default function ProjectBar({
                 placeholderTextColor={COLORS.inkFaint}
                 accessibilityLabel="New project name"
               />
-              <TouchableOpacity onPress={submit} accessibilityRole="button" accessibilityLabel="Create the project">
+              <TouchableOpacity
+                onPress={submit}
+                style={s.actionHit}
+                accessibilityRole="button"
+                accessibilityLabel="Create the project"
+              >
                 <Text style={s.action}>ADD</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => { setAdding(false); setName(''); setError(''); }}
+                style={s.actionHit}
                 accessibilityRole="button"
                 accessibilityLabel="Cancel"
               >
@@ -385,6 +397,9 @@ const s = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: COLORS.rule,
     paddingVertical: 5, outlineStyle: 'none',
   },
+  // Uppercase at eleven point is twelve pixels tall. These are the only way to
+  // finish naming a project, or to get out of doing it.
+  actionHit: { paddingVertical: 11, paddingHorizontal: 6, marginVertical: -11, marginHorizontal: -6 },
   action: {
     fontFamily: SANS, fontSize: 11.5, fontWeight: '700', letterSpacing: 1,
     color: COLORS.inkSoft,

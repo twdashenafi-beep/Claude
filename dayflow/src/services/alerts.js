@@ -58,8 +58,8 @@ export function pendingAlerts({ tasks, now, shown, graceMs = 12 * 60 * 60 * 1000
   return out.sort((a, b) => a.at - b.at);
 }
 
-// What the alert says.
-export function alertBody(alert) {
+// When it is due.
+function when(alert) {
   if (alert.kind === 'due') return 'Due now';
   const minutes = Number(alert.task.earlyReminderMinutes) || 0;
   if (minutes % 1440 === 0) {
@@ -71,6 +71,36 @@ export function alertBody(alert) {
     return `Due in ${hours} ${hours === 1 ? 'hour' : 'hours'}`;
   }
   return `Due in ${minutes} minutes`;
+}
+
+// What the alert says: when it is due, and which project it belongs to.
+//
+// The project is the half that was missing. A reminder arriving on a phone
+// says a title and nothing else, and a title on its own is exactly as much use
+// as remembering there was something — "Call about the survey" tells you
+// nothing about which of two houses it concerns.
+export function alertBody(alert, where = '') {
+  const said = when(alert);
+  return where ? `${said}  ·  ${where}` : said;
+}
+
+// One line for the strip, whatever the number of them.
+//
+// It used to count them: "2 tasks due", which is a notification about the
+// existence of notifications. It names the first and says how many others are
+// behind it, and tapping it goes there — which is what a person wanted from
+// the moment they looked up.
+export function alertSummary(alerts, whereOf) {
+  const list = (Array.isArray(alerts) ? alerts : []).filter(a => a && a.task);
+  if (list.length === 0) return '';
+
+  const [first] = list;
+  const where = typeof whereOf === 'function' ? whereOf(first.task) || '' : '';
+  const head = `${alertBody(first, where)} — ${first.task.title}`;
+  if (list.length === 1) return head;
+
+  const rest = list.length - 1;
+  return `${head}, and ${rest} more`;
 }
 
 // Keys worth keeping. Old ones only exist to stop a repeat, and once an alert

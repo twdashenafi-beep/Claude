@@ -4,7 +4,7 @@
 // for something already done, not emptying a fortnight of missed reminders onto
 // the screen at once. Pure logic. Run with `npm test`.
 
-import { alertTimesFor, alertKey, pendingAlerts, alertBody, pruneShown }
+import { alertTimesFor, alertKey, pendingAlerts, alertBody, alertSummary, pruneShown }
   from '../src/services/alerts.js';
 
 let pass = 0, fail = 0;
@@ -120,6 +120,54 @@ ok('a day reads as a day',
   ok('keys that could still repeat are kept', kept.includes(recent));
   ok('rubbish in the list does not survive', pruneShown(['nonsense'], AT).length === 0);
   ok('a missing list is fine', pruneShown(undefined, AT).length === 0);
+}
+
+// ── Where the task lives ──
+//
+// A reminder that says only a title is as much use as remembering there was
+// something. "Call about the survey" tells you nothing about which of two
+// houses it concerns.
+{
+  const alert = { kind: 'due', task: { id: '1', title: 'Call about the survey' } };
+  ok('an alert with no project says when and nothing else',
+     alertBody(alert) === 'Due now', alertBody(alert));
+  ok('and one in a project says where',
+     alertBody(alert, 'Copper').includes('Copper'), alertBody(alert, 'Copper'));
+  ok('with the when still first',
+     alertBody(alert, 'Copper').startsWith('Due now'), alertBody(alert, 'Copper'));
+
+  const early = { kind: 'early', task: { id: '2', title: 'x', earlyReminderMinutes: 10 } };
+  ok('an early one says where too',
+     alertBody(early, 'Wedding') === 'Due in 10 minutes  ·  Wedding', alertBody(early, 'Wedding'));
+}
+
+// ── One line, however many there are ──
+//
+// It used to say "2 tasks due", which is a notification about the existence of
+// notifications: it named nothing, so there was nothing to act on.
+{
+  const one = { kind: 'due', task: { id: '1', title: 'Ring the agent', projectId: 'p1' } };
+  const two = { kind: 'due', task: { id: '2', title: 'Pay the deposit', projectId: '' } };
+  const where = t => (t.projectId === 'p1' ? 'Copper' : '');
+
+  ok('nothing to say when there is nothing', alertSummary([], where) === '');
+  ok('and nothing for junk', alertSummary(null, where) === '');
+  ok('one alert names the task', alertSummary([one], where).includes('Ring the agent'));
+  ok('and says which project', alertSummary([one], where).includes('Copper'));
+  ok('and when it is due', alertSummary([one], where).startsWith('Due now'));
+
+  const many = alertSummary([one, two], where);
+  ok('several still name the first', many.includes('Ring the agent'), many);
+  ok('and count the rest rather than listing them', many.includes('and 1 more'), many);
+  ok('the count is of the others, not of all of them', !many.includes('and 2 more'), many);
+
+  const three = alertSummary([one, two, { kind: 'due', task: { id: '3', title: 'z' } }], where);
+  ok('three reads as two more', three.includes('and 2 more'), three);
+
+  ok('a task with no project is not given an empty one',
+     !alertSummary([two], where).includes('·'), alertSummary([two], where));
+  ok('and a missing lookup is survived',
+     alertSummary([one]).includes('Ring the agent'), alertSummary([one]));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

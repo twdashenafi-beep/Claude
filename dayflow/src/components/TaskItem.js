@@ -242,16 +242,22 @@ function TaskItem({
         ]}
         {...panResponder.panHandlers}
       >
+        {/* The box you can see is fifteen pixels; the box you can hit is not.
+            hitSlop does that on a phone and nothing at all on the web, which is
+            where this app is actually used — so the target is made of padding,
+            and taken back out of the layout with the margins, leaving the tick
+            exactly where it was. */}
         <TouchableOpacity
-          style={[st.check, done && st.checkDone]}
+          style={st.checkHit}
           onPress={() => onToggle(task.id)}
           activeOpacity={0.6}
-          hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}
           accessibilityRole="checkbox"
           aria-checked={done}
           accessibilityLabel={done ? `Mark ${task.title} as not done` : `Mark ${task.title} as done`}
         >
-          {done && <Text style={st.checkMark}>✓</Text>}
+          <View style={[st.check, done && st.checkDone]}>
+            {done && <Text style={st.checkMark}>✓</Text>}
+          </View>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -339,16 +345,33 @@ const st = StyleSheet.create({
     shadowColor: '#3B3628', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.12, shadowRadius: 6, elevation: 2,
   },
+  checkHit: {
+    alignSelf: 'flex-start',
+    // Every margin stated on its own side, and none of them through a
+    // shorthand. React Native resolves marginTop over marginVertical by
+    // specificity rather than by which is written last, so `marginTop: 3` next
+    // to `marginVertical: -11` left the top margin at 3 and the row ten pixels
+    // taller than it had been — enough that a drag measured in rows landed one
+    // row short.
+    //
+    // The top is the padding less the three pixels the box used to sit down by;
+    // the bottom is the rest of the padding. The ten to the right of the box
+    // are padding too, not a margin on top of it: having both moved every row
+    // in the app ten pixels across.
+    marginTop: -8, marginBottom: -10, marginLeft: -10,
+    paddingVertical: 11, paddingHorizontal: 10,
+  },
   check: {
     width: 15, height: 15, borderRadius: 2,
     borderWidth: 1, borderColor: '#B5AFA1',
     justifyContent: 'center', alignItems: 'center',
-    marginRight: 10, marginTop: 3,
   },
   checkDone: { backgroundColor: COLORS.check, borderColor: COLORS.check },
   checkMark: { fontSize: 10, color: COLORS.sheet, fontWeight: '700', marginTop: -1 },
 
-  body: { flex: 1 },
+  // Same trick as the checkbox: a row of one short line is nineteen pixels of
+  // text, and opening a task is the commonest thing anybody does here.
+  body: { flex: 1, paddingVertical: 9, marginVertical: -9 },
   priority: { fontFamily: SERIF, fontWeight: '700', color: COLORS.accent },
   title: { fontFamily: SANS, fontSize: 14.5, lineHeight: 19, color: COLORS.ink },
   titleDone: { color: COLORS.done, textDecorationLine: 'line-through' },
@@ -362,8 +385,18 @@ const st = StyleSheet.create({
   // Faint until reached for: present on every row, but the checkbox is what
   // the eye should land on.
   remove: {
-    width: 20, alignItems: 'center', justifyContent: 'center',
-    marginLeft: 4, marginTop: 1, alignSelf: 'flex-start', paddingTop: 1,
+    // No fixed width: box-sizing is border-box here, so `width: 20` ate the
+    // padding meant to make this hittable and left it twenty pixels across.
+    minWidth: 20, alignItems: 'center', justifyContent: 'center',
+    alignSelf: 'flex-start',
+    // The width is taken from the right, where there is nothing but the edge of
+    // the row. Taking it from the left put this button on top of the one that
+    // plays a voice note: the click went to the delete instead, and Playwright
+    // spent thirty seconds telling me so in the politest possible terms.
+    paddingVertical: 10, paddingLeft: 2, paddingRight: 16,
+    // Nineteen tall once the margins are taken off, the same as the row's other
+    // two children, so the row is the height it always was.
+    marginTop: -8, marginBottom: -12, marginLeft: 2, marginRight: -16,
   },
   removeMark: { fontFamily: SANS, fontSize: 17, lineHeight: 19, color: '#C4BEB0' },
 });
