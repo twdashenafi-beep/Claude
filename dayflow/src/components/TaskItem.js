@@ -347,11 +347,19 @@ const st = StyleSheet.create({
   },
   checkHit: {
     alignSelf: 'flex-start',
-    marginTop: 3,
-    // The ten pixels to the right of the box are the padding, not a margin on
-    // top of it: having both moved every row in the app ten pixels across.
+    // Every margin stated on its own side, and none of them through a
+    // shorthand. React Native resolves marginTop over marginVertical by
+    // specificity rather than by which is written last, so `marginTop: 3` next
+    // to `marginVertical: -11` left the top margin at 3 and the row ten pixels
+    // taller than it had been — enough that a drag measured in rows landed one
+    // row short.
+    //
+    // The top is the padding less the three pixels the box used to sit down by;
+    // the bottom is the rest of the padding. The ten to the right of the box
+    // are padding too, not a margin on top of it: having both moved every row
+    // in the app ten pixels across.
+    marginTop: -8, marginBottom: -10, marginLeft: -10,
     paddingVertical: 11, paddingHorizontal: 10,
-    marginVertical: -11, marginLeft: -10,
   },
   check: {
     width: 15, height: 15, borderRadius: 2,
@@ -382,7 +390,9 @@ const st = StyleSheet.create({
     minWidth: 20, alignItems: 'center', justifyContent: 'center',
     alignSelf: 'flex-start',
     paddingVertical: 10, paddingHorizontal: 10,
-    marginTop: -9, marginBottom: -10, marginLeft: -6, marginRight: -10,
+    // Nineteen tall once the margins are taken off, the same as the row's other
+    // two children, so the row is the height it always was.
+    marginTop: -8, marginBottom: -12, marginLeft: -6, marginRight: -10,
   },
   removeMark: { fontFamily: SANS, fontSize: 17, lineHeight: 19, color: '#C4BEB0' },
 });
