@@ -8,6 +8,7 @@ import { COLORS } from '../utils/theme';
 import DateTimeFields from './DateTimeFields';
 import VoiceRecorder from './VoiceRecorder';
 import { notesOf, noteFields } from '../services/voiceNotes';
+import { REPEATS, repeatOf } from '../services/repeat';
 import { chaseMessage, owedBy } from '../services/chase';
 import { shareText } from '../services/share';
 
@@ -24,6 +25,7 @@ export default function TaskDetail({ task, visible, onClose, onSave, onMove, pla
   const [projectId, setProjectId] = useState('');
   const [voiceNotes, setVoiceNotes] = useState([]);
   const [taskType, setTaskType] = useState('todo');
+  const [repeat, setRepeat] = useState('none');
   // What happened the last time a chase was sent from here.
   const [chased, setChased] = useState('');
 
@@ -43,6 +45,7 @@ export default function TaskDetail({ task, visible, onClose, onSave, onMove, pla
       setProjectId(task.projectId || '');
       setVoiceNotes(notesOf(task));
       setTaskType(task.taskType === 'done_for_me' || task.section === 'owe_me' ? 'done_for_me' : 'todo');
+      setRepeat(repeatOf(task));
       setChased('');
     }
   }, [task]);
@@ -69,6 +72,13 @@ export default function TaskDetail({ task, visible, onClose, onSave, onMove, pla
       earlyReminderMinutes: earlyMinutes,
       viewScope,
       projectId,
+      repeat,
+      // Cleared whenever the sheet is saved, because the date above may have
+      // just changed and the anchor is only ever a memory of a date already
+      // chosen. It is written again the next time the task comes round, from
+      // whatever date it has then — so the day you last picked is the day it
+      // keeps, rather than one picked months ago and never revisited.
+      repeatDay: null,
       ...noteFields(voiceNotes),
     });
     onClose();
@@ -231,6 +241,35 @@ export default function TaskDetail({ task, visible, onClose, onSave, onMove, pla
                   </Text>
                 </TouchableOpacity>
               ))}
+            </View>
+          </View>
+
+          {/* Tasks that come back.
+              There is no series here and no instances: tick it off and the next
+              one appears, carrying this setting with it, and nothing ever asks
+              whether you meant this one or all the future ones. Four chips,
+              the same control as the scopes below, because it is the same kind
+              of choice — one of a short list, one at a time. */}
+          <View style={styles.section}>
+            <Text style={styles.label}>Repeat</Text>
+            <View style={styles.scopeRow}>
+              {REPEATS.map(option => {
+                const on = repeat === option.key;
+                return (
+                  <TouchableOpacity
+                    key={option.key}
+                    style={[styles.scopeBtn, on && styles.scopeBtnOn]}
+                    onPress={() => setRepeat(option.key)}
+                    accessibilityRole="radio"
+                    aria-checked={on}
+                    accessibilityLabel={
+                      option.key === 'none' ? 'Does not repeat' : `Repeats ${option.label}`
+                    }
+                  >
+                    <Text style={[styles.scopeText, on && styles.scopeTextOn]}>{option.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
 

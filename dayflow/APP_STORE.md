@@ -333,6 +333,11 @@ brackets and every line below is inside them.
     Overdue says overdue. A task nobody dated stays quiet — a list that cries
     wolf is worse than one that says nothing.
 
+    THINGS THAT COME BACK
+    Rent on the thirtieth, the standing call on Mondays. Set a task to repeat
+    and ticking it off brings the next one back, dated. No series to manage
+    and nothing asking whether you meant this one or all the future ones.
+
     SAY IT INSTEAD OF TYPING IT
     Hold the button and talk. A voice note lives on the task, encrypted with
     everything else, so it survives a reload and reaches your other devices —

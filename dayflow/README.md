@@ -19,6 +19,7 @@ AI-powered task manager with end-to-end encryption. Built with React Native (Exp
 - **Owe Me** — A follow-up column for what other people owe *you*: the task, who you are waiting on, and when to chase it. Each row says how long it has been waiting, and turns red past a fortnight
 - **Chase** — One tap on an Owe Me task writes the message asking for it back, covering *everything* that person owes you rather than one task at a time, and hands it to the phone's share sheet
 - **How long it has been sitting** — A To Do you have carried far longer than its scope says so too, quietly: red is for somebody else being late, not for you
+- **Repeats** — A task can come back: daily, weekly or monthly. Tick it off and the next one appears, carrying the repeat with it. No series, no instances, and nothing ever asks whether you meant this one or all the future ones. A monthly task due on the 31st keeps the 31st — February clamps without moving it permanently
 - **Reminders** — Local notifications at the due time, with early-reminder options
 - **Persistent Storage** — Tasks survive restarts via encrypted AsyncStorage
 - **Encrypted Sync** — Sign in on each device and they share the same tasks. The server stores only ciphertext; the key is derived from your password and never leaves the device

@@ -11,6 +11,7 @@ import {
   PROJECT_KIND, EVERYTHING, projectOf, isTask, isProject,
   sortProjects, orderForNewProject,
 } from '../services/projects';
+import { nextOccurrence, repeats } from '../services/repeat';
 import { isArchived } from '../services/archive';
 import { capitalizeTitle } from '../utils/text';
 
@@ -268,6 +269,12 @@ export function TaskProvider({ children, encryptionKey, synced }) {
       notes: taskData.notes || '',
       voiceNoteUri: taskData.voiceNoteUri || null,
       voiceNotes: Array.isArray(taskData.voiceNotes) ? taskData.voiceNotes : [],
+      // Carried explicitly, because everything a task is made of is listed
+      // here: a field left off this list is a field the follow-on to a
+      // repeating task silently loses, and it would lose the repeat itself
+      // first of all.
+      repeat: taskData.repeat || 'none',
+      repeatDay: taskData.repeatDay || null,
       attachments: taskData.attachments || [],
       createdAt: now,
       updatedAt: now,
@@ -294,17 +301,31 @@ export function TaskProvider({ children, encryptionKey, synced }) {
   }, [noteEdit]);
 
   const toggleTask = useCallback(id => {
+    // Decided before the list is touched, and from the list rather than from
+    // inside the updater: making the follow-on is a side effect, and a side
+    // effect inside a state updater runs at whatever moment React chooses,
+    // sometimes twice.
+    const before = tasksRef.current.find(t => t.id === id);
+    const finishing = !!before && !before.completed;
+    const follow = finishing && repeats(before) ? nextOccurrence(before) : null;
+
     setTasks(prev =>
       prev.map(t => {
         if (t.id !== id) return t;
         const updated = { ...t, completed: !t.completed, updatedAt: stamp() };
+        // The repeat goes with the new task rather than staying on this one.
+        // Nothing is lost — the next one carries it — and it means unticking
+        // this by mistake cannot make a second copy, and the one sitting in the
+        // archive does not go on claiming it will come back.
+        if (follow) updated.repeat = 'none';
         if (updated.completed) cancelTaskNotifications(id);
         else if (updated.dueDate && updated.dueTime) scheduleTaskNotifications(updated).catch(() => {});
         return updated;
       })
     );
+    if (follow) addTask(follow);
     noteEdit();
-  }, [noteEdit]);
+  }, [noteEdit, addTask]);
 
   const deleteTask = useCallback(id => {
     cancelTaskNotifications(id);
