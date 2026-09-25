@@ -104,3 +104,58 @@ function downloadAsFile(name, text, type) {
     if (url) setTimeout(() => URLCtor.revokeObjectURL(url), 30000);
   }
 }
+
+// Choosing a file to read back in.
+//
+// There is no cross-platform way to do this and no file-system module in the
+// project, so this is the browser's own picker, made and thrown away each time.
+// A native build gets nothing here until it gets expo-document-picker, and says
+// so rather than presenting a control that does nothing.
+//
+// Resolves to { name, text } or null — null being both "cancelled" and "could
+// not", because to the person standing there they are the same thing and
+// neither is a failure worth a message.
+export function pickTextFile(accept = 'application/json,.json') {
+  if (Platform.OS !== 'web') return Promise.resolve(null);
+  const doc = typeof document === 'undefined' ? null : document;
+  const Reader = globalThis.FileReader;
+  if (!doc || typeof Reader !== 'function') return Promise.resolve(null);
+
+  return new Promise(resolve => {
+    let done = false;
+    const finish = value => {
+      if (done) return;
+      done = true;
+      try { input.remove(); } catch { /* already gone */ }
+      resolve(value);
+    };
+
+    const input = doc.createElement('input');
+    input.type = 'file';
+    input.accept = accept;
+    // Off-screen rather than hidden: a display:none input is ignored by some
+    // browsers when clicked from script.
+    input.style.position = 'fixed';
+    input.style.left = '-10000px';
+
+    input.addEventListener('change', () => {
+      const file = input.files && input.files[0];
+      if (!file) return finish(null);
+      const reader = new Reader();
+      reader.onerror = () => finish(null);
+      reader.onloadend = () => finish(
+        typeof reader.result === 'string' ? { name: file.name, text: reader.result } : null
+      );
+      reader.readAsText(file);
+    });
+
+    // Cancelling a file dialog fires nothing at all in most browsers, so the
+    // promise would never settle and the sheet would sit there saying
+    // "reading…" for ever. Modern browsers do fire this; the ones that do not
+    // leave an input in the document, which is tidied on the next attempt.
+    input.addEventListener('cancel', () => finish(null));
+
+    doc.body.appendChild(input);
+    input.click();
+  });
+}

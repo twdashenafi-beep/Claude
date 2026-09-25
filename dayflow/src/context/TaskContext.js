@@ -409,6 +409,49 @@ export function TaskProvider({ children, encryptionKey, synced }) {
     noteEdit();
   }, [noteEdit]);
 
+  // Bringing a copy back in.
+  //
+  // The rule the whole of restore.js is arranged around holds here too: nothing
+  // is removed. This adds records the device does not have and replaces ones
+  // the file holds a newer version of, and touches nothing else.
+  //
+  // Everything written is stamped now. The decision about which version wins
+  // was made before this ran, by comparing the file against what is here; the
+  // stamp is what makes that decision survive the next sync, since the server
+  // still holds whatever it held. It is the same reason undo stamps a restored
+  // task rather than putting back the timestamp it had.
+  //
+  // Tombstones for the records coming in are dropped for the same reason: a
+  // task this device deleted would otherwise be deleted again the moment the
+  // next sync ran, which would look exactly like the import having silently
+  // failed.
+  const importTasks = useCallback(records => {
+    const incoming = (records || []).filter(r => r && typeof r === 'object' && r.id);
+    if (incoming.length === 0) return { added: 0, updated: 0 };
+
+    const now = stamp();
+    const byId = new Map(incoming.map(r => [r.id, { ...r, updatedAt: now }]));
+    tombstones.current = tombstones.current.filter(t => !byId.has(t.id));
+
+    const known = new Set(tasksRef.current.map(t => t.id));
+    const fresh = [...byId.values()].filter(r => !known.has(r.id));
+    const merge = list => [
+      ...fresh,
+      ...list.map(t => (byId.has(t.id) ? { ...t, ...byId.get(t.id) } : t)),
+    ];
+
+    tasksRef.current = merge(tasksRef.current);
+    setTasks(prev => merge(prev));
+
+    for (const record of byId.values()) {
+      if (!record.completed && record.dueDate && record.dueTime) {
+        scheduleTaskNotifications(record).catch(() => {});
+      }
+    }
+    noteEdit();
+    return { added: fresh.length, updated: byId.size - fresh.length };
+  }, [noteEdit]);
+
   const updateTask = useCallback((id, updates) => {
     setTasks(prev =>
       prev.map(t => {
@@ -538,7 +581,8 @@ export function TaskProvider({ children, encryptionKey, synced }) {
         reorderProjects: reorderTasks,
         projects, addProject, renameProject, deleteProject, moveTaskToProject,
         archived, archiveTask, archiveTasks, unarchiveTask,
-        deleteTasks, restoreTasks,
+        deleteTasks, restoreTasks, importTasks,
+        tombstones: tombstones.current,
       }}
     >
       {children}

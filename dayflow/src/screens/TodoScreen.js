@@ -259,6 +259,7 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
     storageError, vaultError,
     projects, addProject, renameProject, deleteProject, moveTaskToProject, reorderProjects,
     archived, archiveTask, archiveTasks, unarchiveTask, deleteTasks, restoreTasks,
+    importTasks, tombstones,
   } = useTasks();
   const { width } = useWindowDimensions();
 
@@ -926,6 +927,8 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
         tasks={tasks}
         archived={archived}
         projects={projects}
+        tombstones={tombstones}
+        onImport={importTasks}
         onClose={() => setShowAccount(false)}
         onLock={onLock}
         onDeleted={onDeleted}
