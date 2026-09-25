@@ -8,6 +8,7 @@ import { COLORS } from '../utils/theme';
 import DateTimeFields from './DateTimeFields';
 import VoiceRecorder from './VoiceRecorder';
 import { notesOf, noteFields } from '../services/voiceNotes';
+import { REPEATS, repeatOf } from '../services/repeat';
 import { chaseMessage, owedBy } from '../services/chase';
 import { shareText } from '../services/share';
 
@@ -24,6 +25,7 @@ export default function TaskDetail({ task, visible, onClose, onSave, onMove, pla
   const [projectId, setProjectId] = useState('');
   const [voiceNotes, setVoiceNotes] = useState([]);
   const [taskType, setTaskType] = useState('todo');
+  const [repeat, setRepeat] = useState('none');
   // What happened the last time a chase was sent from here.
   const [chased, setChased] = useState('');
 
@@ -43,6 +45,7 @@ export default function TaskDetail({ task, visible, onClose, onSave, onMove, pla
       setProjectId(task.projectId || '');
       setVoiceNotes(notesOf(task));
       setTaskType(task.taskType === 'done_for_me' || task.section === 'owe_me' ? 'done_for_me' : 'todo');
+      setRepeat(repeatOf(task));
       setChased('');
     }
   }, [task]);
@@ -69,6 +72,17 @@ export default function TaskDetail({ task, visible, onClose, onSave, onMove, pla
       earlyReminderMinutes: earlyMinutes,
       viewScope,
       projectId,
+      repeat,
+      // The anchor — which day of the month a monthly task is aiming at — is
+      // dropped only when the date itself has just been changed, and it is
+      // written again from the new one when the task next comes round.
+      //
+      // Only then. Clearing it on every save looked tidier and was wrong: rent
+      // due on the 31st shows the 28th in February, so opening that task to fix
+      // a typo and pressing Save would record the 28th as the intention and
+      // move the rent by three days for good. A save that did not touch the
+      // date must not move anything.
+      ...(dueDate !== (task.dueDate || task.date || '') ? { repeatDay: null } : null),
       ...noteFields(voiceNotes),
     });
     onClose();
@@ -231,6 +245,35 @@ export default function TaskDetail({ task, visible, onClose, onSave, onMove, pla
                   </Text>
                 </TouchableOpacity>
               ))}
+            </View>
+          </View>
+
+          {/* Tasks that come back.
+              There is no series here and no instances: tick it off and the next
+              one appears, carrying this setting with it, and nothing ever asks
+              whether you meant this one or all the future ones. Four chips,
+              the same control as the scopes below, because it is the same kind
+              of choice — one of a short list, one at a time. */}
+          <View style={styles.section}>
+            <Text style={styles.label}>Repeat</Text>
+            <View style={styles.scopeRow}>
+              {REPEATS.map(option => {
+                const on = repeat === option.key;
+                return (
+                  <TouchableOpacity
+                    key={option.key}
+                    style={[styles.scopeBtn, on && styles.scopeBtnOn]}
+                    onPress={() => setRepeat(option.key)}
+                    accessibilityRole="radio"
+                    aria-checked={on}
+                    accessibilityLabel={
+                      option.key === 'none' ? 'Does not repeat' : `Repeats ${option.label}`
+                    }
+                  >
+                    <Text style={[styles.scopeText, on && styles.scopeTextOn]}>{option.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
 
