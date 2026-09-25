@@ -78,7 +78,7 @@ const executablePath = process.env.PLAYWRIGHT_CHROMIUM || undefined;
 const browser = await chromium.launch(executablePath ? { executablePath } : {});
 let pass = 0, fail = 0;
 const ok = (l, c, x = '') => { c ? pass++ : fail++; console.log(`${c ? 'PASS' : 'FAIL'}  ${l}${c ? '' : '  ' + x}`); };
-const ctx = await browser.newContext({ serviceWorkers: 'block' });
+const ctx = await browser.newContext({ serviceWorkers: 'block', acceptDownloads: true });
 const page = await ctx.newPage();
 page.on('pageerror', e => console.log(`  page error: ${e}`));
 await page.route(u => u.hostname === 'stubproject.supabase.co', route);
@@ -168,6 +168,35 @@ ok('the one just done is still there, finished', (await finished()) === 1, Strin
   await page.waitForTimeout(1400);
 }
 
+// ── Two taps on the checkbox ──
+//
+// Not an exotic thing to do: it is what happens when the screen is slow and you
+// press again. Whether a task is being finished is read from a list React may
+// not have committed yet, so a second tap arriving inside that window could
+// find it still waiting, decide it was being finished all over again, and make
+// a second copy of the follow-on.
+//
+// Said plainly: this does not reproduce that. The window is the gap between a
+// state update and the effect that mirrors it, and on a desktop browser with
+// nothing else to do that gap closes faster than two clicks can be delivered —
+// the assertion below passes with the guard removed. It is here as a guard on
+// the outcome rather than a demonstration of the cause. The fix it protects is
+// reasoned rather than reproduced, which is worth knowing when reading it.
+{
+  const box = page.getByLabel(`Mark ${TASK} as done`).first();
+  await box.dblclick({ delay: 20 });
+  await page.waitForTimeout(1600);
+  ok('a double tap does not leave a spare copy behind',
+     (await waiting()) <= 2, String(await waiting()));
+  // Back to one waiting, whichever way the double tap landed.
+  await showCompleted();
+  while ((await waiting()) > 1) {
+    await page.getByLabel(`Mark ${TASK} as done`).first().click();
+    await page.waitForTimeout(1200);
+  }
+  ok('and the list can be got back to one', (await waiting()) === 1, String(await waiting()));
+}
+
 // ── What the next one actually carries ──
 await page.locator(`text=${TASK}`).first().click();
 await page.waitForTimeout(900);
@@ -178,6 +207,66 @@ const stillDaily = await page.evaluate(() => {
 });
 ok('and it is still set to daily', stillDaily === 'true', String(stillDaily));
 await closeSheet('Cancel');
+
+// ── Saving without touching the date leaves the chain alone ──
+//
+// A monthly task remembers which day of the month it is aiming at, because rent
+// due on the 31st shows the 28th in February and the chain has to know to go
+// back to the 31st in March. Opening that task to fix a typo and pressing Save
+// used to record the 28th as the intention, and move the rent by three days for
+// good. A save that did not touch the date must not move anything.
+//
+// The anchor is not on screen anywhere, so the export is used as the instrument
+// — it writes every field of every task, which is exactly what is needed to see
+// one that the interface never shows.
+const RENT = 'Pay the rent';
+async function fieldsOf(title) {
+  const waitFor = page.waitForEvent('download', { timeout: 15000 });
+  await page.getByLabel('Account settings').click();
+  await page.waitForTimeout(700);
+  await page.getByText('Export a copy', { exact: true }).click();
+  const file = await waitFor;
+  const saved = JSON.parse(fs.readFileSync(await file.path(), 'utf8'));
+  await page.getByText('Done', { exact: true }).first().click();
+  await page.waitForTimeout(600);
+  return (saved.tasks || []).filter(t => t.title === title && !t.completed);
+}
+
+{
+  const box3 = page.locator('input, textarea').first();
+  await box3.fill(RENT);
+  await box3.press('Enter');
+  await page.waitForTimeout(900);
+  await page.locator(`text=${RENT}`).first().click();
+  await page.waitForTimeout(900);
+  await page.getByText('Today', { exact: true }).first().click();
+  await page.waitForTimeout(300);
+  await page.getByLabel('Repeats Monthly').click();
+  await page.waitForTimeout(300);
+  await closeSheet('Save');
+
+  // Ticking it off is what writes the anchor down: until then the chain has
+  // only ever had one date and no memory of aiming at anything.
+  await page.getByLabel(`Mark ${RENT} as done`).first().click();
+  await page.waitForTimeout(1600);
+
+  const beforeSave = await fieldsOf(RENT);
+  ok('a monthly task that has come round remembers the day it aims at',
+     beforeSave.length === 1 && Number.isInteger(beforeSave[0].repeatDay),
+     JSON.stringify(beforeSave.map(t => t.repeatDay)));
+
+  // Opened and saved, with nothing touched.
+  await page.locator(`text=${RENT}`).first().click();
+  await page.waitForTimeout(900);
+  await closeSheet('Save');
+
+  const afterSave = await fieldsOf(RENT);
+  ok('and a save that touched nothing leaves it alone',
+     afterSave.length === 1 && afterSave[0].repeatDay === beforeSave[0].repeatDay,
+     JSON.stringify([beforeSave[0] && beforeSave[0].repeatDay, afterSave[0] && afterSave[0].repeatDay]));
+  ok('with the repeat still set', afterSave[0] && afterSave[0].repeat === 'monthly',
+     JSON.stringify(afterSave[0] && afterSave[0].repeat));
+}
 
 // ── And it survives the round trip to the server ──
 await page.reload({ waitUntil: 'networkidle' });

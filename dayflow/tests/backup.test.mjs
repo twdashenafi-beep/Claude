@@ -77,6 +77,8 @@ const task = (id, extra = {}) => ({
     dueTime: '09:00',
     viewScope: 'week',
     priority: 'high',
+    repeat: 'monthly',
+    repeatDay: 31,
     order: 1024,
     createdAt: '2026-02-01T00:00:00.000Z',
     updatedAt: '2026-02-02T00:00:00.000Z',

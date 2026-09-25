@@ -306,23 +306,35 @@ export function TaskProvider({ children, encryptionKey, synced }) {
     // effect inside a state updater runs at whatever moment React chooses,
     // sometimes twice.
     const before = tasksRef.current.find(t => t.id === id);
-    const finishing = !!before && !before.completed;
+    if (!before) return;
+    const finishing = !before.completed;
     const follow = finishing && repeats(before) ? nextOccurrence(before) : null;
 
-    setTasks(prev =>
-      prev.map(t => {
-        if (t.id !== id) return t;
-        const updated = { ...t, completed: !t.completed, updatedAt: stamp() };
-        // The repeat goes with the new task rather than staying on this one.
-        // Nothing is lost — the next one carries it — and it means unticking
-        // this by mistake cannot make a second copy, and the one sitting in the
-        // archive does not go on claiming it will come back.
-        if (follow) updated.repeat = 'none';
-        if (updated.completed) cancelTaskNotifications(id);
-        else if (updated.dueDate && updated.dueTime) scheduleTaskNotifications(updated).catch(() => {});
-        return updated;
-      })
-    );
+    const at = stamp();
+    // The repeat goes with the new task rather than staying on this one.
+    // Nothing is lost — the next one carries it — and it means unticking this
+    // by mistake cannot make a second copy, and the one sitting in the archive
+    // does not go on claiming it will come back.
+    const flip = t => ({
+      ...t,
+      completed: !t.completed,
+      updatedAt: at,
+      ...(follow ? { repeat: 'none' } : null),
+    });
+
+    // Written straight into the ref as well as through setTasks, and this is
+    // the whole reason the function is shaped this way. A second tap arriving
+    // before React has committed the first used to read a task that was still
+    // waiting, decide it was being finished all over again, and make a second
+    // copy of the follow-on. Two taps on a checkbox is not an exotic thing to
+    // do; it is what happens when the screen is slow and you press again.
+    tasksRef.current = tasksRef.current.map(t => (t.id === id ? flip(t) : t));
+    setTasks(prev => prev.map(t => (t.id === id ? flip(t) : t)));
+
+    const after = flip(before);
+    if (after.completed) cancelTaskNotifications(id);
+    else if (after.dueDate && after.dueTime) scheduleTaskNotifications(after).catch(() => {});
+
     if (follow) addTask(follow);
     noteEdit();
   }, [noteEdit, addTask]);

@@ -73,12 +73,16 @@ export default function TaskDetail({ task, visible, onClose, onSave, onMove, pla
       viewScope,
       projectId,
       repeat,
-      // Cleared whenever the sheet is saved, because the date above may have
-      // just changed and the anchor is only ever a memory of a date already
-      // chosen. It is written again the next time the task comes round, from
-      // whatever date it has then — so the day you last picked is the day it
-      // keeps, rather than one picked months ago and never revisited.
-      repeatDay: null,
+      // The anchor — which day of the month a monthly task is aiming at — is
+      // dropped only when the date itself has just been changed, and it is
+      // written again from the new one when the task next comes round.
+      //
+      // Only then. Clearing it on every save looked tidier and was wrong: rent
+      // due on the 31st shows the 28th in February, so opening that task to fix
+      // a typo and pressing Save would record the 28th as the intention and
+      // move the rent by three days for good. A save that did not touch the
+      // date must not move anything.
+      ...(dueDate !== (task.dueDate || task.date || '') ? { repeatDay: null } : null),
       ...noteFields(voiceNotes),
     });
     onClose();
