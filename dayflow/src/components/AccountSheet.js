@@ -14,7 +14,8 @@ import { playChime, chimeAvailable } from '../services/chime';
 import { pullTasks } from '../services/sync';
 import { inspectRows } from '../services/leak';
 import { buildBackup, backupText, backupFilename, describe } from '../services/backup';
-import { saveTextFile } from '../services/saveFile';
+import { readBackup, planRestore, recordsOf, describePlan } from '../services/restore';
+import { saveTextFile, pickTextFile } from '../services/saveFile';
 
 // What to say after trying to play it. The first case is the interesting one:
 // the browser reports a sound played, so if none was heard the cause is
@@ -37,7 +38,7 @@ const SAVE_RESULT = {
 
 export default function AccountSheet({
   visible, email, dataKey, tasks = [], archived = [], projects = [],
-  onClose, onLock, onDeleted,
+  tombstones = [], onImport, onClose, onLock, onDeleted,
 }) {
   const [view, setView] = useState('menu'); // menu | password | code | delete
   const [password, setPassword] = useState('');
@@ -56,10 +57,13 @@ export default function AccountSheet({
   const [exposed, setExposed] = useState(false);
   // What happened the last time a copy was asked for.
   const [saved, setSaved] = useState('');
+  // A copy that has been read and understood but not yet applied, and what
+  // applying it would do.
+  const [pending, setPending] = useState(null);
 
   const reset = () => {
     setView('menu'); setPassword(''); setConfirm(''); setTyped('');
-    setCode(''); setError(''); setDone('');
+    setCode(''); setError(''); setDone(''); setPending(null);
   };
 
   // Ask the server what it has, and read it back the way an intruder would.
@@ -114,6 +118,48 @@ export default function AccountSheet({
     } catch (e) {
       setSaved(`Could not save it: ${String(e.message || e)}`);
     }
+  };
+
+  // Reading a copy back in.
+  //
+  // Nothing is written until it has been read, understood, and shown to the
+  // person as a sentence about what it will do. An import runs against work
+  // that already exists, and the worst outcome is not a failed one — it is a
+  // successful one nobody expected.
+  const chooseCopy = async () => {
+    setError(''); setDone('');
+    const file = await pickTextFile();
+    // Cancelled, or a browser that cannot do this. Neither is worth a message.
+    if (!file) return;
+
+    const read = readBackup(file.text);
+    if (!read.ok) {
+      setPending(null);
+      setView('restore');
+      setError(read.error);
+      return;
+    }
+
+    const plan = planRestore({
+      backup: read.backup,
+      tasks: [...tasks, ...archived, ...projects],
+      tombstones,
+    });
+    setPending({ plan, name: file.name, made: read.backup.exportedAt, account: read.backup.account });
+    setError('');
+    setView('restore');
+  };
+
+  const applyCopy = () => {
+    if (!pending || !onImport) return;
+    const records = recordsOf(pending.plan);
+    const result = onImport(records) || {};
+    setPending(null);
+    setView('menu');
+    setDone('');
+    setSaved(records.length === 0
+      ? 'Nothing to bring in — it was all here already'
+      : `Brought in ${result.added || 0} and updated ${result.updated || 0}`);
   };
 
   const close = () => { reset(); onClose(); };
@@ -193,6 +239,7 @@ export default function AccountSheet({
             {view === 'menu' ? 'Account'
               : view === 'password' ? 'Change password'
               : view === 'code' ? 'Recovery code'
+              : view === 'restore' ? 'Restore from a copy'
               : 'Delete account'}
           </Text>
           <View style={{ width: 46 }} />
@@ -213,6 +260,13 @@ export default function AccountSheet({
                 label="Export a copy"
                 detail={saved || 'Every task, in one file you keep'}
                 onPress={exportCopy}
+              />
+              {/* The other half of it. A copy you cannot read back is a copy of
+                  something you can no longer use. */}
+              <Row
+                label="Restore from a copy"
+                detail="Adds what is missing. Removes nothing"
+                onPress={chooseCopy}
               />
               {/* Somewhere to hear it without setting a task and waiting for
                   it to come due, which is no way to find out whether a sound
@@ -283,6 +337,48 @@ export default function AccountSheet({
               <TouchableOpacity style={[s.button, busy && s.busy]} onPress={rotateCode} disabled={busy}>
                 {busy ? <ActivityIndicator color={COLORS.sheet} />
                       : <Text style={s.buttonText}>{code ? 'Generate another' : 'Generate new code'}</Text>}
+              </TouchableOpacity>
+            </>
+          ) : null}
+
+          {view === 'restore' ? (
+            <>
+              {pending ? (
+                <>
+                  <Text style={s.blurb}>
+                    {pending.name}
+                    {pending.made ? `, made ${new Date(pending.made).toLocaleDateString()}` : ''}
+                    {pending.account && pending.account !== email
+                      ? `, from the account ${pending.account}`
+                      : ''}
+                  </Text>
+                  <Text style={s.confirmLabel}>{describePlan(pending.plan)}</Text>
+                  {recordsOf(pending.plan).length > 0 ? (
+                    <TouchableOpacity
+                      style={s.button}
+                      onPress={applyCopy}
+                      accessibilityRole="button"
+                      accessibilityLabel="Bring this copy in"
+                    >
+                      <Text style={s.buttonText}>Bring it in</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </>
+              ) : (
+                <Text style={s.blurb}>
+                  {error || 'Choose the file you saved with Export a copy.'}
+                </Text>
+              )}
+              {pending && error ? <Text style={s.error}>{error}</Text> : null}
+              <TouchableOpacity
+                style={s.plainButton}
+                onPress={chooseCopy}
+                accessibilityRole="button"
+                accessibilityLabel="Choose a different file"
+              >
+                <Text style={s.plainButtonText}>
+                  {pending ? 'Choose a different file' : 'Choose a file'}
+                </Text>
               </TouchableOpacity>
             </>
           ) : null}
@@ -372,6 +468,11 @@ const s = StyleSheet.create({
   },
 
   button: { backgroundColor: COLORS.ink, paddingVertical: 14, alignItems: 'center', marginTop: 6 },
+  plainButton: {
+    borderWidth: StyleSheet.hairlineWidth, borderColor: COLORS.sheetEdge,
+    borderRadius: 8, paddingVertical: 13, alignItems: 'center', marginTop: 10,
+  },
+  plainButtonText: { fontFamily: SANS, fontSize: 15, color: COLORS.inkSoft },
   dangerButton: { backgroundColor: COLORS.accent },
   busy: { opacity: 0.45 },
   buttonText: {
