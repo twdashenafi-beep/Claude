@@ -99,6 +99,37 @@ self.addEventListener('activate', event => {
 
 const SHELL = '${base}';
 
+// Tapping a reminder should land on the task it is about.
+//
+// A notification that only says a task is due asks you to go and find it,
+// which on a list with projects means remembering which one it was in — and if
+// you could remember that, the reminder had little left to do. So the task's id
+// rides along with the notification, and this puts it in front of whichever
+// window is already open, or opens one.
+//
+// The id goes in the URL as well as the message. A window that has to be
+// started has nobody listening yet, and the message would arrive before the app
+// did.
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  const data = event.notification.data || {};
+  const taskId = data.taskId || '';
+
+  event.waitUntil((async () => {
+    const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const mine = all.filter(c => c.url.startsWith(self.location.origin));
+    if (mine.length > 0) {
+      const client = mine.find(c => c.focused) || mine[0];
+      if (taskId) client.postMessage({ type: 'dayflow-open-task', taskId });
+      if ('focus' in client) await client.focus();
+      return;
+    }
+    if (self.clients.openWindow) {
+      await self.clients.openWindow(taskId ? SHELL + '#task=' + encodeURIComponent(taskId) : SHELL);
+    }
+  })());
+});
+
 function save(request, response) {
   if (response && response.ok) {
     const copy = response.clone();

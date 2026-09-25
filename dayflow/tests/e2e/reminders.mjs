@@ -113,7 +113,7 @@ async function device(name) {
 
     window.__notes = [];
     const Fake = function (title, options) {
-      window.__notes.push({ title, body: (options || {}).body });
+      window.__notes.push({ title, body: (options || {}).body, data: (options || {}).data });
     };
     Fake.permission = 'granted';
     Fake.requestPermission = async () => 'granted';
@@ -269,6 +269,101 @@ ok('a reminder already seen is not raised again after a restart',
    !/due now/i.test(await body(A.page)), (await body(A.page)).slice(0, 200));
 ok('and no notification either on restart',
    (await A.page.evaluate(() => (window.__notes || []).length)) === 0);
+
+// ── Which one, and where ──
+//
+// The complaint this answers, in the words it arrived in: "it just says tasks
+// due, I cannot see in which project". A reminder that names nothing is a
+// reminder that there was something — which is the part you already knew. And
+// a reminder you cannot act on from where you are standing sends you off to
+// find the task by hand, which on a list with projects means remembering which
+// project it was in.
+await A.page.getByLabel('Projects').click();
+await A.page.waitForTimeout(500);
+await A.page.getByLabel('New project').click();
+await A.page.waitForTimeout(300);
+await A.page.getByLabel('New project name').fill('Copper');
+await A.page.keyboard.press('Enter');
+await A.page.waitForTimeout(1200);
+
+// Added inside the project, which is where it has to be for the reminder to
+// have anything to say about it.
+const soon = new Date(Date.now() - 60000);
+await A.page.getByLabel('Add a task to To Do').click();
+await A.page.waitForTimeout(400);
+await A.page.getByPlaceholder('What needs to be done?').fill('Ring the surveyor');
+await A.page.getByLabel('Set a time').click();
+await A.page.waitForTimeout(400);
+const when2 = { h: soon.getHours() % 12 || 12, m: soon.getMinutes(), period: soon.getHours() >= 12 ? 'PM' : 'AM' };
+await A.page.getByLabel(when2.period === 'AM' ? 'Morning' : 'Afternoon').click();
+await A.page.getByLabel(`Hour ${when2.h}`, { exact: true }).click();
+await A.page.waitForTimeout(250);
+await A.page.getByLabel(`Minute ${String(when2.m).padStart(2, '0')}`, { exact: true }).click();
+await A.page.waitForTimeout(250);
+await A.page.getByLabel('Use this time').click();
+await A.page.waitForTimeout(300);
+await A.page.getByLabel('Add to To Do').click();
+await A.page.waitForTimeout(3000);
+
+const strip = await body(A.page);
+ok('the strip names the task rather than counting it',
+   strip.includes('Ring the surveyor'), strip.slice(0, 300));
+ok('and says which project it is in', strip.includes('Copper'), strip.slice(0, 300));
+ok('and no longer reads as a number of tasks', !/\d+ tasks due/.test(strip), strip.slice(0, 300));
+
+const carried = await A.page.evaluate(() => (window.__notes || []).slice(-1)[0] || {});
+ok('the notification says which project too',
+   /Copper/.test(carried.body || ''), JSON.stringify(carried));
+ok('and carries the task it is about, so tapping it can open it',
+   !!(carried.data && carried.data.taskId), JSON.stringify(carried));
+
+// ── Tapping it goes there ──
+//
+// Asked for before it is clicked, so that losing it reads as one plain failure
+// rather than a timeout thirty seconds later with the rest of the file unrun.
+const tappable = page => page.getByLabel(/Opens the task/);
+ok('the strip is something you can press',
+   (await tappable(A.page).count()) > 0, (await body(A.page)).slice(0, 200));
+if ((await tappable(A.page).count()) === 0) {
+  console.log(`\n${pass} passed, ${fail + 4} failed`);
+  await browser.close();
+  server.close();
+  process.exit(1);
+}
+await tappable(A.page).click();
+await A.page.waitForTimeout(1200);
+const sheet = await body(A.page);
+ok('tapping the reminder opens the task', /Edit Task/i.test(sheet), sheet.slice(0, 200));
+ok('and it is the task the reminder was about',
+   sheet.includes('Ring the surveyor'), sheet.slice(0, 300));
+await A.page.getByText('Cancel', { exact: true }).last().click();
+await A.page.waitForTimeout(800);
+ok('and it leaves you in the project the task lives in',
+   (await body(A.page)).includes('Copper'), (await body(A.page)).slice(0, 200));
+ok('with the reminder answered rather than still shouting',
+   !/Opens the task/.test(await A.page.evaluate(() => document.body.innerHTML)));
+
+// ── And from the notification itself ──
+//
+// The service worker handles the tap and messages whichever window is open.
+// This is that message, which is all the app ever sees of it.
+{
+  const id = carried.data.taskId;
+  await A.page.evaluate(taskId => {
+    window.dispatchEvent(new MessageEvent('message', { data: { type: 'dayflow-open-task', taskId } }));
+    if (navigator.serviceWorker && navigator.serviceWorker.dispatchEvent) {
+      navigator.serviceWorker.dispatchEvent(
+        new MessageEvent('message', { data: { type: 'dayflow-open-task', taskId } })
+      );
+    }
+  }, id);
+  await A.page.waitForTimeout(1200);
+  const opened = await body(A.page);
+  ok('a tapped notification opens the task it named',
+     /Edit Task/i.test(opened) && opened.includes('Ring the surveyor'), opened.slice(0, 250));
+  await A.page.getByText('Cancel', { exact: true }).last().click();
+  await A.page.waitForTimeout(600);
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();

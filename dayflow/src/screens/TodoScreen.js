@@ -4,12 +4,12 @@ import {
 } from 'react-native';
 import { useTasks } from '../context/TaskContext';
 import { sortForDisplay, targetIndex, shiftFor, moveWithin } from '../services/ordering';
-import { pendingAlerts, alertBody, pruneShown } from '../services/alerts';
+import { pendingAlerts, alertBody, alertSummary, pruneShown } from '../services/alerts';
 import { EVERYTHING, projectOf, projectName } from '../services/projects';
 import { moveTick } from '../services/haptics';
 import { ARCHIVE, deletionOf } from '../services/archive';
 import { loadShown, saveShown } from '../services/alertStore';
-import { alertPermission, requestAlertPermission, showSystemAlert } from '../services/notifications';
+import { alertPermission, requestAlertPermission, showSystemAlert, onAlertOpened } from '../services/notifications';
 import { playChime } from '../services/chime';
 import TaskItem from '../components/TaskItem';
 import ProjectBar from '../components/ProjectBar';
@@ -453,6 +453,14 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
   // from a ref, so an edit does not restart the clock and push a reminder late.
   const alertTasks = useRef(tasks);
   useEffect(() => { alertTasks.current = tasks; }, [tasks]);
+  // Which project a task belongs to, in words. Held in a ref for the same
+  // reason the list above is: the timer that raises alerts is created once and
+  // would otherwise be asking a list of projects that existed at mount.
+  const whereOf = useRef(() => '');
+  whereOf.current = task => {
+    const id = projectOf(task);
+    return id === EVERYTHING ? '' : projectName(projects, id);
+  };
   const shownAlerts = useRef([]);
   // Held so the list effect below can run the same check without restarting
   // the timer, and without a second copy of it.
@@ -482,7 +490,12 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
       playChime().catch(() => {});
 
       for (const alert of due) {
-        await showSystemAlert(alert.task.title, alertBody(alert), alert.key);
+        await showSystemAlert(
+          alert.task.title,
+          alertBody(alert, whereOf.current(alert.task)),
+          alert.key,
+          { taskId: alert.task.id },
+        );
       }
       if (!stopped) setAlerts(prev => [...prev, ...due]);
     };
@@ -544,6 +557,30 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
     }
     setDetailTask(task);
   }, []);
+
+  // Opening the task a reminder is about, from the strip or from the
+  // notification itself. Both end in the same place as opening a search
+  // result: where the task lives, not merely on top of wherever you were.
+  const openTaskById = useCallback(id => {
+    const found = [...alertTasks.current, ...archived].find(t => t.id === id);
+    if (found) openResult(found);
+    setAlerts(prev => prev.filter(a => a.task.id !== id));
+  }, [archived, openResult]);
+
+  const openAlerts = useCallback(() => {
+    const [first] = alerts;
+    if (!first) return;
+    // The task as it is now, not as it was when the alert was raised: it may
+    // have been moved to another project in between, and going to where it used
+    // to live would be worse than not going at all.
+    const live = alertTasks.current.find(t => t.id === first.task.id) || first.task;
+    openResult(live);
+    setAlerts([]);
+  }, [alerts, openResult]);
+
+  // A reminder tapped on the home screen, or one tapped while the app was
+  // closed and had to be started for it.
+  useEffect(() => onAlertOpened(openTaskById), [openTaskById]);
 
   const addHere = useCallback(
     data => addTask({ ...data, projectId: project }),
@@ -823,13 +860,23 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
         projects={projects}
       />
 
+      {/* The strip used to say "2 tasks due", which is a notification about the
+          existence of notifications: it named nothing, so there was nothing to
+          act on but going to look. It names the first now and says how many
+          are behind it — and the whole line is the way in, because the thing
+          anybody wants on being reminded is the task itself. */}
       {alerts.length > 0 ? (
         <View style={s.alertBar} dataSet={{ notice: 'true' }} accessibilityRole="alert">
-          <Text style={s.alertText} numberOfLines={2}>
-            {alerts.length === 1
-              ? `${alertBody(alerts[0])} — ${alerts[0].task.title}`
-              : `${alerts.length} tasks due`}
-          </Text>
+          <TouchableOpacity
+            style={s.alertBody}
+            onPress={() => openAlerts()}
+            accessibilityRole="button"
+            accessibilityLabel={`${alertSummary(alerts, whereOf.current)}. Opens the task.`}
+          >
+            <Text style={s.alertText} numberOfLines={2}>
+              {alertSummary(alerts, whereOf.current)}
+            </Text>
+          </TouchableOpacity>
           <TouchableOpacity
             onPress={() => setAlerts([])}
             accessibilityRole="button"
@@ -898,6 +945,8 @@ const s = StyleSheet.create({
     fontFamily: SERIF, fontSize: 12.5, fontStyle: 'italic',
     color: COLORS.inkSoft, marginTop: 4,
   },
+  // The tappable half of the strip: everything but the dismiss.
+  alertBody: { flex: 1, paddingVertical: 4, paddingRight: 12 },
   alertBar: {
     position: 'absolute', left: 0, right: 0, bottom: 0,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
