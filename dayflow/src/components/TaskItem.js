@@ -389,10 +389,14 @@ const st = StyleSheet.create({
     // padding meant to make this hittable and left it twenty pixels across.
     minWidth: 20, alignItems: 'center', justifyContent: 'center',
     alignSelf: 'flex-start',
-    paddingVertical: 10, paddingHorizontal: 10,
+    // The width is taken from the right, where there is nothing but the edge of
+    // the row. Taking it from the left put this button on top of the one that
+    // plays a voice note: the click went to the delete instead, and Playwright
+    // spent thirty seconds telling me so in the politest possible terms.
+    paddingVertical: 10, paddingLeft: 2, paddingRight: 16,
     // Nineteen tall once the margins are taken off, the same as the row's other
     // two children, so the row is the height it always was.
-    marginTop: -8, marginBottom: -12, marginLeft: -6, marginRight: -10,
+    marginTop: -8, marginBottom: -12, marginLeft: 2, marginRight: -16,
   },
   removeMark: { fontFamily: SANS, fontSize: 17, lineHeight: 19, color: '#C4BEB0' },
 });
