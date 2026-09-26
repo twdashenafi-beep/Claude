@@ -57,6 +57,15 @@ const task = (extra = {}) => ({
            dueDate: iso(2026, 9, 14), dueTime: '09:00' }),
     task({ id: 'k', title: 'The deposit back', taskType: 'done_for_me',
            owePerson: 'Okafor', createdAt: iso(2026, 9, 24) }),
+    // Promised for a month out. Not this morning's business, whatever the
+    // column says.
+    task({ id: 'n', title: 'The annual accounts', taskType: 'done_for_me',
+           owePerson: 'Marchetti', createdAt: iso(2026, 9, 25),
+           dueDate: iso(2026, 11, 2), dueTime: '09:00' }),
+    // Promised for tomorrow. Near enough to be worth a word today.
+    task({ id: 'o', title: 'The revised quote', taskType: 'done_for_me',
+           owePerson: 'Okafor', createdAt: iso(2026, 9, 26),
+           dueDate: iso(2026, 10, 3), dueTime: '09:00' }),
     // Finished, earlier today.
     task({ id: 'l', title: 'Approve the budget', completed: true, completedAt: iso(2026, 10, 2, 10) }),
     // Finished yesterday.
@@ -96,16 +105,28 @@ const task = (extra = {}) => ({
      sum.tomorrow.map(t => t.title).join(', '));
   ok('and next week is not', !sum.tomorrow.some(t => t.id === 'h'));
 
-  ok('what is still owed is counted', sum.waiting.length === 2);
-  ok('oldest first', sum.waiting[0].id === 'j');
+  // The morning's share of it: what is due by tomorrow, and what nobody dated.
+  ok('what is owed and due is counted', sum.waiting.length === 3,
+     sum.waiting.map(t => t.title).join(', '));
+  ok('a promise a month out is not this morning\'s business',
+     !sum.waiting.some(t => t.id === 'n'), sum.waiting.map(t => t.title).join(', '));
+  ok('but tomorrow\'s is', sum.waiting.some(t => t.id === 'o'));
+  ok('and so is one nobody put a date on', sum.waiting.some(t => t.id === 'k'));
+  ok('in the order they start mattering', sum.waiting[0].id === 'j',
+     sum.waiting.map(t => t.id).join(''));
+  ok('which is not the order they were asked in',
+     sum.waiting[1].id === 'k' && sum.waiting[2].id === 'o',
+     sum.waiting.map(t => t.id).join(''));
   ok('and the people are counted, not the tasks', sum.people === 2);
 
   ok('what was finished today is counted', sum.done.length === 1,
      sum.done.map(t => t.title).join(', '));
   ok('and yesterday\'s is not', !sum.done.some(t => t.id === 'm'));
 
+  // Three waiting, not four: the annual accounts are a month out and are not
+  // part of what the morning is being asked to weigh.
   ok('the headline says the three figures',
-     headline(sum) === '2 late  ·  4 today  ·  2 waiting on 2 people', headline(sum));
+     headline(sum) === '2 late  ·  4 today  ·  3 waiting on 2 people', headline(sum));
   ok('and what has been done is said underneath',
      finishedNote(sum) === '1 thing finished today', finishedNote(sum));
 }

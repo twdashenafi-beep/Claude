@@ -142,10 +142,21 @@ export default function DailyBriefing({
         <TaskLines tasks={sum.today} noteOf={hourOf} />
       </Section>
 
+      {/* So that nothing arrives as a surprise, and while there is still an
+          evening in which to move it. */}
+      <Section title="Tomorrow" count={sum.tomorrow.length} empty="Nothing dated tomorrow.">
+        <TaskLines tasks={sum.tomorrow} noteOf={hourOf} />
+      </Section>
+
+      {/* Last, because it reads in date order and what somebody else owes you
+          is rarely today's deadline. It holds what is due by tomorrow and what
+          nobody put a date on at all — a promise a month out is not something
+          to act on this morning, and the Friday page still shows every one of
+          them. */}
       <Section
         title="Waiting on"
         count={sum.waiting.length}
-        empty="Nobody is holding anything of yours."
+        empty="Nothing owed to you is due yet."
       >
         {groups.map(group => (
           <View key={group.person.toLowerCase()} style={groupStyles.group}>
@@ -159,12 +170,6 @@ export default function DailyBriefing({
             ))}
           </View>
         ))}
-      </Section>
-
-      {/* So that nothing arrives as a surprise, and while there is still an
-          evening in which to move it. */}
-      <Section title="Tomorrow" count={sum.tomorrow.length} empty="Nothing dated tomorrow.">
-        <TaskLines tasks={sum.tomorrow} noteOf={hourOf} />
       </Section>
     </PaperSheet>
   );
