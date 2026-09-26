@@ -6,6 +6,7 @@ import { byPerson, waitedFor } from '../services/reckoning';
 import { chaseLabel } from '../services/chase';
 import { COLORS } from '../utils/theme';
 import { whenPreview, dueMoment } from '../services/due';
+import { clockOf, dayLoad, loadLine } from '../services/agenda';
 import { getDailySummary, isAIConfigured } from '../services/ai';
 
 // The day, briefed.
@@ -21,13 +22,20 @@ import { getDailySummary, isAIConfigured } from '../services/ai';
 // asks the week's, and then stops. What is late, what today holds, who is
 // holding something of yours, and what arrives tomorrow.
 
-export default function DailyBriefing({ visible, onClose, tasks = [], archived = [], now }) {
+export default function DailyBriefing({
+  visible, onClose, tasks = [], archived = [], diary = null, now,
+}) {
   const at = useMemo(() => (now ? new Date(now) : new Date()), [visible, now]);
   const sum = useMemo(
     () => (visible ? brief(tasks, archived, at) : null),
     [visible, tasks, archived, at],
   );
   const groups = useMemo(() => (sum ? byPerson(sum.waiting) : []), [sum]);
+  // The hours already spoken for, when there is a calendar to read them from.
+  const load = useMemo(
+    () => (visible && diary ? dayLoad(tasks, diary.events, at) : null),
+    [visible, diary, tasks, at],
+  );
 
   // The optional Claude summary, kept because it was here and because somebody
   // running their own API server may want it. Off unless EXPO_PUBLIC_API_URL is
@@ -74,6 +82,33 @@ export default function DailyBriefing({ visible, onClose, tasks = [], archived =
           {loading
             ? <ActivityIndicator size="small" color={COLORS.inkFaint} />
             : <Text style={groupStyles.summary}>{summary}</Text>}
+        </Section>
+      ) : null}
+
+      {/* What the day already contains, before any of the below is possible.
+          A list of fifteen things on a day with two free hours is not a plan,
+          and this is the only section that can say so. */}
+      {load ? (
+        <Section
+          title="Diary"
+          count={load.events.length}
+          empty="Nothing in the calendar today."
+        >
+          {load.allDay.map(event => (
+            <Line key={event.id} title={event.title} note="all day" />
+          ))}
+          {load.events.filter(e => !e.allDay).map(event => (
+            <Line
+              key={event.id}
+              title={event.title}
+              note={`${clockOf(event.start)}–${clockOf(event.end)}`}
+            />
+          ))}
+          {load.events.length ? (
+            <Text style={groupStyles.person}>
+              {`${loadLine(load)}${load.next ? `  ·  next at ${clockOf(load.next.start)}` : ''}`}
+            </Text>
+          ) : null}
         </Section>
       ) : null}
 

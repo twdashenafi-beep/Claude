@@ -7,6 +7,8 @@ import { sortForDisplay, targetIndex, shiftFor, moveWithin } from '../services/o
 import { pendingAlerts, alertBody, alertSummary, pruneShown } from '../services/alerts';
 import { recordChase } from '../services/chase';
 import { isReckoningDay } from '../services/reckoning';
+import { eventsFor } from '../services/calendarFeed';
+import { dayLoad, loadLine, gapsLine } from '../services/agenda';
 import { EVERYTHING, projectOf, projectName } from '../services/projects';
 import { moveTick } from '../services/haptics';
 import { ARCHIVE, deletionOf } from '../services/archive';
@@ -277,6 +279,25 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
   // Sunday are included because plenty of people close the week then, and an
   // action available for one working day would be missed by half the year.
   const [showWeek, setShowWeek] = useState(false);
+
+  // What the day already contains.
+  //
+  // Read once when the vault opens and then left alone. A diary is not a live
+  // feed — nobody's Tuesday changes while they are looking at it often enough
+  // to be worth polling for — and re-reading it on every render would ask the
+  // phone for calendar permission in a loop.
+  const [diary, setDiary] = useState(null);
+  // Bumped when a calendar is imported or forgotten, so the day's line changes
+  // as soon as you close the sheet rather than on the next launch.
+  const [diaryAt, setDiaryAt] = useState(0);
+  useEffect(() => {
+    if (!dataKey) return undefined;
+    let dropped = false;
+    eventsFor(new Date(), dataKey)
+      .then(read => { if (!dropped) setDiary(read); })
+      .catch(() => {});
+    return () => { dropped = true; };
+  }, [dataKey, diaryAt]);
   const [banner, setBanner] = useState(null);
 
   // Which project's sheet is on screen. Empty is the main list, and the bar
@@ -552,6 +573,17 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
     return `${where}${count}`;
   }, [searching, project, projects, inView.length, doneCount]);
 
+  // Only on the day's own page. On Week or Month "2h free" answers a question
+  // nobody asked, and in the archive it is nonsense.
+  const load = useMemo(
+    () => (diary ? dayLoad(inView, diary.events, new Date()) : null),
+    [diary, inView],
+  );
+  const dayLine = useMemo(() => {
+    if (!load || searching || project === ARCHIVE || viewMode !== VIEW_MODES.DAY) return null;
+    return [loadLine(load), gapsLine(load)].filter(Boolean).join('  ·  ') || null;
+  }, [load, searching, project, viewMode]);
+
   // Search reaches past the current page by design, so it is handed the
   // archive as well as what is on screen — the whole point is not having to
   // remember which of the two a task ended up in.
@@ -730,6 +762,10 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
             {tally}
             {SYNC_LABEL[syncState] ? `  ·  ${SYNC_LABEL[syncState]}` : ''}
           </Text>
+          {/* The hours that are already spoken for. A line rather than a
+              panel: it is context for the list underneath, not a thing to
+              look at on its own. */}
+          {dayLine ? <Text style={s.diary} dataSet={{ diaryline: 'true' }}>{dayLine}</Text> : null}
 
           {/* A device that has stopped saving says so, in the one place that is
               always on screen. Not the undo bar at the bottom: that clears
@@ -970,6 +1006,7 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
         onClose={() => setShowBriefing(false)}
         tasks={tasks}
         archived={archived}
+        diary={diary}
       />
       <WeekReckoning
         visible={showWeek}
@@ -980,6 +1017,7 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
       <ConfettiOverlay visible={celebrating} onDone={() => setCelebrating(false)} />
 
       <AccountSheet
+        onCalendar={() => setDiaryAt(n => n + 1)}
         visible={showAccount}
         email={account}
         dataKey={dataKey}
@@ -1081,6 +1119,7 @@ const s = StyleSheet.create({
   },
   date: { fontFamily: SERIF, fontSize: 25, color: COLORS.ink, marginTop: 10, letterSpacing: -0.3 },
   tally: { fontFamily: SANS, fontSize: 12, color: COLORS.inkFaint, marginTop: 4 },
+  diary: { fontFamily: SANS, fontSize: 12, color: COLORS.inkSoft, marginTop: 3 },
 
   // Headings sit above the rule, one per column.
   headings: { flexDirection: 'row', alignItems: 'flex-end' },

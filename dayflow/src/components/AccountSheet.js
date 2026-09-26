@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, ScrollView,
   ActivityIndicator, Platform,
@@ -16,6 +16,7 @@ import { inspectRows } from '../services/leak';
 import { buildBackup, backupText, backupFilename, describe } from '../services/backup';
 import { readBackup, planRestore, recordsOf, describePlan } from '../services/restore';
 import { saveTextFile, pickTextFile } from '../services/saveFile';
+import { saveFeed, readFeed, clearFeed, feedAge } from '../services/calendarFeed';
 
 // What to say after trying to play it. The first case is the interesting one:
 // the browser reports a sound played, so if none was heard the cause is
@@ -36,9 +37,15 @@ const SAVE_RESULT = {
   unavailable: 'This device cannot save a file',
 };
 
+// Native reads the phone's calendar directly and never reaches this row. On the
+// web there is no API for it, and fetching a subscription link would need a
+// server in the middle — the one thing this app will not put between you and
+// your data. Exporting the file takes a minute and costs nothing.
+const CALENDAR_HINT = 'Import an .ics from your calendar, so the day knows what is booked';
+
 export default function AccountSheet({
   visible, email, dataKey, tasks = [], archived = [], projects = [],
-  tombstones = [], onImport, onClose, onLock, onDeleted,
+  tombstones = [], onImport, onCalendar, onClose, onLock, onDeleted,
 }) {
   const [view, setView] = useState('menu'); // menu | password | code | delete
   const [password, setPassword] = useState('');
@@ -52,6 +59,9 @@ export default function AccountSheet({
   // makes a sound has nothing to show when it makes none, and "nothing
   // happened" is the one answer that leaves you no wiser.
   const [sound, setSound] = useState('');
+  // What calendar this device is reading, if any.
+  const [feed, setFeed] = useState(null);
+  const [calendar, setCalendar] = useState('');
   // What the server turned out to be holding, last time it was asked.
   const [seen, setSeen] = useState('');
   const [exposed, setExposed] = useState(false);
@@ -162,6 +172,47 @@ export default function AccountSheet({
       : `Brought in ${result.added || 0} and updated ${result.updated || 0}`);
   };
 
+  // Read when the sheet opens rather than held in a ref: it changes rarely, and
+  // the one thing worse than showing no calendar is showing last week's.
+  useEffect(() => {
+    if (!visible || !dataKey) return undefined;
+    let dropped = false;
+    readFeed(dataKey).then(found => { if (!dropped) setFeed(found); });
+    return () => { dropped = true; };
+  }, [visible, dataKey]);
+
+  // Importing a diary.
+  //
+  // Native reads the phone's own calendar and needs none of this; on the web
+  // there is no browser API for it and no way to fetch a subscription link
+  // without a server in the middle, which is the one thing this app will not
+  // put between you and your data. So: the file every calendar can export.
+  const chooseCalendar = async () => {
+    setCalendar('');
+    const file = await pickTextFile('text/calendar,.ics');
+    if (!file) return;
+    try {
+      const saved = await saveFeed(file.text, dataKey);
+      if (!saved) {
+        setCalendar('That file is not a calendar');
+        return;
+      }
+      setFeed(saved);
+      if (onCalendar) onCalendar();
+      setCalendar(`Read ${saved.events} ${saved.events === 1 ? 'event' : 'events'}`
+        + `${saved.name ? ` from ${saved.name}` : ''}`);
+    } catch (e) {
+      setCalendar(`Could not read it: ${String(e.message || e)}`);
+    }
+  };
+
+  const forgetCalendar = async () => {
+    await clearFeed();
+    setFeed(null);
+    if (onCalendar) onCalendar();
+    setCalendar('Forgotten');
+  };
+
   const close = () => { reset(); onClose(); };
 
   const submitPassword = async () => {
@@ -268,6 +319,21 @@ export default function AccountSheet({
                 detail="Adds what is missing. Removes nothing"
                 onPress={chooseCopy}
               />
+              {/* What the day already contains. Everything else in this app
+                  treats a day as an empty container to put tasks into; a diary
+                  is what makes that container the size it really is. */}
+              <Row
+                label={feed ? 'Calendar' : 'Read a calendar'}
+                detail={calendar
+                  || (feed
+                    ? `${feed.name || 'Imported'} · ${feedAge({ source: 'file', at: feed.at }) || ''}`
+                    : CALENDAR_HINT)}
+                onPress={chooseCalendar}
+              />
+              {feed ? (
+                <Row label="Forget the calendar" detail="Nothing else changes" onPress={forgetCalendar} />
+              ) : null}
+
               {/* Somewhere to hear it without setting a task and waiting for
                   it to come due, which is no way to find out whether a sound
                   works. Pressing it is also a gesture, which is what a browser
