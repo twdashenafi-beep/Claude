@@ -170,6 +170,43 @@ export function clashes(events, moment, minutes = ASSUMED_MINUTES) {
     !event.allDay && event.start < end && event.end > start);
 }
 
+// The moment a date and a time make together, or null when either is missing.
+//
+// A date on its own cannot clash with anything: a task due on Thursday is due
+// some time on Thursday, and the whole day is not an appointment.
+export function momentOf(dueDate, dueTime) {
+  if (typeof dueTime !== 'string' || !/^\d{1,2}:\d{2}$/.test(dueTime)) return null;
+  const [h, m] = dueTime.split(':').map(Number);
+  if (h > 23 || m > 59) return null;
+  const at = asDate(dueDate);
+  if (!at) return null;
+  const when = new Date(at);
+  when.setHours(h, m, 0, 0);
+  return when;
+}
+
+// Said where the time is being chosen, while there is still time to choose a
+// different one.
+//
+// Named rather than counted, because "1 conflict" tells you there is a problem
+// and not whether it is one you care about. The meeting's own hours are given
+// for the same reason: half the time the answer is "that one runs till twenty
+// past, this is fine".
+export function clashNote(events, dueDate, dueTime, minutes = ASSUMED_MINUTES) {
+  const at = momentOf(dueDate, dueTime);
+  if (!at) return null;
+
+  const hit = clashes(events, at, minutes);
+  if (hit.length === 0) return null;
+
+  const [first] = hit;
+  if (hit.length === 1) {
+    return `Runs into ${first.title}, ${clockOf(first.start)}–${clockOf(first.end)}`;
+  }
+  const rest = hit.length - 1;
+  return `Runs into ${first.title} and ${rest} other${rest === 1 ? '' : 's'}`;
+}
+
 // Hours and minutes, in the fewest words that are still exact.
 export function spanMinutes(total) {
   const mins = Math.max(0, Math.round(total));

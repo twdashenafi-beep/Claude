@@ -11,6 +11,7 @@
 import {
   tidyEvents, dayWindow, mergeBusy, committedMinutes, freeGaps, freeMinutes,
   clashes, spanMinutes, clockOf, dayLoad, loadLine, gapsLine, LEAST_USEFUL_GAP,
+  momentOf, clashNote,
 } from '../src/services/agenda.js';
 
 let pass = 0, fail = 0;
@@ -179,6 +180,54 @@ const ev = (title, from, to, extra = {}) => ({
   ok('a shorter slot can slip in before it',
      clashes(events, on(10), 20).length === 0);
   ok('nonsense clashes with nothing', clashes(events, 'soon').length === 0);
+}
+
+// ── A date and a time, together ─────────────────────────────────────────────
+{
+  const iso = new Date(2026, 9, 2).toISOString();
+  ok('the two make a moment', clockOf(momentOf(iso, '11:00')) === '11:00',
+     String(momentOf(iso, '11:00')));
+  ok('on the right day', momentOf(iso, '11:00').getDate() === 2);
+  ok('a date with no time makes none, because a whole day is not an appointment',
+     momentOf(iso, '') === null);
+  ok('nor does a time with no date', momentOf(null, '11:00') === null);
+  ok('nor does a time that is not one', momentOf(iso, '99:99') === null);
+  ok('nor a date that is not one', momentOf('whenever', '11:00') === null);
+}
+
+// ── Saying so, where the time is being chosen ───────────────────────────────
+{
+  const day = new Date(2026, 9, 2).toISOString();
+  const events = tidyEvents([
+    ev('Board call', on(10, 30), on(11, 30)),
+    ev('Investor lunch', on(12, 30), on(14)),
+    ev('Also at eleven', on(11), on(11, 15)),
+    { id: 'h', title: 'Leave', start: on(0), end: on(23, 59), allDay: true },
+  ], DAY);
+
+  ok('a clear hour says nothing', clashNote(events, day, '16:00') === null);
+  ok('a whole day says nothing, whatever is in it', clashNote(events, day, '') === null);
+
+  const one = clashNote(events, day, '12:45');
+  ok('one meeting is named', /^Runs into Investor lunch/.test(one || ''), String(one));
+  ok('with its own hours, because half the time that settles it',
+     /12:30–14:00/.test(one || ''), String(one));
+
+  // Eleven o'clock runs into the board call it is still inside and the
+  // fifteen minutes somebody booked on top of it.
+  const two = clashNote(events, day, '11:00');
+  ok('two are not listed out', / and 1 other$/.test(two || ''), String(two));
+  ok('and the first is still named', /^Runs into Board call/.test(two || ''), String(two));
+
+  // A long enough slot reaches the lunch as well.
+  const three = clashNote(events, day, '11:00', 180);
+  ok('three are one and two others', / and 2 others$/.test(three || ''), String(three));
+
+  ok('an all-day note is not something to run into',
+     clashNote([events[0]], day, '00:30') === null);
+  ok('and a shorter slot can slip in front of one',
+     clashNote(events, day, '10:00', 20) === null);
+  ok('no diary, nothing said', clashNote(null, day, '11:00') === null);
 }
 
 // ── Saying it ───────────────────────────────────────────────────────────────

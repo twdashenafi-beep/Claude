@@ -811,7 +811,7 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
             <ViewToggle activeView={viewMode} onChangeView={setViewMode} />
           )}
           {searching || project === ARCHIVE ? null : (
-            <AIInput onAddTask={addHere} viewMode={viewMode} activeTab="todo" />
+            <AIInput onAddTask={addHere} viewMode={viewMode} activeTab="todo" diary={diary} />
           )}
 
           {searching ? (
@@ -958,6 +958,7 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
         place={detailTask ? placeOf(detailTask.id) : null}
         onChased={markChased}
         onSeeAll={seeEverythingFrom}
+        diary={diary}
         tasks={tasks}
         projects={projects}
       />
