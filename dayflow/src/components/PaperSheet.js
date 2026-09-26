@@ -112,7 +112,23 @@ const s = StyleSheet.create({
     backgroundColor: COLORS.sheet,
     borderBottomWidth: 0.5, borderBottomColor: COLORS.rule,
   },
-  headerBtn: { minWidth: 60 },
+  // Tall enough to hit, without making the header taller.
+  //
+  // The old briefing's Done button got to 26 pixels by accident, out of the
+  // line height of a 17-point font, and the rewrite dropped it to 16 and put
+  // the target at 18 — under the line, and caught by the accessibility sweep
+  // rather than by anybody looking at it. Padding rather than line height, so
+  // it stays right whatever the type does next. Margins per side, because
+  // React Native resolves marginTop over marginVertical by specificity and not
+  // by source order, which has cost this codebase a day already.
+  headerBtn: {
+    minWidth: 60,
+    paddingTop: 13,
+    paddingBottom: 13,
+    marginTop: -13,
+    marginBottom: -13,
+    justifyContent: 'center',
+  },
   headerTitle: { fontFamily: SERIF, fontSize: 17, color: COLORS.ink },
   done: { fontFamily: SANS, fontSize: 16, color: COLORS.accent, textAlign: 'right' },
 

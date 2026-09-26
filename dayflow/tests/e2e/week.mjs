@@ -219,6 +219,13 @@ ok('and the number is not read out a second time',
    String(await page.locator('[data-weeksheet] [aria-hidden="true"]').count()));
 ok('the way out is named',
    (await page.getByLabel('Close the week').count()) === 1);
+// The accessibility sweep opens the briefing and not this page, so its twin
+// went unchecked — and the shared header is exactly where the target shrank.
+{
+  const box = await page.getByLabel('Close the week').boundingBox();
+  ok('and big enough to hit', box && box.height >= 24 && box.width >= 24,
+     box ? `${Math.round(box.width)}x${Math.round(box.height)}` : 'no box');
+}
 
 if (process.env.SHOT) {
   await page.setViewportSize({ width: 390, height: 844 });
