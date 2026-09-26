@@ -262,6 +262,7 @@ export function TaskProvider({ children, encryptionKey, synced }) {
       earlyReminderMinutes: taskData.earlyReminderMinutes || 0,
       priority: taskData.priority || 'medium',
       completed: false,
+      completedAt: null,
       section: taskData.section || 'todo',
       taskType: taskData.taskType || 'todo',
       viewScope: taskData.viewScope || 'day',
@@ -315,9 +316,14 @@ export function TaskProvider({ children, encryptionKey, synced }) {
     // Nothing is lost — the next one carries it — and it means unticking this
     // by mistake cannot make a second copy, and the one sitting in the archive
     // does not go on claiming it will come back.
+    // completedAt is written here and nowhere else, and cleared when a task is
+    // unticked. updatedAt cannot answer "what did I finish this week" on its
+    // own: any edit afterwards moves it, and a task finished on Monday and
+    // retitled on Friday would report itself as Friday's work.
     const flip = t => ({
       ...t,
       completed: !t.completed,
+      completedAt: t.completed ? null : at,
       updatedAt: at,
       ...(follow ? { repeat: 'none' } : null),
     });

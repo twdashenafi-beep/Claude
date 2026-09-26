@@ -9,6 +9,7 @@ import { Platform } from 'react-native';
 import { dueLabel, dueSpoken } from '../services/due';
 import { ageLabel } from '../services/age';
 import { repeatPhrase } from '../services/repeat';
+import { chaseLabel } from '../services/chase';
 import { COLORS, SANS, SERIF } from '../utils/theme';
 import { liftTick, dropTick } from '../services/haptics';
 
@@ -223,7 +224,14 @@ function TaskItem({
   // A repeating task reappears on its own, which is unnerving if the row never
   // said it would. Quiet, in the same italic as everything else here: the row
   // is not raising its voice about it, only accounting for itself.
-  const meta = [task.owePerson || null, done ? null : repeatPhrase(task)].filter(Boolean);
+  // Whether you have already asked, next to how long it has been waiting —
+  // because "waiting three weeks" reads the same the day before you chase and
+  // the day after, and those are not the same situation.
+  const meta = [
+    done ? null : chaseLabel(task),
+    task.owePerson || null,
+    done ? null : repeatPhrase(task),
+  ].filter(Boolean);
 
   return (
     <Animated.View style={{ opacity: opacityAnim }}>
@@ -271,6 +279,7 @@ function TaskItem({
             task.owePerson ? `waiting on ${task.owePerson}` : null,
             dueSpoken(task),
             age ? age.text : null,
+            done ? null : chaseLabel(task),
             done ? null : repeatPhrase(task),
             task.priority === 'high' ? 'high priority' : null,
             done ? 'completed' : null,

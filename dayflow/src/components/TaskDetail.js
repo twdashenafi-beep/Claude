@@ -9,10 +9,13 @@ import DateTimeFields from './DateTimeFields';
 import VoiceRecorder from './VoiceRecorder';
 import { notesOf, noteFields } from '../services/voiceNotes';
 import { REPEATS, repeatOf } from '../services/repeat';
-import { chaseMessage, owedBy } from '../services/chase';
+import { chaseMessage, owedBy, historyWith, chaseDetail } from '../services/chase';
 import { shareText } from '../services/share';
 
-export default function TaskDetail({ task, visible, onClose, onSave, onMove, place, projects = [], tasks = [] }) {
+export default function TaskDetail({
+  task, visible, onClose, onSave, onMove, place, onChased, onSeeAll,
+  projects = [], tasks = [],
+}) {
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
   const [priority, setPriority] = useState('medium');
@@ -104,12 +107,25 @@ export default function TaskDetail({ task, visible, onClose, onSave, onMove, pla
       : t
   ));
   const owedHere = owePerson.trim() ? owedBy(asEdited, owePerson) : [];
+  // Finished ones count towards whether the person is worth a view of their
+  // own; they do not count towards what gets asked for.
+  const withThem = owePerson.trim() ? historyWith(asEdited, owePerson) : [];
 
   const sendChase = async () => {
     const message = chaseMessage(asEdited, owePerson, new Date());
     if (!message) return;
     setChased('');
     const result = await shareText(message);
+
+    // Written whatever happens next, and written to every task the message
+    // covered rather than only the one that is open — the message asked for all
+    // of them, so all of them have been chased.
+    //
+    // Recorded even when the sheet is cancelled, because a chase is not an edit
+    // to the task. It is a thing that happened, and the task sheet is not where
+    // it gets to be undone.
+    if (result !== 'cancelled' && onChased) onChased(owedHere.map(t => t.id));
+
     setChased({
       shared: '',
       cancelled: '',
@@ -402,6 +418,30 @@ export default function TaskDetail({ task, visible, onClose, onSave, onMove, pla
                   </Text>
                 </TouchableOpacity>
               ) : null}
+              {/* Whether you have already asked, and when. The row has room
+                  for the count; this is where the rest of it goes. */}
+              {chaseDetail(task) ? (
+                <Text style={styles.chaseNote}>{chaseDetail(task)}</Text>
+              ) : null}
+
+              {/* Everything one person owes you, in one place.
+                  An executive does not think "which tasks are outstanding", they
+                  think "what is outstanding with Marchetti" — and the column is
+                  sorted by task, so the answer is scattered down it. This is the
+                  search sheet with a name already in it, which is the whole of
+                  what was missing. */}
+              {withThem.length > 1 && onSeeAll ? (
+                <TouchableOpacity
+                  onPress={() => onSeeAll(owePerson.trim())}
+                  style={styles.seeAllBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel={`See everything ${owePerson.trim()} owes you`}
+                >
+                  <Text style={styles.seeAllText}>
+                    {`See everything ${owePerson.trim()} owes you`}
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
               {chased ? <Text style={styles.chaseNote}>{chased}</Text> : null}
             </View>
           )}
@@ -515,6 +555,8 @@ const styles = StyleSheet.create({
   scopeBtnOff: { opacity: 0.35 },
   chaseBtn: { marginTop: 10, alignSelf: 'flex-start', paddingVertical: 6 },
   chaseText: { fontSize: 14, color: COLORS.accent, fontWeight: '600' },
+  seeAllBtn: { paddingVertical: 10, marginTop: 2 },
+  seeAllText: { fontSize: 13.5, color: COLORS.accent },
   chaseNote: { marginTop: 6, fontSize: 12.5, color: '#8E8E93' },
   scopeTextOff: { color: '#B5AFA1' },
   scopeText: { fontSize: 14, color: '#8E8E93' },

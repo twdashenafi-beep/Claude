@@ -5,6 +5,8 @@ import {
 import { useTasks } from '../context/TaskContext';
 import { sortForDisplay, targetIndex, shiftFor, moveWithin } from '../services/ordering';
 import { pendingAlerts, alertBody, alertSummary, pruneShown } from '../services/alerts';
+import { recordChase } from '../services/chase';
+import { isReckoningDay } from '../services/reckoning';
 import { EVERYTHING, projectOf, projectName } from '../services/projects';
 import { moveTick } from '../services/haptics';
 import { ARCHIVE, deletionOf } from '../services/archive';
@@ -20,6 +22,7 @@ import AddTaskModal from '../components/AddTaskModal';
 import TaskDetail from '../components/TaskDetail';
 import AIInput from '../components/AIInput';
 import DailyBriefing from '../components/DailyBriefing';
+import WeekReckoning from '../components/WeekReckoning';
 import ConfettiOverlay from '../components/ConfettiOverlay';
 import AccountSheet from '../components/AccountSheet';
 import { VIEW_MODES } from '../utils/constants';
@@ -268,6 +271,12 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
   const [selectedDate] = useState(new Date());
   const [detailTask, setDetailTask] = useState(null);
   const [showBriefing, setShowBriefing] = useState(false);
+  // Friday, Saturday, Sunday. A weekly reckoning that sat in the header all
+  // week would be one more thing to ignore on a Tuesday; this one turns up when
+  // the week is over and goes away again when the next one starts. Saturday and
+  // Sunday are included because plenty of people close the week then, and an
+  // action available for one working day would be missed by half the year.
+  const [showWeek, setShowWeek] = useState(false);
   const [banner, setBanner] = useState(null);
 
   // Which project's sheet is on screen. Empty is the main list, and the bar
@@ -452,8 +461,13 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
   //
   // The check runs on a timer rather than off a render, and reads the task list
   // from a ref, so an edit does not restart the clock and push a reminder late.
-  const alertTasks = useRef(tasks);
-  useEffect(() => { alertTasks.current = tasks; }, [tasks]);
+  //
+  // It is the whole list, not the tasks with reminders on them, and three other
+  // things now read it for the same reason the reminder does: they run outside
+  // a render and need the list as it is at that moment rather than as it was
+  // when the callback was made.
+  const liveTasks = useRef(tasks);
+  useEffect(() => { liveTasks.current = tasks; }, [tasks]);
   // Which project a task belongs to, in words. Held in a ref for the same
   // reason the list above is: the timer that raises alerts is created once and
   // would otherwise be asking a list of projects that existed at mount.
@@ -473,7 +487,7 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
     const tick = async () => {
       const now = Date.now();
       const due = pendingAlerts({
-        tasks: alertTasks.current,
+        tasks: liveTasks.current,
         now,
         shown: shownAlerts.current,
       });
@@ -563,7 +577,7 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
   // notification itself. Both end in the same place as opening a search
   // result: where the task lives, not merely on top of wherever you were.
   const openTaskById = useCallback(id => {
-    const found = [...alertTasks.current, ...archived].find(t => t.id === id);
+    const found = [...liveTasks.current, ...archived].find(t => t.id === id);
     if (found) openResult(found);
     setAlerts(prev => prev.filter(a => a.task.id !== id));
   }, [archived, openResult]);
@@ -574,7 +588,7 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
     // The task as it is now, not as it was when the alert was raised: it may
     // have been moved to another project in between, and going to where it used
     // to live would be worse than not going at all.
-    const live = alertTasks.current.find(t => t.id === first.task.id) || first.task;
+    const live = liveTasks.current.find(t => t.id === first.task.id) || first.task;
     openResult(live);
     setAlerts([]);
   }, [alerts, openResult]);
@@ -582,6 +596,28 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
   // A reminder tapped on the home screen, or one tapped while the app was
   // closed and had to be started for it.
   useEffect(() => onAlertOpened(openTaskById), [openTaskById]);
+
+  // A chase has been sent. Written to every task the message covered, and
+  // written whatever the sheet does next: a chase is something that happened,
+  // not an edit waiting on Save.
+  const markChased = useCallback(ids => {
+    const at = new Date();
+    for (const id of ids || []) {
+      const task = liveTasks.current.find(t => t.id === id);
+      if (task) updateTask(id, recordChase(task, at));
+    }
+  }, [updateTask]);
+
+  // Everything one person owes, in one place. The search sheet already looks at
+  // who owes a task and ranks those hits second, so this is a name typed into
+  // it rather than a screen of its own — which is also why closing it leaves
+  // you where a search leaves you rather than somewhere new.
+  const seeEverythingFrom = useCallback(person => {
+    if (!person) return;
+    setDetailTask(null);
+    setQuery(person);
+    setSearching(true);
+  }, []);
 
   const addHere = useCallback(
     data => addTask({ ...data, projectId: project }),
@@ -615,6 +651,16 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
                 the app's own name. */}
             {narrow ? <View /> : <Text style={s.wordmark}>DayFlow</Text>}
             <View style={s.mastheadActions}>
+              {isReckoningDay() ? (
+                <TouchableOpacity
+                  onPress={() => setShowWeek(true)}
+                  style={s.navHit}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open the week's reckoning"
+                >
+                  <Text style={s.briefing}>Week</Text>
+                </TouchableOpacity>
+              ) : null}
               <TouchableOpacity
                 onPress={() => setShowBriefing(true)}
                 style={s.navHit}
@@ -857,6 +903,8 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
         onSave={saveTask}
         onMove={moveTask}
         place={detailTask ? placeOf(detailTask.id) : null}
+        onChased={markChased}
+        onSeeAll={seeEverythingFrom}
         tasks={tasks}
         projects={projects}
       />
@@ -918,6 +966,12 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
       ) : null}
 
       <DailyBriefing visible={showBriefing} onClose={() => setShowBriefing(false)} tasks={tasks} />
+      <WeekReckoning
+        visible={showWeek}
+        onClose={() => setShowWeek(false)}
+        tasks={tasks}
+        archived={archived}
+      />
       <ConfettiOverlay visible={celebrating} onDone={() => setCelebrating(false)} />
 
       <AccountSheet

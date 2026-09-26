@@ -36,6 +36,26 @@ export function owedBy(tasks, person) {
     .sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
 }
 
+// Everything one person is on the hook for, finished or not, oldest first.
+//
+// Not the same question as owedBy, and deliberately so. A chase is about what
+// is outstanding; a person view is about the person. Somebody who sent the
+// meter reading last week is still somebody you have two things with, and
+// gating the view on what is outstanding right now would make it disappear the
+// moment one of them arrived — which is precisely when you want to look at the
+// rest of what is open with them.
+export function historyWith(tasks, person) {
+  const name = String(person || '').trim().toLowerCase();
+  if (!name) return [];
+
+  return (tasks || [])
+    .filter(t => t
+      && t.taskType === 'done_for_me'
+      && String(t.owePerson || '').trim().toLowerCase() === name
+      && String(t.title || '').trim())
+    .sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+}
+
 // How long ago it was asked for, in the same words the row uses, or '' when the
 // task does not say when it was made.
 function whenAsked(task, now) {
@@ -90,4 +110,75 @@ function lowerFirst(title) {
   const [first] = text.split(/\s+/);
   if (!ARTICLES.has(first.toLowerCase())) return text;
   return text[0].toLowerCase() + text.slice(1);
+}
+
+
+// ── Whether you have already asked ──────────────────────────────────────────
+//
+// The column could say a thing had been waiting three weeks and could write the
+// message asking for it, and knew nothing at all about whether you had sent one.
+// So on Thursday the row read exactly as it had on Monday, before you chased —
+// and the question anybody delegating twenty things a week is actually asking
+// is not "how long has this been waiting". It is "have I already asked, and how
+// many times", because that is what decides whether the next move is another
+// email or a phone call.
+//
+// The record is a list of when, rather than a count and a date, because the two
+// would eventually disagree and the list answers both questions without being
+// asked twice.
+
+// Enough to tell a pattern from an accident. A thing chased twenty times is not
+// going to be settled by the twenty-first, and the list rides inside the same
+// encrypted blob as everything else.
+export const MAX_CHASES = 20;
+
+export function chasesOf(task) {
+  const raw = task && task.chases;
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter(at => typeof at === 'string' && !Number.isNaN(Date.parse(at)))
+    .sort();
+}
+
+// The fields to save when a chase has just been sent. Oldest dropped first, so
+// what is kept is what happened most recently.
+export function recordChase(task, now = new Date()) {
+  const kept = [...chasesOf(task), now.toISOString()].slice(-MAX_CHASES);
+  return { chases: kept };
+}
+
+export function chaseCount(task) {
+  return chasesOf(task).length;
+}
+
+export function lastChase(task) {
+  const all = chasesOf(task);
+  return all.length ? new Date(all[all.length - 1]) : null;
+}
+
+const TIMES = ['', 'once', 'twice'];
+function howMany(n) {
+  return TIMES[n] || `${n} times`;
+}
+
+// What the row says. The count and nothing else: a row is scanned rather than
+// read, and the number is the part that changes what you do next.
+export function chaseLabel(task) {
+  const n = chaseCount(task);
+  if (n === 0 || !task || task.completed || task.archivedAt) return null;
+  return `chased ${howMany(n)}`;
+}
+
+// What the sheet says, where there is room for the rest of it.
+export function chaseDetail(task, now = new Date()) {
+  const n = chaseCount(task);
+  if (n === 0) return null;
+  const at = lastChase(task);
+  const days = daysSince(at.toISOString(), now);
+  const when = days === 0 ? 'earlier today'
+    : days === 1 ? 'yesterday'
+      : `${span(days)} ago`;
+  // Dashed rather than joined with "last": "chased twice, last yesterday" is
+  // the sort of sentence you have to read twice.
+  return `Chased ${howMany(n)} — ${when}`;
 }
