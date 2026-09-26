@@ -284,6 +284,76 @@ if (process.env.SHOT) {
   await page.screenshot({ path: process.env.SHOT, fullPage: true });
 }
 
+// ── The release the browser loses ───────────────────────────────────────────
+//
+// Reported from a real phone: sometimes the recording simply does not stop, and
+// the button goes on saying "slide up to keep going" until the minute is up.
+// The gesture assumes the press ends where it began, and on a phone it often
+// does not — a finger leaving the screen outside the button, a notification
+// sliding down, the page losing focus. Any of those swallows the release, and
+// the recorder never hears about it.
+//
+// Simulated the only honest way: hold the button, then end the press somewhere
+// else entirely, which is what a thumb sliding off does.
+{
+  await openTask(TASK);
+  const mic = page.getByLabel('Record a voice note');
+  await mic.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(250);
+  const box = await mic.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(900);
+  ok('a held button records', await shows('Slide up to keep going'),
+     (await body()).slice(-300));
+
+  // A thumb leaving the screen. It rolls upward as it lifts and goes sideways
+  // at the same time, and it used to travel far enough up to be read as the
+  // slide that locks the recording hands-free — so the press somebody had
+  // finished with kept the microphone open until the minute was up.
+  await page.mouse.move(box.x + box.width / 2 + 40, box.y - 55, { steps: 3 });
+  await page.mouse.up();
+  await page.waitForTimeout(2200);
+
+  const after = await body();
+  ok('and a thumb rolling off the top of it still stops it',
+     !/Slide up to keep going/.test(after), after.slice(-400));
+  ok('rather than locking it on', !/Tap to stop/.test(after), after.slice(-400));
+  ok('the note it made is kept', (await playButtons()) >= 1, String(await playButtons()));
+  await closeSheet('Cancel');
+}
+
+// ── A deliberate slide still locks it ───────────────────────────────────────
+//
+// The other half. Making the accident impossible is worth nothing if it also
+// makes the gesture impossible: straight up, and held there, still records
+// without a finger on the button.
+{
+  await openTask(TASK);
+  const mic = page.getByLabel('Record a voice note');
+  await mic.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(250);
+  const box = await mic.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(700);
+  await page.mouse.move(box.x + box.width / 2, box.y - 60, { steps: 5 });
+  // Held there, which is what tells a slide from a lift.
+  await page.waitForTimeout(600);
+  ok('straight up and held locks it', await shows('Tap to stop'), (await body()).slice(-300));
+
+  await page.mouse.up();
+  await page.waitForTimeout(900);
+  ok('and letting go does not end it', await shows('Tap to stop'), (await body()).slice(-300));
+
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.up();
+  await page.waitForTimeout(2200);
+  ok('a press does', !(await shows('Tap to stop')), (await body()).slice(-400));
+  await closeSheet('Cancel');
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();
 server.close();

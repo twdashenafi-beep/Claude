@@ -5,7 +5,7 @@ import {
   setAudioModeAsync, requestRecordingPermissionsAsync, RecordingPresets,
 } from 'expo-audio';
 import { COLORS, SANS } from '../utils/theme';
-import { toDurableUri, tooShort } from '../services/audio';
+import { toDurableUri, tooShort, slidUp } from '../services/audio';
 import { canAddNote } from '../services/voiceNotes';
 import { claim, release } from '../services/playback';
 import { liftTick, dropTick } from '../services/haptics';
@@ -54,7 +54,9 @@ const HOLD_MS = 200;
 
 // Slide the thumb up this far, still holding, and the recording carries on
 // without you. Far enough that no ordinary press drifts into it.
-const LOCK_DY = 44;
+// How long the slide has to be held before it locks. Long enough that lifting
+// a thumb cannot do it by accident, short enough that nobody notices waiting.
+const LOCK_DWELL = 200;
 
 // How far a finger may travel before a press stops looking like a hold. A thumb
 // arriving on a small round button is not still — it lands and rolls — and ten
@@ -93,6 +95,7 @@ export default function VoiceRecorder({ notes = [], onAdd, onRemove }) {
   // Hands-free: the gesture has been let go and the recording is still running.
   const [isLocked, setIsLocked] = useState(false);
   const locked = useRef(false);
+  const lockTimer = useRef(null);
   // Whether the finger is still down. Starting is not instant — permission,
   // the audio session and preparing the recorder are all awaited — so a short
   // press can be over before the microphone is open. Without this, the release
@@ -186,6 +189,10 @@ export default function VoiceRecorder({ notes = [], onAdd, onRemove }) {
   };
 
   const stopRecording = async () => {
+    // More than one thing can ask now — the gesture, and the backstop below
+    // that catches the releases a browser loses — and asking the recorder to
+    // stop twice throws.
+    if (!recording.current) return;
     clearInterval(timer.current);
     const held = pressedAt.current ? Date.now() - pressedAt.current : null;
     recording.current = false;
@@ -305,15 +312,33 @@ export default function VoiceRecorder({ notes = [], onAdd, onRemove }) {
           }
           return;
         }
-        if (gs.dy < -LOCK_DY) lockRef.current();
+        // Held, not merely reached. A thumb rolls upward as it leaves the
+        // screen, so the distance alone cannot tell a deliberate slide from a
+        // lift-off — and getting that wrong leaves the microphone running
+        // until the minute is up, which is the expensive way to be wrong.
+        if (slidUp(gs.dx, gs.dy)) {
+          if (!lockTimer.current && !locked.current) {
+            lockTimer.current = setTimeout(() => {
+              lockTimer.current = null;
+              lockRef.current();
+            }, LOCK_DWELL);
+          }
+        } else if (lockTimer.current) {
+          clearTimeout(lockTimer.current);
+          lockTimer.current = null;
+        }
       },
       onPanResponderRelease: () => {
         clearTimeout(holdTimer.current);
+        clearTimeout(lockTimer.current);
+        lockTimer.current = null;
         wanted.current = false;
         if (recording.current && !locked.current) stopRef.current();
       },
       onPanResponderTerminate: () => {
         clearTimeout(holdTimer.current);
+        clearTimeout(lockTimer.current);
+        lockTimer.current = null;
         wanted.current = false;
         if (recording.current && !locked.current) stopRef.current();
       },
