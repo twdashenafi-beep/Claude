@@ -16,7 +16,7 @@ import { attachTo, detach, meetingOf, choices, keyOfEvent, keyOfTask } from '../
 
 export default function TaskDetail({
   task, visible, onClose, onSave, onMove, place, onChased, onSeeAll,
-  projects = [], tasks = [], diary = null,
+  projects = [], tasks = [], diary = null, viewMode = 'day',
 }) {
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
@@ -290,11 +290,11 @@ export default function TaskDetail({
               Only shown when there is a diary to choose from, and only ever
               meetings with an hour on them: an offsite is not something you
               bring three documents to at a quarter past ten. */}
-          {diary && choices(diary.events, dueDate).length > 0 ? (
+          {diary && choices(diary.events, dueDate, new Date(), viewMode).length > 0 ? (
             <View style={styles.section}>
               <Text style={styles.label}>For a meeting</Text>
               <View style={styles.meetingList}>
-                {choices(diary.events, dueDate).map(event => {
+                {choices(diary.events, dueDate, new Date(), viewMode).map(event => {
                   const on = keyOfTask({ meeting }) === keyOfEvent(event);
                   return (
                     <TouchableOpacity

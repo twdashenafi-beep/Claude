@@ -56,9 +56,43 @@ function asDate(value) {
 // worth knowing about and is emphatically not six hours of meetings, so it
 // never counts towards the booked total.
 export function tidyEvents(raw, day = new Date()) {
-  const from = startOfDay(day);
+  return eventsWithin(raw, spanWindow('day', day));
+}
+
+// The stretch of time a page is about.
+//
+// The three pages are a horizon, and the diary should follow it: the day's page
+// answers for today, the week's for this week, the month's for this month. The
+// diary itself is read three weeks deep so that a time given to a task next
+// Thursday can be checked against Thursday — which is right for that question
+// and wrong for every other one, and showing all of it wherever you happened to
+// be standing was the bug this fixes.
+export function spanWindow(view, now = new Date()) {
+  const from = startOfDay(now);
+
+  if (view === 'week') {
+    // Monday-first, like every other week in this app.
+    from.setDate(from.getDate() - ((from.getDay() + 6) % 7));
+    const to = new Date(from);
+    to.setDate(to.getDate() + 7);
+    return { from, to };
+  }
+  if (view === 'month') {
+    from.setDate(1);
+    const to = new Date(from);
+    to.setMonth(to.getMonth() + 1);
+    return { from, to };
+  }
+
   const to = new Date(from);
   to.setDate(to.getDate() + 1);
+  return { from, to };
+}
+
+export function eventsWithin(raw, window) {
+  const from = window && window.from;
+  const to = window && window.to;
+  if (!from || !to) return [];
 
   const out = [];
   for (const event of raw || []) {
@@ -78,6 +112,12 @@ export function tidyEvents(raw, day = new Date()) {
     });
   }
   return out.sort((a, b) => a.start - b.start || a.end - b.end);
+}
+
+// Whether this is one day's worth or a longer stretch. Only a day has an
+// office-hours shape, free gaps, or a sensible notion of "what is left".
+function oneDay(window) {
+  return (window.to - window.from) <= 25 * 60 * 60 * 1000;
 }
 
 // The span the day is judged against: office hours, widened by anything in the
@@ -229,18 +269,48 @@ export function clockOf(date) {
 // whether the untimed work will fit, because nothing in this app knows how long
 // any of it takes.
 export function dayLoad(tasks, rawEvents, now = new Date()) {
-  const events = tidyEvents(rawEvents, now);
-  const window = dayWindow(events, now);
-  const gaps = freeGaps(events, window, now);
+  return spanLoad(tasks, rawEvents, now, 'day');
+}
+
+// What one page's stretch of the diary contains.
+//
+// A day gets the full treatment — what is booked, what is left, and where the
+// gaps are. A week or a month gets the two figures that survive being added up:
+// how many meetings, and how many hours. "4h free" across a week is not a fact
+// anybody can act on, and printing it would be arithmetic pretending to be
+// advice.
+export function spanLoad(tasks, rawEvents, now = new Date(), view = 'day') {
+  const span = view === 'week' || view === 'month' ? view : 'day';
+  const at = new Date(now);
+
+  if (span !== 'day') {
+    const window = spanWindow(span, at);
+    const events = eventsWithin(rawEvents, window);
+    return {
+      span,
+      events,
+      window,
+      gaps: [],
+      committed: committedMinutes(events, window),
+      free: 0,
+      allDay: events.filter(e => e.allDay),
+      next: events.find(e => !e.allDay && e.start > at) || null,
+    };
+  }
+
+  const events = tidyEvents(rawEvents, at);
+  const window = dayWindow(events, at);
+  const gaps = freeGaps(events, window, at);
 
   return {
+    span,
     events,
     window,
     gaps,
     committed: committedMinutes(events, window),
     free: gaps.reduce((total, gap) => total + Math.round((gap.end - gap.start) / MINUTE), 0),
     allDay: events.filter(e => e.allDay),
-    next: events.find(e => !e.allDay && e.start > now) || null,
+    next: events.find(e => !e.allDay && e.start > at) || null,
   };
 }
 
@@ -249,6 +319,16 @@ export function dayLoad(tasks, rawEvents, now = new Date()) {
 export function loadLine(load) {
   if (!load) return null;
   if (load.events.length === 0) return null;
+
+  // A week or a month: how many, and how long. Not what is left — free hours
+  // spread across five days are not an afternoon.
+  if (load.span && load.span !== 'day') {
+    const timed = load.events.filter(e => !e.allDay).length;
+    const said = [];
+    if (timed > 0) said.push(`${timed} ${timed === 1 ? 'meeting' : 'meetings'}`);
+    if (load.committed > 0) said.push(`${spanMinutes(load.committed)} booked`);
+    return said.length ? said.join('  ·  ') : null;
+  }
 
   const parts = [];
   if (load.committed > 0) parts.push(`${spanMinutes(load.committed)} booked`);

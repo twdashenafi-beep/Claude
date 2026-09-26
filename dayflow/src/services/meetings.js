@@ -107,18 +107,18 @@ export function meetingNote(tasks) {
 }
 
 // The meetings a task could be attached to: the ones on its own day when it has
-// one, and otherwise the ones between now and a fortnight out.
+// one, and otherwise the ones inside whichever page you are standing on.
 //
-// A fortnight rather than a week because the boundary has to fall somewhere and
-// a week puts it exactly where people schedule — "the board call next Friday"
-// is a week today, and a list that stopped one hour short of it would be
-// maddening. The list is only ever shown when the task's own day has nothing on
-// it, so the length costs little.
+// The diary is read three weeks deep, because a time given to a task next
+// Thursday has to be checked against Thursday. That depth is right for that one
+// question and wrong for this one — offered here it put a fortnight of other
+// people's meetings inside a task on today's page, which is what this list is
+// for the absence of.
 //
 // All-day events are left out. An offsite is not a thing you bring three
 // documents to at a particular hour, and offering it would bury the meetings
 // that are.
-const WINDOW_DAYS = 14;
+import { spanWindow } from './agenda.js';
 
 function startOfDay(date) {
   const d = new Date(date);
@@ -126,9 +126,11 @@ function startOfDay(date) {
   return d;
 }
 
-export function choices(events, dueDate, now = new Date()) {
+export function choices(events, dueDate, now = new Date(), view = 'day') {
   const timed = (events || []).filter(e => e && !e.allDay && e.start);
 
+  // Its own day first, when it has one. More specific than the page, and a task
+  // dated Thursday is being prepared for something on Thursday.
   const on = dueDate ? new Date(dueDate) : null;
   if (on && !Number.isNaN(on.getTime())) {
     const from = startOfDay(on);
@@ -140,9 +142,7 @@ export function choices(events, dueDate, now = new Date()) {
     if (sameDay.length) return sameDay;
   }
 
-  const from = startOfDay(now);
-  const to = new Date(from);
-  to.setDate(to.getDate() + WINDOW_DAYS);
+  const { from, to } = spanWindow(view, now);
   return timed
     .filter(e => e.start >= from && e.start < to)
     .sort((a, b) => a.start - b.start);
