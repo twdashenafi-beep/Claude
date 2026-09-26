@@ -566,24 +566,6 @@ export default function TaskDetail({
             />
           </View>
 
-          {/* Attachments (read-only) */}
-          {task.attachments && task.attachments.length > 0 && (
-            <View style={styles.section}>
-              <Text style={styles.label}>Attachments</Text>
-              <View style={styles.attachGrid}>
-                {task.attachments.map((file, idx) => (
-                  <View key={idx} style={styles.attachChip}>
-                    <View style={styles.attachIcon}>
-                      <Text style={styles.attachIconText}>
-                        {file.name.split('.').pop()?.toUpperCase() || 'FILE'}
-                      </Text>
-                    </View>
-                    <Text style={styles.attachName} numberOfLines={1}>{file.name}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          )}
 
           <View style={{ height: 40 }} />
         </ScrollView>
@@ -750,38 +732,5 @@ const styles = StyleSheet.create({
   reminderOptionTextActive: {
     color: COLORS.sheet,
     fontWeight: '600',
-  },
-  attachGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  attachChip: {
-    backgroundColor: COLORS.sheet,
-    borderRadius: 10,
-    padding: 10,
-    borderWidth: 0.5,
-    borderColor: COLORS.rule,
-    alignItems: 'center',
-    gap: 6,
-    width: 90,
-  },
-  attachIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 8,
-    backgroundColor: '#F4F1EA',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  attachIconText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: COLORS.inkSoft,
-  },
-  attachName: {
-    fontSize: 10,
-    color: COLORS.inkSoft,
-    textAlign: 'center',
   },
 });

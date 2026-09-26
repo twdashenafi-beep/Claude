@@ -10,7 +10,6 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "api": "node --env-file-if-exists=.env api-server.js",
     "build:web": "EXPO_PUBLIC_BUILD_ID=$(date -u +%Y%m%d-%H%M) expo export --clear --platform web --output-dir web-build && node scripts/make-pwa.js web-build",
     "doctor": "expo-doctor",
     "build:pages": "EXPO_PUBLIC_BUILD_ID=$(date -u +%Y%m%d-%H%M) EXPO_BASE_URL=/Claude expo export --clear --platform web --output-dir web-build && node scripts/make-pwa.js web-build /Claude",
@@ -19,10 +18,8 @@
     "test:e2e": "node tests/e2e/two-device-sync.mjs && node tests/e2e/voice-routing.mjs && node tests/e2e/delete-and-undo.mjs && node tests/e2e/add-sheet.mjs && node tests/e2e/reorder.mjs && node tests/e2e/task-time.mjs && node tests/e2e/scope-move.mjs && node tests/e2e/reminders.mjs && node tests/e2e/sound.mjs && node tests/e2e/reorder-buttons.mjs && node tests/e2e/projects.mjs && node tests/e2e/archive.mjs && node tests/e2e/search.mjs && node tests/e2e/storage-full.mjs && node tests/e2e/mic.mjs && node tests/e2e/due.mjs && node tests/e2e/project-order.mjs && node tests/e2e/task-project.mjs && node tests/e2e/age.mjs && node tests/e2e/encryption.mjs && node tests/e2e/voice-note.mjs && node tests/e2e/column-move.mjs && node tests/e2e/voice-command.mjs && node tests/e2e/voice-notes.mjs && node tests/e2e/chase.mjs && node tests/e2e/export.mjs && node tests/e2e/restore.mjs && node tests/e2e/repeat.mjs && node tests/e2e/week.mjs && node tests/e2e/calendar.mjs && node tests/e2e/accessibility.mjs"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.80.0",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@supabase/supabase-js": "^2.99.3",
-    "cors": "^2.8.6",
     "crypto-js": "^4.2.0",
     "date-fns": "^4.1.0",
     "expo": "~55.0.8",
@@ -32,7 +29,6 @@
     "expo-crypto": "~55.0.19",
     "expo-notifications": "~55.0.13",
     "expo-status-bar": "~55.0.4",
-    "express": "^5.2.1",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "react-native": "0.83.2",
