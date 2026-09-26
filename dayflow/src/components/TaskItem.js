@@ -11,6 +11,7 @@ import { ageLabel } from '../services/age';
 import { repeatPhrase } from '../services/repeat';
 import { chaseLabel } from '../services/chase';
 import { scopeNote } from '../services/scope';
+import { meetingLabel } from '../services/meetings';
 import { COLORS, SANS, SERIF } from '../utils/theme';
 import { liftTick, dropTick } from '../services/haptics';
 
@@ -234,6 +235,7 @@ function TaskItem({
   const meta = [
     done ? null : chaseLabel(task),
     task.owePerson || null,
+    done ? null : meetingLabel(task),
     done ? null : scopeNote(task),
     done ? null : repeatPhrase(task),
   ].filter(Boolean);
@@ -285,6 +287,7 @@ function TaskItem({
             dueSpoken(task),
             age ? age.text : null,
             done ? null : chaseLabel(task),
+            done ? null : meetingLabel(task),
             done ? null : scopeNote(task),
             done ? null : repeatPhrase(task),
             task.priority === 'high' ? 'high priority' : null,

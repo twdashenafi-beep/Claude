@@ -11,7 +11,8 @@ import { notesOf, noteFields } from '../services/voiceNotes';
 import { REPEATS, repeatOf } from '../services/repeat';
 import { chaseMessage, owedBy, historyWith, chaseDetail } from '../services/chase';
 import { shareText } from '../services/share';
-import { clashNote } from '../services/agenda';
+import { clashNote, clockOf } from '../services/agenda';
+import { attachTo, detach, meetingOf, choices, keyOfEvent, keyOfTask } from '../services/meetings';
 
 export default function TaskDetail({
   task, visible, onClose, onSave, onMove, place, onChased, onSeeAll,
@@ -30,6 +31,8 @@ export default function TaskDetail({
   const [voiceNotes, setVoiceNotes] = useState([]);
   const [taskType, setTaskType] = useState('todo');
   const [repeat, setRepeat] = useState('none');
+  // Which meeting this is for, as { title, at } or null.
+  const [meeting, setMeeting] = useState(null);
   // What happened the last time a chase was sent from here.
   const [chased, setChased] = useState('');
 
@@ -48,6 +51,7 @@ export default function TaskDetail({
       setViewScope(task.viewScope || 'day');
       setProjectId(task.projectId || '');
       setVoiceNotes(notesOf(task));
+      setMeeting(task.meeting || null);
       setTaskType(task.taskType === 'done_for_me' || task.section === 'owe_me' ? 'done_for_me' : 'todo');
       setRepeat(repeatOf(task));
       setChased('');
@@ -77,6 +81,7 @@ export default function TaskDetail({
       viewScope,
       projectId,
       repeat,
+      meeting,
       // The anchor — which day of the month a monthly task is aiming at — is
       // dropped only when the date itself has just been changed, and it is
       // written again from the new one when the task next comes round.
@@ -275,6 +280,65 @@ export default function TaskDetail({
               ))}
             </View>
           </View>
+
+          {/* What this is for.
+              The app has known there is a board call at eleven since the diary
+              arrived, and had no idea that three things on the list were for
+              it — so "what am I meant to walk in with" was answered by memory,
+              which is the one place it should not live.
+
+              Only shown when there is a diary to choose from, and only ever
+              meetings with an hour on them: an offsite is not something you
+              bring three documents to at a quarter past ten. */}
+          {diary && choices(diary.events, dueDate).length > 0 ? (
+            <View style={styles.section}>
+              <Text style={styles.label}>For a meeting</Text>
+              <View style={styles.meetingList}>
+                {choices(diary.events, dueDate).map(event => {
+                  const on = keyOfTask({ meeting }) === keyOfEvent(event);
+                  return (
+                    <TouchableOpacity
+                      key={event.id}
+                      style={[styles.meetingRow, on && styles.meetingRowOn]}
+                      onPress={() => {
+                        if (on) { setMeeting(detach.meeting); return; }
+                        setMeeting(attachTo(event).meeting);
+                        // A thing you are preparing for a Thursday meeting is a
+                        // Thursday thing. Only when no date was chosen, and only
+                        // the date — the hour is when the meeting is, not when
+                        // the preparation happens.
+                        if (!dueDate) setDueDate(new Date(event.start).toISOString());
+                      }}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: on }}
+                      accessibilityLabel={`${on ? 'Not for' : 'For'} ${event.title} at ${clockOf(event.start)}`}
+                    >
+                      <Text style={[styles.meetingWhen, on && styles.meetingOnText]}>
+                        {clockOf(event.start)}
+                      </Text>
+                      <Text
+                        style={[styles.meetingTitle, on && styles.meetingOnText]}
+                        numberOfLines={1}
+                      >
+                        {event.title}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              {/* The meeting it was attached to is not in the diary any more —
+                  moved, cancelled, or the calendar was replaced. Said rather
+                  than left pointing at nothing, because a meeting that has
+                  moved is exactly the thing worth knowing before you have
+                  prepared for it. */}
+              {meetingOf({ meeting })
+                && !diary.events.some(e => keyOfEvent(e) === keyOfTask({ meeting })) ? (
+                  <Text style={styles.clash}>
+                    {`For ${meetingOf({ meeting }).title}, which is no longer in the diary`}
+                  </Text>
+                ) : null}
+            </View>
+          ) : null}
 
           {/* Tasks that come back.
               There is no series here and no instances: tick it off and the next
@@ -570,6 +634,16 @@ const styles = StyleSheet.create({
   seeAllText: { fontSize: 13.5, color: COLORS.accent },
   chaseNote: { marginTop: 6, fontSize: 12.5, color: '#8E8E93' },
   clash: { marginTop: 8, fontSize: 12.5, color: COLORS.accent, fontStyle: 'italic' },
+  meetingList: { marginTop: 2 },
+  meetingRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingVertical: 9, paddingHorizontal: 10, marginHorizontal: -10,
+    borderRadius: 8,
+  },
+  meetingRowOn: { backgroundColor: '#EFEAE0' },
+  meetingWhen: { fontSize: 13, color: '#8E8E93', minWidth: 44 },
+  meetingTitle: { flex: 1, fontSize: 14.5, color: COLORS.ink },
+  meetingOnText: { color: COLORS.accent, fontWeight: '600' },
   scopeTextOff: { color: '#B5AFA1' },
   scopeText: { fontSize: 14, color: '#8E8E93' },
   scopeTextOn: { color: '#3A362C', fontWeight: '600' },

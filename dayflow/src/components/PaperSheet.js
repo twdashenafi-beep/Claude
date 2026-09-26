@@ -165,4 +165,10 @@ export const groupStyles = StyleSheet.create({
   group: { marginBottom: 12 },
   person: { fontFamily: SANS, fontSize: 13, fontWeight: '600', color: COLORS.ink, marginBottom: 3 },
   summary: { fontFamily: SANS, fontSize: 14.5, color: COLORS.ink, lineHeight: 21 },
+  // What to walk into a meeting with, listed under it.
+  bring: {
+    fontFamily: SANS, fontSize: 13.5, color: COLORS.inkSoft,
+    marginLeft: 12, marginTop: -4, marginBottom: 7, lineHeight: 19,
+  },
+  brought: { color: COLORS.done, textDecorationLine: 'line-through' },
 });
