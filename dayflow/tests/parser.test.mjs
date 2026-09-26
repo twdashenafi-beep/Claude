@@ -369,12 +369,60 @@ ok('and neither is a quantity with a month-ish word', (() => {
 }
 
 {
-  // "Monday 12:30" read the 12 as a day of the month, dated the task weeks out,
-  // and left ":30" behind in the title.
+  // "Monday 12:30" once read the 12 as a day of the month, dated the task weeks
+  // out and left ":30" in the title. The first fix for that was to decline the
+  // whole thing — no date, no time, the sentence left where it was — which was
+  // safe and was not right, and these two checks used to say so.
+  //
+  // A twenty-four hour clock is understood now, and the date is read from the
+  // sentence with the time already taken out of it, so the weekday is no longer
+  // a weekday with a number after it by the time anything looks at it.
   const r = spoken('Dentist Monday 12:30');
-  ok('half a clock time is not a day of the month',
-     r.dueDate === null, String(r.dueDate));
-  ok('and nothing is torn out of the title', r.title === 'Dentist Monday 12:30', r.title);
+  ok('a clock time is not a day of the month', new Date(r.dueDate).getDate() === 28,
+     new Date(r.dueDate).toDateString());
+  ok('it is a time', r.dueTime === '12:30', String(r.dueTime));
+  ok('on the weekday that was named', new Date(r.dueDate).getDay() === 1,
+     new Date(r.dueDate).toDateString());
+  ok('and both come out of the title', r.title === 'Dentist', r.title);
+}
+
+{
+  // A clock with nothing after it. The comment on the time patterns had
+  // promised "at 14:00" since the list was written and nothing matched it.
+  const r = spoken('Call Achim at 22:00');
+  ok('a twenty-four hour clock is a time', r.dueTime === '22:00', String(r.dueTime));
+  ok('and the preposition goes with it', r.title === 'Call Achim', r.title);
+
+  const half = spoken('Stand-up at 9:30');
+  ok('read literally rather than guessed at', half.dueTime === '09:30', String(half.dueTime));
+
+  const evening = spoken('Call Achim at 10:30 pm');
+  ok('and an evening said out loud is still an evening',
+     evening.dueTime === '22:30', String(evening.dueTime));
+
+  ok('a ratio is not a time', spoken('Read pages 3:1 of the report').dueTime === null,
+     String(spoken('Read pages 3:1 of the report').dueTime));
+  ok('nor is a number nobody could mean',
+     spoken('Call Achim at 25:99').dueTime === null,
+     String(spoken('Call Achim at 25:99').dueTime));
+}
+
+{
+  // Dictation writes periods into p.m. more often than not, and the pattern
+  // that was meant to catch it ended in a word boundary — which needs a word
+  // character on the other side, and "p.m." at the end of a sentence has a
+  // space or nothing there. So it never matched, the fallback caught the time
+  // without the preposition, and every dictated evening produced a task called
+  // "Call Achim at".
+  const r = spoken('Call Achim at 10 p.m.');
+  ok('a dictated evening is an evening', r.dueTime === '22:00', String(r.dueTime));
+  ok('and the preposition does not survive it', r.title === 'Call Achim', r.title);
+
+  // The other half of what dictation does: it ends every sentence with a stop.
+  const stopped = spoken('Call Achim at 10pm.');
+  ok('and the full stop it leaves behind is not a title',
+     stopped.title === 'Call Achim', stopped.title);
+  ok('with the time still read', stopped.dueTime === '22:00', String(stopped.dueTime));
 }
 
 {
