@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Animated, Platform } from 'react-native';
 import { parseNaturalLanguage } from '../services/nlParser';
+import { whenPreview } from '../services/due';
 import { COLORS, SANS, SERIF } from '../utils/theme';
 
 // How long a pause means the sentence is over, when the button was tapped
@@ -411,8 +412,16 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo' }) {
           {preview.taskType !== 'done_for_me' && preview.commanded ? (
             <Text style={st.tag}>To Do</Text>
           ) : null}
+          {/* The date it understood, named rather than categorised.
+              This used to say "week", which tells you a page and not a day —
+              so "Monday the 28th" heard as the wrong Monday looked exactly like
+              the right one, and you found out on Monday. The whole point of a
+              preview is that a mishearing is caught before the task exists, and
+              a date is the easiest thing in a sentence to mishear. */}
+          {preview.hasDate && whenPreview(preview.dueDate, preview.dueTime) ? (
+            <Text style={st.tag}>{whenPreview(preview.dueDate, preview.dueTime)}</Text>
+          ) : null}
           {preview.hasDate && <Text style={st.tag}>{preview.viewScope}</Text>}
-          {preview.hasTime && <Text style={st.tag}>{preview.dueTime}</Text>}
           {preview.priority === 'high' && <Text style={[st.tag, { color: COLORS.accent, fontWeight: '700' }]}>High</Text>}
         </View>
       )}

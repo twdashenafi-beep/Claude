@@ -238,6 +238,53 @@ await page.waitForTimeout(PAUSE + 800);
 ok('carrying on from the box still routes',
    (await columnOf('The deposit back')) === 'owe', await columnOf('The deposit back'));
 
+// ── A date said out loud, shown back before it is committed ─────────────────
+//
+// The preview used to say "week", which names a page rather than a day. A date
+// is the easiest thing in a sentence to mishear, and "week" looks identical
+// whether the right Monday was heard or the wrong one — so the mistake was
+// invisible until Monday. It names the day now.
+{
+  const box = page.locator('input, textarea').first();
+  await box.fill('Update Eddy, Monday 28 at 11am');
+  await page.waitForTimeout(700);
+
+  const preview = await page.evaluate(() => document.body.textContent || '');
+  ok('the preview names the task without the date in it',
+     /Update Eddy(?!,)/.test(preview), preview.slice(0, 300));
+  // Asked of the tag itself rather than of the page.
+  //
+  // textContent runs one element's text straight into the next — the preview
+  // reads "Update EddyMon 28 Sep 11:00" with nothing between them — so a word
+  // boundary before "Mon" never matches, and the assertion fails while the
+  // thing it is checking is on screen and correct.
+  const dateTag = await page.evaluate(() => {
+    const shape = /^(Today|Tomorrow|Yesterday|[A-Z][a-z]{2} \d{1,2} [A-Z][a-z]{2})( \d{1,2}:\d{2})?$/;
+    const leaf = [...document.querySelectorAll('*')]
+      .filter(e => e.children.length === 0)
+      .map(e => (e.textContent || '').trim())
+      .find(t => shape.test(t));
+    return leaf || '';
+  });
+  ok('and says which day it understood', dateTag !== '', dateTag);
+  ok('with the date itself, so the wrong Monday can be spotted',
+     /\b28\b/.test(dateTag) || /^(Today|Tomorrow)/.test(dateTag), dateTag);
+  ok('and the time it understood', /11:00/.test(dateTag), dateTag);
+
+  await box.press('Enter');
+  await page.waitForTimeout(1500);
+  // A date a few days out puts the task on the Week page, which is where the
+  // preview said it was going. Looking for it on Day and not finding it is the
+  // test being in the wrong room, not the task being lost.
+  await page.getByText('Week', { exact: true }).first().click();
+  await page.waitForTimeout(900);
+  const after = await page.evaluate(() => document.body.textContent || '');
+  ok('the task that lands is titled by the task alone',
+     after.includes('Update Eddy'), after.slice(0, 400));
+  ok('and does not keep the date in its name',
+     !/Update Eddy, Monday/.test(after), after.slice(0, 400));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();
 server.close();

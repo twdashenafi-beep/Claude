@@ -317,16 +317,41 @@ ok('and no empty task was left behind by the unmount',
 }
 
 // ── Dictation adds to what was typed rather than replacing it ──
+//
+// This used to look for the words "Ring the plumber on Tuesday" sitting in the
+// list, which stopped being the right answer the day the parser learned what
+// "on Tuesday" means: the task is called "Ring the plumber" now and Tuesday is
+// its date. The behaviour changed on purpose, so the assertion is the one that
+// changed — but what it is checking has not moved. Both halves still have to be
+// true, and the date is what proves the second of them: if the dictation had
+// been dropped rather than appended, the task would have no date at all.
 {
   const box = A.page.locator('input, textarea').first();
   await box.fill('Ring the plumber');
   await A.page.getByLabel('Dictate a task').click();
   await A.page.waitForTimeout(400);
   await A.page.evaluate(() => window.__mic.instance.say('on Tuesday'));
-  await A.page.waitForTimeout(2600);
-  const text = await body();
-  ok('what was already typed is kept',
-    text.includes('Ring the plumber on Tuesday'), text.slice(0, 400));
+  await A.page.waitForTimeout(2800);
+
+  // A date a few days out sends the task to the Week page.
+  const week = A.page.getByText('Week', { exact: true }).first();
+  if (await week.count()) { await week.click(); await A.page.waitForTimeout(800); }
+
+  const made = await A.page.evaluate(() => {
+    const leaf = [...document.querySelectorAll('*')]
+      .filter(e => e.children.length === 0)
+      .map(e => (e.textContent || '').trim());
+    return {
+      titled: leaf.includes('Ring the plumber'),
+      undated: leaf.some(t => /Ring the plumber on Tuesday/.test(t)),
+      dated: leaf.some(t => /^(Tue|Today|Tomorrow)/.test(t)),
+    };
+  });
+  ok('what was already typed is kept', made.titled, JSON.stringify(made));
+  ok('and the dictation is not left sitting in the title as words',
+     !made.undated, JSON.stringify(made));
+  ok('it was understood instead, which is how we know it was appended at all',
+     made.dated, JSON.stringify(made));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

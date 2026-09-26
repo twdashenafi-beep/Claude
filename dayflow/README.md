@@ -7,7 +7,7 @@ AI-powered task manager with end-to-end encryption. Built with React Native (Exp
 
 ## Features
 
-- **Natural Language Input** — Type or speak "Call Mekdi tomorrow at 11am urgent" and the task is created with the right date, time and priority
+- **Natural Language Input** — Type or speak "Call Mekdi tomorrow at 11am urgent" and the task is created with the right date, time and priority. Dates the way people say them: *Monday*, *the 28th*, *Monday 28*, *3 October*, *next Friday*. A weekday only counts as a date where it is being used as one — "Monday's meeting" stays in the title. The preview names the day it understood, so a mishearing is caught before the task exists
 - **Voice Commands** — Speak naturally to create tasks (web speech recognition). What it heard is shown as you speak, so a mishearing is caught before the task exists rather than after
 - **Voice Notes** — Hold the button at the right-hand end to record a voice memo, on a new task or on one that already exists; slide up and it keeps recording without you. Up to five per task, and one plays at a time. Recordings are stored inside the encrypted task itself, so they survive a reload and reach your other devices
 - **End-to-End Encryption** — Task titles, notes, amounts and names are encrypted with AES-256 before they touch storage. Only you have the key.
