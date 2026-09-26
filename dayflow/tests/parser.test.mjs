@@ -242,6 +242,26 @@ ok('tomorrow is too', scopeFor(new Date(2026, 8, 27), SAT) === 'day');
 ok('the rest of the week is the week', scopeFor(new Date(2026, 9, 2), SAT) === 'week');
 ok('and anything further is the month', scopeFor(new Date(2026, 10, 2), SAT) === 'month');
 
+// Across the clock changes, where a "day" is twenty-three hours one way and
+// twenty-five the other. This project has been caught by that arithmetic
+// before, so the one place here that divides by a day is checked on both
+// weekends it could go wrong.
+{
+  const beforeAutumn = new Date(2026, 9, 24, 9, 0);   // clocks go back on the 25th
+  ok('the day the clocks go back is still tomorrow',
+     scopeFor(new Date(2026, 9, 25), beforeAutumn) === 'day',
+     scopeFor(new Date(2026, 9, 25), beforeAutumn));
+  ok('and the day after it is still this week',
+     scopeFor(new Date(2026, 9, 26), beforeAutumn) === 'week');
+
+  const beforeSpring = new Date(2026, 2, 28, 9, 0);   // clocks go forward on the 29th
+  ok('the day the clocks go forward is still tomorrow',
+     scopeFor(new Date(2026, 2, 29), beforeSpring) === 'day',
+     scopeFor(new Date(2026, 2, 29), beforeSpring));
+  ok('and a week past it is still this week',
+     scopeFor(new Date(2026, 3, 4), beforeSpring) === 'week');
+}
+
 // ── What that means for something said out loud ─────────────────────────────
 //
 // These go through the whole parser, which uses the real clock — so they check
@@ -334,6 +354,44 @@ ok('and neither is a quantity with a month-ish word', (() => {
   // title does not lose the part that says what to order.
   return r.title.length > 0;
 })());
+
+// ── Where a date and a time sit next to each other ──────────────────────────
+//
+// All three of these were wrong an hour after the dates went in, and none of
+// them was found by the tests above — they were found by typing awkward
+// sentences at the parser and reading what came back.
+{
+  const r = spoken('Book Monday 3pm');
+  ok('a weekday with a time after it is a date', new Date(r.dueDate).getDay() === 1,
+     new Date(r.dueDate).toDateString());
+  ok('and the day comes out of the title', r.title === 'Book', r.title);
+  ok('with the time kept', r.dueTime === '15:00', String(r.dueTime));
+}
+
+{
+  // "Monday 12:30" read the 12 as a day of the month, dated the task weeks out,
+  // and left ":30" behind in the title.
+  const r = spoken('Dentist Monday 12:30');
+  ok('half a clock time is not a day of the month',
+     r.dueDate === null, String(r.dueDate));
+  ok('and nothing is torn out of the title', r.title === 'Dentist Monday 12:30', r.title);
+}
+
+{
+  const r = spoken('Owe me the deposit by the 30th');
+  ok('the preposition goes with the date it belongs to',
+     r.title === 'The deposit', r.title);
+  ok('which is still read', new Date(r.dueDate).getDate() === 30);
+  ok('and the column is still Owe Me', r.taskType === 'done_for_me');
+}
+
+{
+  const r = spoken('Call Eddy at 3pm Monday');
+  ok('a time before the day works as well as after',
+     new Date(r.dueDate).getDay() === 1 && r.dueTime === '15:00',
+     JSON.stringify([new Date(r.dueDate).toDateString(), r.dueTime]));
+  ok('and leaves the task alone', r.title === 'Call Eddy', r.title);
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

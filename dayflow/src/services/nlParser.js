@@ -126,7 +126,10 @@ const DATE_PATTERNS = [
 const SPOKEN_DATE_PATTERNS = [
   // "Monday 28", "Monday the 28th", "on Monday the 3rd"
   {
-    regex: new RegExp(`\\b(?:on|for|by)?\\s*(${DAY_WORD})\\s+(?:the\\s+)?(\\d{1,2})(?:st|nd|rd|th)?\\b`, 'i'),
+    // The number must not be half a time. "Dentist Monday 12:30" read the 12
+    // as a day of the month, dated the task in October, and left ":30" behind
+    // in the title.
+    regex: new RegExp(`\\b(?:on|for|by)?\\s*(${DAY_WORD})\\s+(?:the\\s+)?(\\d{1,2})(?:st|nd|rd|th)?\\b(?!\\s*(?::|am|pm|a\\.m|p\\.m))`, 'i'),
     // The number wins when the two disagree. A date is a fact and a weekday is
     // a memory of one, and the preview shows which day it landed on anyway.
     handler: m => ({ date: dayOfMonthOn(m[2], new Date()) }),
@@ -142,7 +145,7 @@ const SPOKEN_DATE_PATTERNS = [
   },
   // "the 28th", "on the 3rd"
   {
-    regex: /\b(?:on\s+)?the\s+(\d{1,2})(?:st|nd|rd|th)\b/i,
+    regex: /\b(?:on|by|for|before)?\s*the\s+(\d{1,2})(?:st|nd|rd|th)\b/i,
     handler: m => ({ date: dayOfMonthOn(m[1], new Date()) }),
   },
   // "on Monday", "by Friday", "…, Tuesday", or a weekday ending the sentence.
@@ -152,6 +155,18 @@ const SPOKEN_DATE_PATTERNS = [
   },
   {
     regex: new RegExp(`\\b(${DAY_WORD})${NOT_POSSESSIVE}\\s*$`, 'i'),
+    handler: m => ({ date: weekdayOn(m[1], new Date()) }),
+  },
+  // "Book Monday 3pm". A time after the weekday is as good an anchor as a
+  // preposition before it — better, really, since nobody says a day and a
+  // clock time together unless they mean an appointment. Without this the day
+  // stayed in the title and the task landed on today, which is the wrong day
+  // said twice.
+  {
+    regex: new RegExp(
+      `\\b(${DAY_WORD})${NOT_POSSESSIVE}\\s+(?=(?:at\\s+)?\\d{1,2}(?::\\d{2})?\\s*(?:am|pm|a\\.m\\.|p\\.m\\.)\\b)`,
+      'i',
+    ),
     handler: m => ({ date: weekdayOn(m[1], new Date()) }),
   },
 ];
