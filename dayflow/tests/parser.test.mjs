@@ -393,5 +393,55 @@ ok('and neither is a quantity with a month-ish word', (() => {
   ok('and leaves the task alone', r.title === 'Call Eddy', r.title);
 }
 
+// ── The sentence that was reported ──────────────────────────────────────────
+//
+// "Call John on Monday Sept 28, 11am" arrived dated today. Nothing in the
+// sentence matched: the parser knew "september" and "sep" and not "Sept", and a
+// time with no date falls back to today — so the task took today's date and
+// carried the date it had been given around in its title.
+//
+// Every abbreviation anybody actually writes is understood now, with or without
+// the full stop, and a weekday in front of a month date belongs to the date.
+{
+  const r = spoken('Call John on Monday Sept 28, 11am');
+  ok('the sentence that was reported has a date now', r.dueDate !== null, String(r.dueDate));
+  ok('on the twenty-eighth', new Date(r.dueDate).getDate() === 28,
+     new Date(r.dueDate).toDateString());
+  ok('in September', new Date(r.dueDate).getMonth() === 8);
+  ok('at eleven', r.dueTime === '11:00', String(r.dueTime));
+  ok('and the title is the task alone', r.title === 'Call John', r.title);
+}
+
+for (const said of [
+  'Call John Sept 28, 11am',
+  'Call John on Sept 28 at 11am',
+  'Call John, Monday Sept 28, 11 a.m.',
+  'Call John on Monday September 28th at 11am',
+  'Call John Sep 28 at 11am',
+  'Call John on Sept. 28 at 11am',
+]) {
+  const r = spoken(said);
+  ok(`"${said}" lands on the twenty-eighth`,
+     !!r.dueDate && new Date(r.dueDate).getDate() === 28,
+     r.dueDate ? new Date(r.dueDate).toDateString() : 'no date');
+  ok(`"${said}" leaves a clean title`, r.title === 'Call John', r.title);
+}
+
+// "11 a.m." on its own is a time. The pattern for it wanted an "at" in front,
+// so an ordinary way of saying eleven o'clock was not a time at all.
+ok('eleven a.m. with full stops is eleven o\'clock',
+   spoken('Call John tomorrow 11 a.m.').dueTime === '11:00',
+   String(spoken('Call John tomorrow 11 a.m.').dueTime));
+ok('and in the afternoon too',
+   spoken('Call John tomorrow 3 p.m.').dueTime === '15:00',
+   String(spoken('Call John tomorrow 3 p.m.').dueTime));
+
+// A month with a full stop keeps neither the stop nor a stray comma.
+ok('a shortened month does not leave its full stop behind',
+   spoken('Submit by 31 Jan.').title === 'Submit', spoken('Submit by 31 Jan.').title);
+ok('and a date cut from the middle does not leave two commas',
+   spoken('Call John, Monday Sept 28, 11 a.m.').title === 'Call John',
+   spoken('Call John, Monday Sept 28, 11 a.m.').title);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

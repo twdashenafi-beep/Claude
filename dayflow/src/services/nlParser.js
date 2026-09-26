@@ -78,7 +78,17 @@ export function scopeFor(date, now = new Date()) {
 }
 
 const DAY_WORD = WEEKDAYS.join('|');
-const MONTH_WORD = MONTH_NAMES.map(m => `${m}|${m.slice(0, 3)}`).join('|');
+// Every way a month gets shortened, longest first so the alternation does not
+// settle for "sep" and then choke on the "t" of "Sept". That is not a
+// hypothetical: "Call John on Sept 28 at 11am" matched nothing at all, and a
+// time with no date falls back to today — so the task arrived dated today, with
+// the date it was given still sitting in its title.
+const MONTH_WORD = MONTH_NAMES
+  .flatMap(m => [...new Set([m, m.slice(0, 4), m.slice(0, 3)])])
+  .sort((a, b) => b.length - a.length)
+  .join('|');
+// "Sept." and "Sept" are the same word with the same meaning.
+const DOT = '\\.?';
 // A weekday only counts as a date where it is being used as one: after a
 // preposition, after a comma, or at the very end of what was said. Left
 // unanchored it eats the word out of "Move the Monday meeting to Friday" and
@@ -93,6 +103,10 @@ const TIME_PATTERNS = [
   { regex: /\bat\s+(\d{1,2})(?::(\d{2}))?\s*(a\.m\.|p\.m\.)\b/i, handler: (m) => parseTime(m[1], m[2], m[3].replace(/\./g, '')) },
   // "11am", "3pm" standalone
   { regex: /\b(\d{1,2})\s*(am|pm)\b/i, handler: (m) => parseTime(m[1], '00', m[2]) },
+  // "11 a.m." standing on its own. The pattern above wants an "at" in front of
+  // it, so a perfectly ordinary way of saying eleven o'clock was not a time at
+  // all — and a date with no time is not what anybody who said one meant.
+  { regex: /\b(\d{1,2})(?::(\d{2}))?\s*(a\.m\.|p\.m\.)/i, handler: (m) => parseTime(m[1], m[2], m[3].replace(/\./g, '')) },
   // "at noon", "at midnight"
   { regex: /\bat\s+(noon|midday)\b/i, handler: () => ({ hour: 12, minute: 0 }) },
   { regex: /\bat\s+midnight\b/i, handler: () => ({ hour: 0, minute: 0 }) },
@@ -136,11 +150,11 @@ const SPOKEN_DATE_PATTERNS = [
   },
   // "28 September", "3rd of October", "Sept 28"
   {
-    regex: new RegExp(`\\b(?:on|for|by)?\\s*(\\d{1,2})(?:st|nd|rd|th)?\\s+(?:of\\s+)?(${MONTH_WORD})\\b`, 'i'),
+    regex: new RegExp(`\\b(?:on|for|by)?\\s*(?:(?:${DAY_WORD})[,\\s]+)?(\\d{1,2})(?:st|nd|rd|th)?\\s+(?:of\\s+)?(${MONTH_WORD})\\b${DOT}`, 'i'),
     handler: m => ({ date: dayOfMonthOn(m[1], new Date(), fullMonth(m[2])) }),
   },
   {
-    regex: new RegExp(`\\b(?:on|for|by)?\\s*(${MONTH_WORD})\\s+(?:the\\s+)?(\\d{1,2})(?:st|nd|rd|th)?\\b`, 'i'),
+    regex: new RegExp(`\\b(?:on|for|by)?\\s*(?:(?:${DAY_WORD})[,\\s]+)?(${MONTH_WORD})\\b${DOT}\\s+(?:the\\s+)?(\\d{1,2})(?:st|nd|rd|th)?\\b`, 'i'),
     handler: m => ({ date: dayOfMonthOn(m[2], new Date(), fullMonth(m[1])) }),
   },
   // "the 28th", "on the 3rd"
@@ -172,8 +186,8 @@ const SPOKEN_DATE_PATTERNS = [
 ];
 
 function fullMonth(word) {
-  const said = String(word || '').toLowerCase();
-  return MONTH_NAMES.find(name => name === said || name.slice(0, 3) === said) || null;
+  const said = String(word || '').toLowerCase().replace(/\.$/, '');
+  return MONTH_NAMES.find(name => name === said || name.startsWith(said)) || null;
 }
 
 function parseTime(hourStr, minStr, period) {
@@ -363,7 +377,13 @@ export function parseNaturalLanguage(input) {
   title = title.replace(/\s+/g, ' ').replace(/^\s+|\s+$/g, '');
   // "Update Eddy, Monday 28" leaves "Update Eddy," once the date is cut out.
   // The comma was joining two halves and only one of them is left.
-  title = title.replace(/^[,;:\u2013\u2014-]+\s*/, '').replace(/\s*[,;:\u2013\u2014-]+$/, '').trim();
+  // Repeated, not once. Cutting a date out of the middle of "Call John, Monday
+  // Sept 28, 11 a.m." leaves two commas side by side, and stripping the last
+  // one still leaves the first.
+  title = title
+    .replace(/^(?:[,;:\u2013\u2014-]+\s*)+/, '')
+    .replace(/(?:\s*[,;:\u2013\u2014-]+)+$/, '')
+    .trim();
 
   // Build date ISO
   let dateISO = null;
