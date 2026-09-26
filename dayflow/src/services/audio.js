@@ -93,3 +93,29 @@ export async function toDurableUri(uri) {
   if (encoded.length > MAX_NOTE_BYTES) return null;
   return encoded;
 }
+
+// Whether a gesture is somebody sliding the button up to keep recording
+// hands-free, or a thumb on its way off the screen.
+//
+// They look the same to a single reading of the distance, and the second one is
+// far more common: a thumb rolls upward as it lifts, and forty-four pixels of
+// roll is nothing on a phone. That is how a press somebody had finished with
+// turned into a locked recording that ran until the minute was up.
+//
+// So the slide has to be up rather than merely upward — a lift-off is usually
+// diagonal, because the thumb is also leaving the screen sideways — and the
+// caller holds it there for a moment before the lock takes. Between them, the
+// deliberate gesture is unchanged and the accident no longer qualifies.
+export const LOCK_DY = 44;
+
+export function slidUp(dx, dy) {
+  if (typeof dx !== 'number' || typeof dy !== 'number') return false;
+  if (!Number.isFinite(dx) || !Number.isFinite(dy)) return false;
+  // Past the threshold, not merely at it.
+  if (dy >= -LOCK_DY) return false;
+  // Mostly up: within about twenty-five degrees of vertical. Half the upward
+  // distance rather than all of it, because "less sideways than up" still
+  // admits a forty-degree drag, and a thumb leaving the screen goes sideways
+  // as much as it goes up.
+  return Math.abs(dx) * 2 <= Math.abs(dy);
+}

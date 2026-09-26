@@ -12,7 +12,7 @@
 // megabytes that every typed task lives in.
 //
 // Run with `npm test`.
-import { toDurableUri, MAX_NOTE_BYTES, MIN_NOTE_MS, tooShort } from '../src/services/audio.js';
+import { toDurableUri, MAX_NOTE_BYTES, MIN_NOTE_MS, tooShort, slidUp, LOCK_DY } from '../src/services/audio.js';
 
 let pass = 0, fail = 0;
 const ok = (label, cond, extra = '') => {
@@ -145,6 +145,27 @@ ok('nor a negative one, which is a clock that moved', !tooShort(-50));
 
 // It has to be shorter than the shortest useful note and longer than a slip.
 ok('the floor is under a second', MIN_NOTE_MS > 300 && MIN_NOTE_MS < 1200, String(MIN_NOTE_MS));
+
+// ── Sliding up to keep recording, and lifting a thumb off ───────────────────
+//
+// They look the same to a single reading of the distance, and the second is far
+// more common. A thumb rolls upward as it leaves the screen; forty-four pixels
+// of roll is nothing on a phone, and a press somebody had finished with became
+// a locked recording that ran until the minute was up. Reported from a real
+// phone, and this is half the fix — the other half is that the caller holds the
+// slide for a moment before the lock takes.
+ok('a deliberate slide up locks it', slidUp(0, -60));
+ok('and so does one with a little sideways in it', slidUp(10, -60));
+ok('but not one that is more sideways than up', !slidUp(50, -60));
+ok('nor a diagonal lift-off', !slidUp(-48, -48));
+ok('and a slide only counts when it is mostly upward', slidUp(-20, -60));
+ok('a short reach does not', !slidUp(0, -20));
+ok('nor does the threshold itself', !slidUp(0, -LOCK_DY));
+ok('one pixel past it does', slidUp(0, -LOCK_DY - 1));
+ok('downwards never does, however far', !slidUp(0, 200));
+ok('sideways never does either', !slidUp(200, 0));
+ok('and nonsense never does',
+   !slidUp('up', -60) && !slidUp(0, NaN) && !slidUp(undefined, undefined));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
