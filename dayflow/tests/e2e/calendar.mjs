@@ -272,6 +272,79 @@ await page.waitForTimeout(1500);
   await page.waitForTimeout(1100);
 }
 
+// ── What to walk in with ────────────────────────────────────────────────────
+//
+// The app has known there is a board call at eleven since the diary arrived,
+// and had no idea that anything on the list was for it. "What am I meant to
+// walk in with" was answered by memory, which is the one place it should not
+// live.
+{
+  const box = page.getByPlaceholder('Write a line…');
+  await box.waitFor({ state: 'visible', timeout: 60000 });
+  await box.fill('Read the auditors letter');
+  await box.press('Enter');
+  await page.waitForTimeout(900);
+  await box.fill('Sign the minutes');
+  await box.press('Enter');
+  await page.waitForTimeout(900);
+
+  const attach = async (title, when, meeting) => {
+    await page.locator(`text=${title}`).first().click();
+    await page.waitForTimeout(1100);
+    await page.getByLabel(`For ${meeting} at ${when}`).click();
+    await page.waitForTimeout(500);
+    await page.getByText('Save', { exact: true }).last().click();
+    await page.waitForTimeout(1200);
+  };
+
+  await attach('Read the auditors letter', '11:00', 'Board call');
+  ok('the row says what it is for', /for Board call/i.test(await body()),
+     (await body()).slice(0, 800));
+
+  await attach('Sign the minutes', '11:00', 'Board call');
+  await attach('Approve the budget', '09:00', 'Standup');
+
+  // ── And the briefing answers the question ──
+  await page.getByLabel('Open the daily briefing').click();
+  await page.waitForTimeout(1300);
+  const brief = await page.locator('[data-briefsheet]').first().innerText();
+
+  // Read the Diary section alone. The task titles appear further down the page
+  // under Today as well, and a check that cannot tell the two apart passes
+  // whether or not anything is attached to anything — which is exactly what
+  // happened the first time this was written.
+  const diaryPart = t => t.slice(t.indexOf('DIARY'), t.indexOf('LATE'));
+  const diary = diaryPart(brief);
+
+  ok('the meeting says how much is riding on it',
+     /Board call[\s\S]{0,60}2 things, 2 still to do/.test(diary), diary);
+  ok('and names them, under the meeting',
+     /Board call[\s\S]{0,200}Read the auditors letter/.test(diary), diary);
+  ok('all of them', /Board call[\s\S]{0,240}Sign the minutes/.test(diary), diary);
+  ok('the other meeting keeps its own', /Standup[\s\S]{0,60}1 thing, 1 still to do/.test(diary),
+     diary);
+  ok('and a meeting nobody prepared for says nothing about it',
+     !/One to one[\s\S]{0,40}thing/.test(diary), diary);
+
+  await page.getByLabel('Close the briefing').click();
+  await page.waitForTimeout(900);
+
+  // ── Finishing one shows in the count ──
+  await page.getByLabel('Mark Sign the minutes as done').click();
+  await page.waitForTimeout(1000);
+  await page.getByLabel('Open the daily briefing').click();
+  await page.waitForTimeout(1300);
+  const after = await page.locator('[data-briefsheet]').first().innerText();
+  const afterDiary = diaryPart(after);
+  ok('finishing one is counted, not hidden',
+     /Board call[\s\S]{0,60}2 things, 1 still to do/.test(afterDiary), afterDiary);
+  ok('and the finished one is still listed, ticked',
+     /✓\s+Sign the minutes/.test(afterDiary), afterDiary);
+
+  await page.getByLabel('Close the briefing').click();
+  await page.waitForTimeout(900);
+}
+
 // ── Forgetting it ───────────────────────────────────────────────────────────
 await page.getByLabel('Account settings').click();
 await page.waitForTimeout(900);

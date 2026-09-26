@@ -7,6 +7,7 @@ import { chaseLabel } from '../services/chase';
 import { COLORS } from '../utils/theme';
 import { whenPreview, dueMoment } from '../services/due';
 import { clockOf, dayLoad, loadLine } from '../services/agenda';
+import { tasksFor, meetingNote } from '../services/meetings';
 import { getDailySummary, isAIConfigured } from '../services/ai';
 
 // The day, briefed.
@@ -97,13 +98,32 @@ export default function DailyBriefing({
           {load.allDay.map(event => (
             <Line key={event.id} title={event.title} note="all day" />
           ))}
-          {load.events.filter(e => !e.allDay).map(event => (
-            <Line
-              key={event.id}
-              title={event.title}
-              note={`${clockOf(event.start)}–${clockOf(event.end)}`}
-            />
-          ))}
+          {/* The thing this page exists for. A meeting is not just an hour
+              gone; it is an hour you are supposed to walk into with something,
+              and what that something is has lived in somebody's head until
+              now. Listed under the meeting, in the order they were written,
+              with the finished ones marked rather than hidden — "done" is part
+              of the answer to "am I ready". */}
+          {load.events.filter(e => !e.allDay).map(event => {
+            const bring = tasksFor(tasks, event);
+            return (
+              <View key={event.id}>
+                <Line
+                  title={event.title}
+                  note={[`${clockOf(event.start)}–${clockOf(event.end)}`, meetingNote(bring)]
+                    .filter(Boolean).join('  ·  ')}
+                />
+                {bring.map(item => (
+                  <Text
+                    key={item.id}
+                    style={[groupStyles.bring, item.completed && groupStyles.brought]}
+                  >
+                    {`${item.completed ? '✓' : '·'}  ${item.title}`}
+                  </Text>
+                ))}
+              </View>
+            );
+          })}
           {load.events.length ? (
             <Text style={groupStyles.person}>
               {`${loadLine(load)}${load.next ? `  ·  next at ${clockOf(load.next.start)}` : ''}`}
