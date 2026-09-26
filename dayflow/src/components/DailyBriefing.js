@@ -60,6 +60,52 @@ export default function DailyBriefing({
       note={finishedNote(sum)}
       marker="briefsheet"
     >
+      {/* What the day already contains, before any of the below is possible.
+          A list of fifteen things on a day with two free hours is not a plan,
+          and this is the only section that can say so. */}
+      {load ? (
+        <Section
+          title="Diary"
+          count={load.events.length}
+          empty="Nothing in the calendar today."
+        >
+          {load.allDay.map(event => (
+            <Line key={event.id} title={event.title} note="all day" />
+          ))}
+          {/* The thing this page exists for. A meeting is not just an hour
+              gone; it is an hour you are supposed to walk into with something,
+              and what that something is has lived in somebody's head until
+              now. Listed under the meeting, in the order they were written,
+              with the finished ones marked rather than hidden — "done" is part
+              of the answer to "am I ready". */}
+          {load.events.filter(e => !e.allDay).map(event => {
+            const bring = tasksFor(tasks, event);
+            return (
+              <View key={event.id}>
+                <Line
+                  title={event.title}
+                  note={[`${clockOf(event.start)}–${clockOf(event.end)}`, meetingNote(bring)]
+                    .filter(Boolean).join('  ·  ')}
+                />
+                {bring.map(item => (
+                  <Text
+                    key={item.id}
+                    style={[groupStyles.bring, item.completed && groupStyles.brought]}
+                  >
+                    {`${item.completed ? '✓' : '·'}  ${item.title}`}
+                  </Text>
+                ))}
+              </View>
+            );
+          })}
+          {load.events.length ? (
+            <Text style={groupStyles.person}>
+              {`${loadLine(load)}${load.next ? `  ·  next at ${clockOf(load.next.start)}` : ''}`}
+            </Text>
+          ) : null}
+        </Section>
+      ) : null}
+
       {/* First, because it is the only section that is about a decision you
           have already got wrong once. */}
       <Section title="Late" count={sum.late.length} empty="Nothing carried over.">
