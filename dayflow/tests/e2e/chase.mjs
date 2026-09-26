@@ -135,7 +135,14 @@ async function toDo(title) {
   await box.fill(title); await box.press('Enter'); await page.waitForTimeout(800);
 }
 const openTask = async t => { await page.locator(`text=${t}`).first().click(); await page.waitForTimeout(900); };
-const closeSheet = async w => { await page.getByText(w, { exact: true }).last().click(); await page.waitForTimeout(900); };
+const closeSheet = async w => {
+  await page.getByText(w, { exact: true }).last().click();
+  // Waited out rather than slept through: the sheet slides, and clicking a task
+  // underneath one that is still on its way out lands on the sheet instead.
+  await page.getByText('Edit Task', { exact: true }).first()
+    .waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
+  await page.waitForTimeout(400);
+};
 const tapChase = async () => {
   const btn = page.getByLabel(/^Write a chase to /);
   await btn.scrollIntoViewIfNeeded();
@@ -212,6 +219,82 @@ if (process.env.SHOT) {
   if (await btn.count()) await btn.scrollIntoViewIfNeeded();
   await page.waitForTimeout(500);
   await page.screenshot({ path: process.env.SHOT });
+}
+
+// ── Whether you have already asked ──────────────────────────────────────────
+//
+// The column could say a thing had been waiting three weeks and could write the
+// message asking for it, and knew nothing about whether you had sent one. On
+// Thursday the row read exactly as it had on Monday, before you chased.
+{
+  // The unnamed one is still open from the block above, and a sheet on its way
+  // out swallows the click meant for the row beneath it.
+  await closeSheet('Cancel');
+
+  // A pair of their own. Marchetti and Okafor have been chased various numbers
+  // of times by now, and "chased once" showing somewhere on the page would
+  // answer for a row this block never touched.
+  await oweMe('The signed lease', 'Nakamura');
+  await oweMe('The insurance certificate', 'Nakamura');
+
+  // innerText rather than textContent: a cancelled sheet stays mounted, and its
+  // own "Chased once" would be counted as though it were a row.
+  const saying = async phrase => page.evaluate(
+    p => ((document.body.innerText || '').match(new RegExp(p, 'gi')) || []).length, phrase);
+  const before = await saying('chased once');
+
+  await openTask('The signed lease');
+  // The sheet's line, not the rows': the list behind the sheet is in innerText
+  // too, and Marchetti's rows have been chased plenty by now. Only the sheet
+  // says when it happened, so only the sheet has the dash.
+  const detail = /Chased (once|twice|\d+ times) —/i;
+  ok('nothing is said about chasing before you have',
+     !detail.test(await body()), (await body()).slice(-400));
+  await tapChase();
+  await page.waitForTimeout(900);
+  ok('the sheet says the chase happened',
+     /Chased once/i.test(await body()), (await body()).slice(-400));
+  await closeSheet('Cancel');
+
+  // Cancelled, deliberately: a chase is a thing that happened, not an edit
+  // waiting on Save, and the sheet is not where it gets to be undone.
+  //
+  // Two more rows than before, because the message asked for both of their
+  // things and both of them have therefore been chased.
+  const after = await saying('chased once');
+  ok('it survives the sheet being cancelled, on every task the message covered',
+     after - before === 2, `${before} → ${after}`);
+
+  const twiceBefore = await saying('chased twice');
+  await openTask('The signed lease');
+  await tapChase();
+  await page.waitForTimeout(900);
+  ok('asking again counts again', /Chased twice/i.test(await body()), (await body()).slice(-400));
+  await closeSheet('Cancel');
+  ok('and both rows count with it',
+     (await saying('chased twice')) - twiceBefore === 2,
+     `${twiceBefore} → ${await saying('chased twice')}`);
+  ok('leaving none of theirs still reading once',
+     (await saying('chased once')) === before, String(await saying('chased once')));
+}
+
+// ── Everything one person owes, in one place ────────────────────────────────
+//
+// An executive does not think "which tasks are outstanding", they think "what
+// is outstanding with Marchetti" — and the column is sorted by task, so the
+// answer is scattered down it.
+{
+  await openTask('The signed inventory');
+  const seeAll = page.getByLabel(/^See everything Marchetti owes you$/);
+  ok('the sheet offers to show the lot', (await seeAll.count()) === 1,
+     (await body()).slice(-400));
+  await seeAll.click();
+  await page.waitForTimeout(1200);
+
+  const found = await body();
+  ok('and shows what they owe', found.includes('The signed inventory'), found.slice(0, 400));
+  ok('all of it', found.includes('The meter reading'), found.slice(0, 400));
+  ok('and nobody else\'s', !found.includes('The deposit back'), found.slice(0, 400));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
