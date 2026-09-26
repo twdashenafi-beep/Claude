@@ -1,187 +1,116 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Modal, ScrollView, ActivityIndicator } from 'react-native';
+import React, { useMemo, useState, useEffect } from 'react';
+import { View, Text, ActivityIndicator } from 'react-native';
+import PaperSheet, { Section, Line, TaskLines, groupStyles } from './PaperSheet';
+import { brief, headline, finishedNote } from '../services/briefing';
+import { byPerson, waitedFor } from '../services/reckoning';
+import { chaseLabel } from '../services/chase';
+import { COLORS } from '../utils/theme';
+import { whenPreview, dueMoment } from '../services/due';
 import { getDailySummary, isAIConfigured } from '../services/ai';
 
-const GREETINGS = ['Good morning', 'Good afternoon', 'Good evening'];
-const NUDGES = [
-  "You've got this! One task at a time.",
-  "Start with the hardest task first.",
-  "Small progress is still progress.",
-  "Focus on what matters most today.",
-  "Your future self will thank you.",
-  "Consistency beats intensity.",
-  "Every completed task is a win.",
-];
+// The day, briefed.
+//
+// This page used to be a different app: an iOS-blue card, a percentage bar, a
+// ring of statistics, and a rotating line of encouragement — "Small progress is
+// still progress." Everything else in DayFlow is paper, a serif heading and a
+// red pen, and has no opinion about how you feel. Worse than the mismatch, for
+// anybody running a real week, was the tone: a person reading this at seven in
+// the morning does not need to be told they have got this.
+//
+// So it now asks the morning's four questions in the same shape the Friday page
+// asks the week's, and then stops. What is late, what today holds, who is
+// holding something of yours, and what arrives tomorrow.
 
-function getGreeting() {
-  const h = new Date().getHours();
-  if (h < 12) return GREETINGS[0];
-  if (h < 17) return GREETINGS[1];
-  return GREETINGS[2];
-}
+export default function DailyBriefing({ visible, onClose, tasks = [], archived = [], now }) {
+  const at = useMemo(() => (now ? new Date(now) : new Date()), [visible, now]);
+  const sum = useMemo(
+    () => (visible ? brief(tasks, archived, at) : null),
+    [visible, tasks, archived, at],
+  );
+  const groups = useMemo(() => (sum ? byPerson(sum.waiting) : []), [sum]);
 
-export default function DailyBriefing({ visible, onClose, tasks }) {
-  const todayTasks = tasks.filter(t => t.viewScope === 'day' && t.taskType === 'todo');
-  const openToday = todayTasks.filter(t => !t.completed);
-  const completedToday = todayTasks.filter(t => t.completed);
-  const highPrio = openToday.filter(t => t.priority === 'high');
-  const oweTasks = tasks.filter(t => t.taskType === 'done_for_me' && !t.completed);
-  const owePeople = new Set(oweTasks.map(t => (t.owePerson || '').trim()).filter(Boolean));
-
-  const allWeek = tasks.filter(t => t.viewScope === 'week' && !t.completed);
-  const allMonth = tasks.filter(t => t.viewScope === 'month' && !t.completed);
-
-  // Pick once per opening, not on every render.
-  const nudge = useMemo(() => NUDGES[Math.floor(Math.random() * NUDGES.length)], [visible]);
-
-  // Optional Claude summary. Requires EXPO_PUBLIC_API_URL to point at the
-  // DayFlow API server; without it the briefing below stands on its own.
-  const [aiSummary, setAiSummary] = useState(null);
-  const [aiLoading, setAiLoading] = useState(false);
+  // The optional Claude summary, kept because it was here and because somebody
+  // running their own API server may want it. Off unless EXPO_PUBLIC_API_URL is
+  // set: it is the one thing in the app that sends task titles off the device
+  // in the clear, and the rest of DayFlow promises the server sees ciphertext.
+  const [summary, setSummary] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!visible || !isAIConfigured) return;
-    let cancelled = false;
-    setAiLoading(true);
-    getDailySummary(todayTasks)
-      .then(text => { if (!cancelled) setAiSummary(text); })
-      .finally(() => { if (!cancelled) setAiLoading(false); });
-    return () => { cancelled = true; };
+    if (!visible || !isAIConfigured || !sum) return undefined;
+    let dropped = false;
+    setLoading(true);
+    getDailySummary(sum.today)
+      .then(text => { if (!dropped) setSummary(text); })
+      .finally(() => { if (!dropped) setLoading(false); });
+    return () => { dropped = true; };
   }, [visible]);
 
-  const pct = todayTasks.length > 0 ? Math.round((completedToday.length / todayTasks.length) * 100) : 0;
+  if (!sum) return null;
+
+  // The hour, where there is one. A morning is read down the clock, and a task
+  // with no time on it should not be given a fake one.
+  const hourOf = task => {
+    const moment = dueMoment(task);
+    return moment && moment.timed ? task.dueTime : '';
+  };
+  const wasDue = task => {
+    const moment = dueMoment(task);
+    return moment ? `was due ${whenPreview(moment.at.toISOString(), task.dueTime, at)}` : '';
+  };
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
-      <View style={st.container}>
-        <View style={st.header}>
-          <View />
-          <Text style={st.headerTitle}>Daily Briefing</Text>
-          <TouchableOpacity onPress={onClose}><Text style={st.closeBtn}>Done</Text></TouchableOpacity>
-        </View>
+    <PaperSheet
+      visible={visible}
+      onClose={onClose}
+      title="Today"
+      closeLabel="Close the briefing"
+      headline={headline(sum)}
+      note={finishedNote(sum)}
+      marker="briefsheet"
+    >
+      {isAIConfigured && (loading || summary) ? (
+        <Section title="Summary" count={summary ? 1 : 0} empty="">
+          {loading
+            ? <ActivityIndicator size="small" color={COLORS.inkFaint} />
+            : <Text style={groupStyles.summary}>{summary}</Text>}
+        </Section>
+      ) : null}
 
-        <ScrollView style={st.body}>
-          <Text style={st.greeting}>{getGreeting()} ✦</Text>
+      {/* First, because it is the only section that is about a decision you
+          have already got wrong once. */}
+      <Section title="Late" count={sum.late.length} empty="Nothing carried over.">
+        <TaskLines tasks={sum.late} noteOf={wasDue} />
+      </Section>
 
-          {/* AI summary */}
-          {isAIConfigured && (aiLoading || aiSummary) && (
-            <View style={[st.card, st.aiCard]}>
-              <Text style={st.cardTitle}>✦ Summary</Text>
-              {aiLoading ? (
-                <ActivityIndicator size="small" color="#007AFF" />
-              ) : (
-                <Text style={st.aiText}>{aiSummary}</Text>
-              )}
-            </View>
-          )}
+      <Section title="Today" count={sum.today.length} empty="Nothing on today's page.">
+        <TaskLines tasks={sum.today} noteOf={hourOf} />
+      </Section>
 
-          {/* Today summary */}
-          <View style={st.card}>
-            <Text style={st.cardTitle}>Today</Text>
-            <View style={st.statRow}>
-              <View style={st.stat}>
-                <Text style={st.statNum}>{openToday.length}</Text>
-                <Text style={st.statLabel}>Open</Text>
-              </View>
-              <View style={st.stat}>
-                <Text style={[st.statNum, { color: '#34C759' }]}>{completedToday.length}</Text>
-                <Text style={st.statLabel}>Done</Text>
-              </View>
-              <View style={st.stat}>
-                <Text style={[st.statNum, { color: '#007AFF' }]}>{pct}%</Text>
-                <Text style={st.statLabel}>Complete</Text>
-              </View>
-            </View>
-            {/* Progress bar */}
-            <View style={st.progressBg}>
-              <View style={[st.progressFill, { width: `${pct}%` }]} />
-            </View>
+      <Section
+        title="Waiting on"
+        count={sum.waiting.length}
+        empty="Nobody is holding anything of yours."
+      >
+        {groups.map(group => (
+          <View key={group.person.toLowerCase()} style={groupStyles.group}>
+            <Text style={groupStyles.person}>{group.person}</Text>
+            {group.tasks.map(task => (
+              <Line
+                key={task.id}
+                title={task.title}
+                note={[waitedFor(task, at), chaseLabel(task)].filter(Boolean).join('  ·  ')}
+              />
+            ))}
           </View>
+        ))}
+      </Section>
 
-          {/* High priority */}
-          {highPrio.length > 0 && (
-            <View style={st.card}>
-              <Text style={st.cardTitle}>🔴 High Priority</Text>
-              {highPrio.map(t => (
-                <Text key={t.id} style={st.taskLine}>• {t.title}</Text>
-              ))}
-            </View>
-          )}
-
-          {/* Week & Month overview */}
-          <View style={st.card}>
-            <Text style={st.cardTitle}>Upcoming</Text>
-            <View style={st.statRow}>
-              <View style={st.stat}>
-                <Text style={[st.statNum, { color: '#34C759' }]}>{allWeek.length}</Text>
-                <Text style={st.statLabel}>This Week</Text>
-              </View>
-              <View style={st.stat}>
-                <Text style={[st.statNum, { color: '#FF9500' }]}>{allMonth.length}</Text>
-                <Text style={st.statLabel}>This Month</Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Owe Me */}
-          {oweTasks.length > 0 && (
-            <View style={st.card}>
-              <Text style={st.cardTitle}>Owe Me</Text>
-              <Text style={st.oweTotal}>
-                Waiting on {oweTasks.length} {oweTasks.length === 1 ? 'item' : 'items'}
-                {owePeople.size > 0
-                  ? ` from ${owePeople.size} ${owePeople.size === 1 ? 'person' : 'people'}`
-                  : ''}
-              </Text>
-              {oweTasks.slice(0, 3).map(t => (
-                <Text key={t.id} style={st.taskLine}>
-                  • {t.title}{t.owePerson ? ` — ${t.owePerson}` : ''}
-                </Text>
-              ))}
-            </View>
-          )}
-
-          {/* Motivational nudge */}
-          <View style={[st.card, st.nudgeCard]}>
-            <Text style={st.nudge}>✦ {nudge}</Text>
-          </View>
-
-          <View style={{ height: 40 }} />
-        </ScrollView>
-      </View>
-    </Modal>
+      {/* So that nothing arrives as a surprise, and while there is still an
+          evening in which to move it. */}
+      <Section title="Tomorrow" count={sum.tomorrow.length} empty="Nothing dated tomorrow.">
+        <TaskLines tasks={sum.tomorrow} noteOf={hourOf} />
+      </Section>
+    </PaperSheet>
   );
 }
-
-const st = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F2F2F7' },
-  header: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 20, paddingTop: 16, paddingBottom: 16,
-    backgroundColor: '#FFF', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E5E5EA',
-  },
-  headerTitle: { fontSize: 17, fontWeight: '600', color: '#000' },
-  closeBtn: { fontSize: 17, color: '#007AFF', fontWeight: '600' },
-  body: { padding: 20 },
-  greeting: { fontSize: 28, fontWeight: '700', color: '#000', marginBottom: 20 },
-  card: {
-    backgroundColor: '#FFF', borderRadius: 12, padding: 16, marginBottom: 12,
-  },
-  cardTitle: { fontSize: 15, fontWeight: '600', color: '#000', marginBottom: 12 },
-  statRow: { flexDirection: 'row', gap: 16, marginBottom: 12 },
-  stat: { alignItems: 'center', flex: 1 },
-  statNum: { fontSize: 28, fontWeight: '700', color: '#000' },
-  statLabel: { fontSize: 12, color: '#8E8E93', marginTop: 2 },
-  progressBg: {
-    height: 6, backgroundColor: '#F2F2F7', borderRadius: 3, overflow: 'hidden',
-  },
-  progressFill: {
-    height: 6, backgroundColor: '#34C759', borderRadius: 3,
-  },
-  taskLine: { fontSize: 14, color: '#333', marginBottom: 6, lineHeight: 20 },
-  oweTotal: { fontSize: 14, color: '#8E8E93', marginBottom: 8 },
-  aiCard: { backgroundColor: '#FFF' },
-  aiText: { fontSize: 15, color: '#333', lineHeight: 22 },
-  nudgeCard: { backgroundColor: '#E8F0FE' },
-  nudge: { fontSize: 15, color: '#007AFF', fontWeight: '500', lineHeight: 22 },
-});

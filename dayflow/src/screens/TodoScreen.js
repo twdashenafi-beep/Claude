@@ -965,7 +965,12 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
         </View>
       ) : null}
 
-      <DailyBriefing visible={showBriefing} onClose={() => setShowBriefing(false)} tasks={tasks} />
+      <DailyBriefing
+        visible={showBriefing}
+        onClose={() => setShowBriefing(false)}
+        tasks={tasks}
+        archived={archived}
+      />
       <WeekReckoning
         visible={showWeek}
         onClose={() => setShowWeek(false)}

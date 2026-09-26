@@ -227,11 +227,59 @@ if (process.env.SHOT) {
 }
 
 // ── And closes ──────────────────────────────────────────────────────────────
+// (the briefing block below reopens nothing, so this stays where it is)
 await page.getByLabel('Close the week').click();
 await page.waitForTimeout(900);
 const after = await body();
 ok('it closes and leaves the page as it was', !/FINISHED/i.test(after), after.slice(0, 300));
 ok('with the list still there', after.includes('Pay the invoice'), after.slice(0, 400));
+
+// ── The day, briefed ────────────────────────────────────────────────────────
+//
+// The morning's version of the same page. It used to be a different app — an
+// iOS-blue card, a percentage bar and a line of encouragement — and the thing
+// worth testing about the rewrite is that it now asks the day's questions and
+// says nothing else.
+{
+  await page.getByLabel('Open the daily briefing').click();
+  await page.waitForTimeout(1200);
+  const brief = await page.locator('[data-briefsheet]').first().innerText();
+
+  // Two: the gym membership sitting on today's page, and the invoice dated for
+  // today. The quarterly review is next week's and the board pack is finished.
+  ok('the day opens on one honest line',
+     /2 today/.test(brief) && /1 waiting on 1 person/.test(brief), brief.slice(0, 300));
+  ok('and says what has been finished', /1 thing finished today/.test(brief),
+     brief.slice(0, 300));
+
+  ok('the morning asks its own four questions',
+     /LATE/i.test(brief) && /TODAY/i.test(brief)
+     && /WAITING ON/i.test(brief) && /TOMORROW/i.test(brief), brief.slice(0, 400));
+
+  // Due at nine this morning, read at three this afternoon. Late in the day's
+  // terms is not late in the week's: the weekly page calls it slipped from the
+  // moment the hour passes, and the morning only counts what was dated before
+  // today, or the section would fill up with things you are simply partway
+  // through.
+  ok('what is dated today is today\'s, not yesterday\'s failure',
+     brief.includes('Pay the invoice'), brief.slice(0, 600));
+  ok('nothing is carried over', /Nothing carried over/i.test(brief), brief.slice(0, 600));
+
+  ok('who is holding something of yours', brief.includes('Marchetti'), brief.slice(0, 900));
+  ok('and how long', /asked/i.test(brief), brief.slice(0, 900));
+
+  ok('nothing is dated tomorrow', /Nothing dated tomorrow/i.test(brief), brief.slice(0, 900));
+
+  // The whole point of the rewrite.
+  ok('and it does not tell you that you have got this',
+     !/you.?ve got this|small progress|future self|one task at a time/i.test(brief),
+     brief.slice(0, 900));
+  ok('nor score the day out of a hundred', !/%/.test(brief), brief.slice(0, 900));
+
+  await page.getByLabel('Close the briefing').click();
+  await page.waitForTimeout(900);
+  ok('and it closes', !/LATE/i.test(await body()), (await body()).slice(0, 300));
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();
