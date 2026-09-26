@@ -185,6 +185,29 @@ export function dueLabel(task, now = new Date()) {
   };
 }
 
+// What a date looks like before the task exists.
+//
+// Deliberately more explicit than dueLabel. A label on a row is read inside a
+// list, where "Mon" is plenty; a preview is the last moment anybody can notice
+// that "Monday the 28th" was heard as a different day entirely — so it names
+// the weekday and the date, and lets you check one against the other.
+export function whenPreview(dueDate, dueTime, now = new Date()) {
+  if (!dueDate) return null;
+  const at = new Date(dueDate);
+  if (Number.isNaN(at.getTime())) return null;
+
+  const time = typeof dueTime === 'string' && /^\d{1,2}:\d{2}$/.test(dueTime) ? dueTime : '';
+  const stamp = time ? ` ${time}` : '';
+  const offset = daysBetween(now, at);
+
+  if (offset === 0) return `Today${stamp}`;
+  if (offset === 1) return `Tomorrow${stamp}`;
+  if (offset === -1) return `Yesterday${stamp}`;
+
+  const day = DAY_NAMES[at.getDay()].slice(0, 3);
+  return `${day} ${at.getDate()} ${MONTHS[at.getMonth()]}${stamp}`;
+}
+
 // The same thing for a screen reader, which has room for whole words.
 export function dueSpoken(task, now = new Date()) {
   const label = dueLabel(task, now);

@@ -7,7 +7,7 @@
 // when it says something the default could not have said.
 //
 // Run with `npm test`.
-import { dueLabel, dueSpoken, dueMoment, calendarWindow } from '../src/services/due.js';
+import { dueLabel, dueSpoken, dueMoment, calendarWindow, whenPreview } from '../src/services/due.js';
 
 let pass = 0, fail = 0;
 const ok = (label, cond, extra = '') => {
@@ -297,6 +297,40 @@ ok('and silence stays silent', dueSpoken(on('2026-09-09'), NOW) === null);
     if (!(w.endDate > w.startDate)) backwards = JSON.stringify(w);
   }
   ok('an event never ends before it starts', backwards === null, backwards || '');
+}
+
+// ── What a date looks like before the task exists ───────────────────────────
+//
+// More explicit than the label on a row, and deliberately so. A row is read
+// inside a list, where "Mon" is plenty; a preview is the last moment anybody
+// can notice that "Monday the 28th" was heard as a different day — so it names
+// the weekday and the date, and lets one be checked against the other.
+{
+  const at = (y, m, d, h = 0, min = 0) => new Date(y, m, d, h, min).toISOString();
+
+  ok('nothing has no preview', whenPreview(null, '', NOW) === null);
+  ok('nor does nonsense', whenPreview('not a date', '', NOW) === null);
+
+  ok('today says today', whenPreview(at(2026, 8, 9), '', NOW) === 'Today');
+  ok('with the time when there is one',
+     whenPreview(at(2026, 8, 9, 11), '11:00', NOW) === 'Today 11:00');
+  ok('tomorrow says tomorrow', whenPreview(at(2026, 8, 10), '', NOW) === 'Tomorrow');
+  ok('yesterday says so rather than guessing',
+     whenPreview(at(2026, 8, 8), '', NOW) === 'Yesterday');
+
+  // The one that matters: a day far enough away to be worth checking.
+  ok('anything else names the day and the date',
+     whenPreview(at(2026, 8, 28, 11), '11:00', NOW) === 'Mon 28 Sep 11:00',
+     whenPreview(at(2026, 8, 28, 11), '11:00', NOW));
+  ok('and without a time when there is none',
+     whenPreview(at(2026, 8, 28), '', NOW) === 'Mon 28 Sep',
+     whenPreview(at(2026, 8, 28), '', NOW));
+  ok('months away is the same shape',
+     whenPreview(at(2026, 11, 3, 15, 30), '15:30', NOW) === 'Thu 3 Dec 15:30',
+     whenPreview(at(2026, 11, 3, 15, 30), '15:30', NOW));
+
+  ok('a time that is not a time is left off',
+     whenPreview(at(2026, 8, 28), 'elevenish', NOW) === 'Mon 28 Sep');
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

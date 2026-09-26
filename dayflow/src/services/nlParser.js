@@ -9,6 +9,84 @@ const PRIORITY_KEYWORDS = {
   low: ['low priority', 'low prio', 'whenever', 'no rush', 'eventually'],
 };
 
+// ── Dates as people say them ────────────────────────────────────────────────
+//
+// The list above understands "tomorrow" and "next Monday" and nothing between
+// them. What it did not understand is the commonest way anybody names a day out
+// loud: "Monday", "the 28th", "Monday 28". Said to the quick-add box, those
+// words stayed in the title — so you got a task called "Update Eddy, Monday 28"
+// with no date on it, which is worse than not trying.
+//
+// Pure, and separated from the patterns so the awkward parts can be tested
+// without a regex in the way.
+
+const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+const MONTH_NAMES = [
+  'january', 'february', 'march', 'april', 'may', 'june',
+  'july', 'august', 'september', 'october', 'november', 'december',
+];
+
+const startOfDay = date => {
+  const copy = new Date(date);
+  copy.setHours(0, 0, 0, 0);
+  return copy;
+};
+
+// "Monday" means the Monday coming. Today, if today is Monday: somebody saying
+// it on a Monday morning means this evening, not in a week's time — and if they
+// did mean next week, "next Monday" is already understood and says so.
+export function weekdayOn(name, now = new Date()) {
+  const wanted = WEEKDAYS.indexOf(String(name || '').toLowerCase());
+  if (wanted < 0) return null;
+  const at = startOfDay(now);
+  const shift = (wanted - at.getDay() + 7) % 7;
+  at.setDate(at.getDate() + shift);
+  return at;
+}
+
+// "the 28th" means the next 28th there is: this month if it has not gone, the
+// month after if it has. Months are walked one at a time rather than added to,
+// because the 31st does not exist in four of them and landing on the 1st of the
+// next month is not what anybody meant.
+export function dayOfMonthOn(day, now = new Date(), monthName = null) {
+  const wanted = Number(day);
+  if (!Number.isInteger(wanted) || wanted < 1 || wanted > 31) return null;
+
+  const named = monthName === null ? -1 : MONTH_NAMES.indexOf(String(monthName).toLowerCase());
+  const from = startOfDay(now);
+
+  for (let ahead = 0; ahead < 24; ahead += 1) {
+    const at = new Date(from.getFullYear(), from.getMonth() + ahead, 1);
+    // A month was named: skip along until it comes round.
+    if (named >= 0 && at.getMonth() !== named) continue;
+    const lastDay = new Date(at.getFullYear(), at.getMonth() + 1, 0).getDate();
+    if (wanted > lastDay) continue;
+    at.setDate(wanted);
+    if (at >= from) return at;
+  }
+  return null;
+}
+
+// Which page a specific date belongs on. Today and tomorrow are the day's work;
+// the rest of the week is the week's; anything further out is the month's.
+export function scopeFor(date, now = new Date()) {
+  if (!date) return 'day';
+  const days = Math.round((startOfDay(date) - startOfDay(now)) / 86400000);
+  if (days <= 1) return 'day';
+  if (days <= 7) return 'week';
+  return 'month';
+}
+
+const DAY_WORD = WEEKDAYS.join('|');
+const MONTH_WORD = MONTH_NAMES.map(m => `${m}|${m.slice(0, 3)}`).join('|');
+// A weekday only counts as a date where it is being used as one: after a
+// preposition, after a comma, or at the very end of what was said. Left
+// unanchored it eats the word out of "Move the Monday meeting to Friday" and
+// dates the task wrongly into the bargain. Never possessive, either —
+// "Monday's meeting" is a thing, not a day.
+const LEAD = '(?:^|,\\s*|\\b(?:on|for|by|to)\\s+)';
+const NOT_POSSESSIVE = "(?![\u2019']s)";
+
 const TIME_PATTERNS = [
   // "at 11am", "at 3:30pm", "at 14:00"
   { regex: /\bat\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i, handler: (m) => parseTime(m[1], m[2], m[3]) },
@@ -37,6 +115,51 @@ const DATE_PATTERNS = [
   // "in 2 weeks"
   { regex: /\bin\s+(\d+)\s+weeks?\b/i, handler: (m) => ({ date: addDays(new Date(), parseInt(m[1]) * 7), scope: 'week' }) },
 ];
+
+// Added after the list above rather than inside it, and read after it, so that
+// the phrases already understood keep their existing meanings: "next Monday"
+// is matched by its own entry before a bare weekday ever gets a look.
+//
+// Within this list the order is longest-first. "Monday 28" has to be tried
+// before "Monday" and before "28", or the first half matches and the second is
+// left in the title.
+const SPOKEN_DATE_PATTERNS = [
+  // "Monday 28", "Monday the 28th", "on Monday the 3rd"
+  {
+    regex: new RegExp(`\\b(?:on|for|by)?\\s*(${DAY_WORD})\\s+(?:the\\s+)?(\\d{1,2})(?:st|nd|rd|th)?\\b`, 'i'),
+    // The number wins when the two disagree. A date is a fact and a weekday is
+    // a memory of one, and the preview shows which day it landed on anyway.
+    handler: m => ({ date: dayOfMonthOn(m[2], new Date()) }),
+  },
+  // "28 September", "3rd of October", "Sept 28"
+  {
+    regex: new RegExp(`\\b(?:on|for|by)?\\s*(\\d{1,2})(?:st|nd|rd|th)?\\s+(?:of\\s+)?(${MONTH_WORD})\\b`, 'i'),
+    handler: m => ({ date: dayOfMonthOn(m[1], new Date(), fullMonth(m[2])) }),
+  },
+  {
+    regex: new RegExp(`\\b(?:on|for|by)?\\s*(${MONTH_WORD})\\s+(?:the\\s+)?(\\d{1,2})(?:st|nd|rd|th)?\\b`, 'i'),
+    handler: m => ({ date: dayOfMonthOn(m[2], new Date(), fullMonth(m[1])) }),
+  },
+  // "the 28th", "on the 3rd"
+  {
+    regex: /\b(?:on\s+)?the\s+(\d{1,2})(?:st|nd|rd|th)\b/i,
+    handler: m => ({ date: dayOfMonthOn(m[1], new Date()) }),
+  },
+  // "on Monday", "by Friday", "…, Tuesday", or a weekday ending the sentence.
+  {
+    regex: new RegExp(`${LEAD}(${DAY_WORD})${NOT_POSSESSIVE}\\b`, 'i'),
+    handler: m => ({ date: weekdayOn(m[1], new Date()) }),
+  },
+  {
+    regex: new RegExp(`\\b(${DAY_WORD})${NOT_POSSESSIVE}\\s*$`, 'i'),
+    handler: m => ({ date: weekdayOn(m[1], new Date()) }),
+  },
+];
+
+function fullMonth(word) {
+  const said = String(word || '').toLowerCase();
+  return MONTH_NAMES.find(name => name === said || name.slice(0, 3) === said) || null;
+}
 
 function parseTime(hourStr, minStr, period) {
   let hour = parseInt(hourStr, 10);
@@ -202,16 +325,18 @@ export function parseNaturalLanguage(input) {
     }
   }
 
-  // Extract date
-  for (const pat of DATE_PATTERNS) {
+  // Extract date. The phrases that were always understood are tried first, so
+  // none of them changes meaning; the ones people actually say are tried after.
+  for (const pat of [...DATE_PATTERNS, ...SPOKEN_DATE_PATTERNS]) {
     const match = text.match(pat.regex);
-    if (match) {
-      const result = pat.handler(match);
-      date = result.date;
-      viewScope = result.scope;
-      removeParts.push({ start: match.index, end: match.index + match[0].length });
-      break;
-    }
+    if (!match) continue;
+    const result = pat.handler(match);
+    // A pattern can match and still decline — "the 32nd" is not a date.
+    if (!result || !result.date) continue;
+    date = result.date;
+    viewScope = result.scope || scopeFor(result.date);
+    removeParts.push({ start: match.index, end: match.index + match[0].length });
+    break;
   }
 
   // Clean title: remove extracted parts
@@ -221,6 +346,9 @@ export function parseNaturalLanguage(input) {
     title = title.slice(0, part.start) + title.slice(part.end);
   }
   title = title.replace(/\s+/g, ' ').replace(/^\s+|\s+$/g, '');
+  // "Update Eddy, Monday 28" leaves "Update Eddy," once the date is cut out.
+  // The comma was joining two halves and only one of them is left.
+  title = title.replace(/^[,;:\u2013\u2014-]+\s*/, '').replace(/\s*[,;:\u2013\u2014-]+$/, '').trim();
 
   // Build date ISO
   let dateISO = null;
