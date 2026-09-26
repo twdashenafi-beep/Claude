@@ -18,7 +18,7 @@
 //
 // Pure: the clock is passed in, and so is every task.
 
-import { dueMoment } from './due.js';
+import { dueMoment, mattersAt } from './due.js';
 import { scopeNow } from './scope.js';
 
 function startOfDay(date) {
@@ -63,14 +63,6 @@ function byTimeThenOrder(a, b) {
 
 const byOldest = (a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
 
-// When a thing starts mattering: the date somebody put on it, or failing that
-// the day it was asked for, since an old ask is its own kind of deadline.
-function mattersAt(task) {
-  const moment = dueMoment(task);
-  if (moment) return moment.at.getTime();
-  const made = task && task.createdAt ? new Date(task.createdAt) : null;
-  return made && !Number.isNaN(made.getTime()) ? made.getTime() : 0;
-}
 
 export function brief(tasks = [], archived = [], now = new Date()) {
   const at = new Date(now);

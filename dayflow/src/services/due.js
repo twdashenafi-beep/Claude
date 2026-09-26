@@ -263,6 +263,20 @@ export function whenPreview(dueDate, dueTime, now = new Date()) {
   return `${day} ${at.getDate()} ${MONTHS[at.getMonth()]}${stamp}`;
 }
 
+// When a thing starts mattering: the date somebody put on it, or failing that
+// the day it was asked for, since an old ask is its own kind of deadline.
+//
+// Here rather than in the pages that use it. Two summaries needed this rule and
+// the second copy of it would have been written today — which is exactly how
+// the reminder clock and the label clock came to disagree about when a task was
+// due, an hour before anybody noticed.
+export function mattersAt(task) {
+  const moment = dueMoment(task);
+  if (moment) return moment.at.getTime();
+  const made = task && task.createdAt ? new Date(task.createdAt) : null;
+  return made && !Number.isNaN(made.getTime()) ? made.getTime() : 0;
+}
+
 // The same thing for a screen reader, which has room for whole words.
 export function dueSpoken(task, now = new Date()) {
   const label = dueLabel(task, now);

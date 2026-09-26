@@ -204,6 +204,12 @@ ok('a task nobody dated has not slipped', !sheet.includes('Cancel the gym member
 ok('all four questions are asked',
    /FINISHED/i.test(sheet) && /SLIPPED/i.test(sheet)
    && /WAITING ON/i.test(sheet) && /NEXT WEEK/i.test(sheet), sheet.slice(0, 400));
+// What is behind you, then what is ahead, then what somebody else is holding.
+// It read between the two halves of that and broke the spine of the page.
+ok('and read in that order, with what others hold at the end',
+   sheet.indexOf('FINISHED') < sheet.indexOf('SLIPPED')
+   && sheet.indexOf('SLIPPED') < sheet.indexOf('NEXT WEEK')
+   && sheet.indexOf('NEXT WEEK') < sheet.indexOf('WAITING ON'), sheet.slice(0, 400));
 
 // ── Read aloud ──────────────────────────────────────────────────────────────
 //

@@ -63,13 +63,17 @@ export default function WeekReckoning({ visible, onClose, tasks = [], archived =
         <TaskLines tasks={sum.slipped} noteOf={wasDue} />
       </Section>
 
+      <Section title="Next week" count={sum.ahead.length} empty="Nothing dated yet.">
+        <TaskLines tasks={sum.ahead} noteOf={willBeDue} />
+      </Section>
+
       {/* Gathered under the person rather than listed by task, because the
           decision this informs is about a person: one more email, or a phone
           call. */}
       <Section
         title="Waiting on"
         count={sum.waiting.length}
-        empty="Nobody is holding anything of yours."
+        empty="Nothing owed to you is due yet."
       >
         {groups.map(group => (
           <View key={group.person.toLowerCase()} style={groupStyles.group}>
@@ -83,10 +87,6 @@ export default function WeekReckoning({ visible, onClose, tasks = [], archived =
             ))}
           </View>
         ))}
-      </Section>
-
-      <Section title="Next week" count={sum.ahead.length} empty="Nothing dated yet.">
-        <TaskLines tasks={sum.ahead} noteOf={willBeDue} />
       </Section>
     </PaperSheet>
   );
