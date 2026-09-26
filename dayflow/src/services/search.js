@@ -1,3 +1,4 @@
+import { scopeNow } from './scope.js';
 // Searching.
 //
 // A task can now be in one of three scopes, in either of two columns, in any
@@ -103,7 +104,10 @@ export function locationOf(task, projectLabel) {
   // The archive is a different place, not a different scope, so it replaces
   // the scope rather than sitting beside it.
   if (task.archivedAt) parts.push('Archive');
-  else parts.push(SCOPES[task.viewScope] || 'Day');
+  // Where it is showing now, not where it was filed: a search result says how
+  // to find the thing again, and following it to the Week page to discover it
+  // has come forward to Day is the one answer that is worse than none.
+  else parts.push(SCOPES[scopeNow(task)] || 'Day');
 
   parts.push(task.taskType === 'done_for_me' ? 'Owe Me' : 'To Do');
   if (projectLabel) parts.push(projectLabel);

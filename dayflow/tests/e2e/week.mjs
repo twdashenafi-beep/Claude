@@ -219,6 +219,13 @@ ok('and the number is not read out a second time',
    String(await page.locator('[data-weeksheet] [aria-hidden="true"]').count()));
 ok('the way out is named',
    (await page.getByLabel('Close the week').count()) === 1);
+// The accessibility sweep opens the briefing and not this page, so its twin
+// went unchecked — and the shared header is exactly where the target shrank.
+{
+  const box = await page.getByLabel('Close the week').boundingBox();
+  ok('and big enough to hit', box && box.height >= 24 && box.width >= 24,
+     box ? `${Math.round(box.width)}x${Math.round(box.height)}` : 'no box');
+}
 
 if (process.env.SHOT) {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -227,11 +234,144 @@ if (process.env.SHOT) {
 }
 
 // ── And closes ──────────────────────────────────────────────────────────────
+// (the briefing block below reopens nothing, so this stays where it is)
 await page.getByLabel('Close the week').click();
 await page.waitForTimeout(900);
 const after = await body();
 ok('it closes and leaves the page as it was', !/FINISHED/i.test(after), after.slice(0, 300));
 ok('with the list still there', after.includes('Pay the invoice'), after.slice(0, 400));
+
+// ── The day, briefed ────────────────────────────────────────────────────────
+//
+// The morning's version of the same page. It used to be a different app — an
+// iOS-blue card, a percentage bar and a line of encouragement — and the thing
+// worth testing about the rewrite is that it now asks the day's questions and
+// says nothing else.
+{
+  await page.getByLabel('Open the daily briefing').click();
+  await page.waitForTimeout(1200);
+  const brief = await page.locator('[data-briefsheet]').first().innerText();
+
+  // Two: the gym membership sitting on today's page, and the invoice dated for
+  // today. The quarterly review is next week's and the board pack is finished.
+  ok('the day opens on one honest line',
+     /2 today/.test(brief) && /1 waiting on 1 person/.test(brief), brief.slice(0, 300));
+  ok('and says what has been finished', /1 thing finished today/.test(brief),
+     brief.slice(0, 300));
+
+  ok('the morning asks its own four questions',
+     /LATE/i.test(brief) && /TODAY/i.test(brief)
+     && /WAITING ON/i.test(brief) && /TOMORROW/i.test(brief), brief.slice(0, 400));
+
+  // Due at nine this morning, read at three this afternoon. Late in the day's
+  // terms is not late in the week's: the weekly page calls it slipped from the
+  // moment the hour passes, and the morning only counts what was dated before
+  // today, or the section would fill up with things you are simply partway
+  // through.
+  ok('what is dated today is today\'s, not yesterday\'s failure',
+     brief.includes('Pay the invoice'), brief.slice(0, 600));
+  ok('nothing is carried over', /Nothing carried over/i.test(brief), brief.slice(0, 600));
+
+  ok('who is holding something of yours', brief.includes('Marchetti'), brief.slice(0, 900));
+  ok('and how long', /asked/i.test(brief), brief.slice(0, 900));
+
+  ok('nothing is dated tomorrow', /Nothing dated tomorrow/i.test(brief), brief.slice(0, 900));
+
+  // The whole point of the rewrite.
+  ok('and it does not tell you that you have got this',
+     !/you.?ve got this|small progress|future self|one task at a time/i.test(brief),
+     brief.slice(0, 900));
+  ok('nor score the day out of a hundred', !/%/.test(brief), brief.slice(0, 900));
+
+  await page.getByLabel('Close the briefing').click();
+  await page.waitForTimeout(900);
+  ok('and it closes', !/LATE/i.test(await body()), (await body()).slice(0, 300));
+}
+
+// ── A task comes to meet the day ────────────────────────────────────────────
+//
+// The three pages are a horizon, not three folders. A thing put on the week
+// because it was due Friday is, on Friday, a thing for today — and walking it
+// across by hand is a chore that fails in the worst possible way when you
+// forget it, because the one thing due today is then the one thing not on
+// today's page.
+{
+  await page.getByLabel('Show week tasks').click();
+  await page.waitForTimeout(700);
+  await toDo('Call the auditors at 4pm');
+
+  // Filed on the week, dated for today.
+  ok('it is not left sitting on the week',
+     !(await body()).includes('Call the auditors'), (await body()).slice(0, 600));
+
+  await page.getByLabel('Show day tasks').click();
+  await page.waitForTimeout(700);
+  const dayPage = await body();
+  ok('it has come to today\'s page on its own',
+     dayPage.includes('Call the auditors'), dayPage.slice(0, 700));
+  ok('and says where it came from, so the page does not look wrong',
+     /from the week/i.test(dayPage), dayPage.slice(0, 700));
+
+  // The negative half, and the one that matters: a week task whose date is
+  // still ahead stays where it was put. Without this the whole of the week
+  // would arrive on the day, because every task carries a date whether or not
+  // anybody chose one.
+  ok('while one still ahead of itself stays on the week',
+     !dayPage.includes('Quarterly review'), dayPage.slice(0, 700));
+
+  await page.getByLabel('Show week tasks').click();
+  await page.waitForTimeout(700);
+  ok('which is where it still is', (await body()).includes('Quarterly review'),
+     (await body()).slice(0, 600));
+  await page.getByLabel('Show day tasks').click();
+  await page.waitForTimeout(700);
+}
+
+// ── Tomorrow, the night before ──────────────────────────────────────────────
+//
+// The moment anybody wants to know what tomorrow holds is the evening before,
+// not at seven the next morning when it is too late to have thought about it.
+// So the day turns over at nine while there is still an evening left in it.
+//
+// Dated Monday rather than tomorrow on purpose: typing "tomorrow" files a task
+// on the day's page at the moment it is written, so it would never have to
+// travel and would prove nothing about whether it can.
+{
+  await page.getByLabel('Show week tasks').click();
+  await page.waitForTimeout(700);
+  await toDo('Call Bob Monday at 11am');
+  ok('a thing for Monday sits on the week on Friday',
+     (await body()).includes('Call Bob'), (await body()).slice(0, 700));
+
+  await page.getByLabel('Show day tasks').click();
+  await page.waitForTimeout(700);
+  ok('and is not on today\'s page', !(await body()).includes('Call Bob'),
+     (await body()).slice(0, 700));
+
+  // Sunday evening, eight o'clock. Still the week's.
+  await page.clock.setFixedTime(new Date('2026-10-04T20:00:00'));
+  await page.waitForTimeout(22000);
+  ok('nor at eight the evening before', !(await body()).includes('Call Bob'),
+     (await body()).slice(0, 700));
+
+  // Half past nine. The page works the horizon out on a twenty-second timer —
+  // the same one that raises reminders — so it catches up within a tick rather
+  // than at the instant the clock passes nine, and the test waits that out
+  // rather than pretending otherwise.
+  await page.clock.setFixedTime(new Date('2026-10-04T21:30:00'));
+  await page.waitForTimeout(22000);
+  const evening = await body();
+  ok('by half past nine it has come to today\'s page', evening.includes('Call Bob'),
+     evening.slice(0, 800));
+  ok('saying when it is due', /Tomorrow 11:00/.test(evening), evening.slice(0, 800));
+  ok('and where it came from, so the page does not look wrong',
+     /from the week/i.test(evening), evening.slice(0, 800));
+
+  // The other Monday task comes with it, which is right — it is the same
+  // evening and the same tomorrow.
+  ok('and everything else for tomorrow comes with it',
+     evening.includes('Quarterly review'), evening.slice(0, 800));
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();
