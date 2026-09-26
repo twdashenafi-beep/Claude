@@ -111,6 +111,15 @@ const task = (extra = {}) => ({
            owePerson: 'Marchetti', createdAt: iso(2026, 9, 18), chases: [iso(2026, 9, 29)] }),
     task({ id: 'j', title: 'The deposit back', taskType: 'done_for_me',
            owePerson: 'Okafor', createdAt: iso(2026, 9, 24) }),
+    // Promised for November. Not this week's business, whatever the column
+    // says — and the column still says it, which is the point.
+    task({ id: 'm', title: 'The annual accounts', taskType: 'done_for_me',
+           owePerson: 'Marchetti', createdAt: iso(2026, 9, 25),
+           dueDate: iso(2026, 11, 20), dueTime: '09:00' }),
+    // Promised for the middle of next week: as far ahead as this page looks.
+    task({ id: 'p', title: 'The revised quote', taskType: 'done_for_me',
+           owePerson: 'Okafor', createdAt: iso(2026, 9, 26),
+           dueDate: iso(2026, 10, 7), dueTime: '09:00' }),
     // Owed and already arrived.
     task({ id: 'k', title: 'The keys', taskType: 'done_for_me', owePerson: 'Okafor',
            completed: true, completedAt: iso(2026, 9, 30) }),
@@ -130,10 +139,18 @@ const task = (extra = {}) => ({
   ok('a task nobody dated has not slipped', !sum.slipped.some(t => t.id === 'g'));
   ok('nor has one that is still ahead', !sum.slipped.some(t => t.id === 'e'));
 
-  ok('what is still owed is counted', sum.waiting.length === 3,
+  ok('what is still owed and near enough is counted', sum.waiting.length === 4,
      sum.waiting.map(t => t.title).join(', '));
   ok('what has arrived is not', !sum.waiting.some(t => t.id === 'k'));
-  ok('oldest first', sum.waiting[0].id === 'h', sum.waiting.map(t => t.id).join(''));
+  // The horizon is the page's own: as far ahead as the section below it looks.
+  ok('a promise for November is not this week\'s business',
+     !sum.waiting.some(t => t.id === 'm'), sum.waiting.map(t => t.title).join(', '));
+  ok('but the middle of next week is', sum.waiting.some(t => t.id === 'p'));
+  ok('and so is one nobody dated', sum.waiting.some(t => t.id === 'j'));
+  ok('in the order they start mattering', sum.waiting[0].id === 'h',
+     sum.waiting.map(t => t.id).join(''));
+  ok('which puts next week\'s last', sum.waiting[3].id === 'p',
+     sum.waiting.map(t => t.id).join(''));
   ok('and the people are counted, not the tasks', sum.people === 2, String(sum.people));
 
   // The inventory has been owed since 10 September and its date is long gone.
@@ -146,11 +163,17 @@ const task = (extra = {}) => ({
      sum.waiting.some(t => t.id === 'h'));
 
   ok('next week is next week', sum.ahead.length === 1, sum.ahead.map(t => t.title).join(', '));
+  // Slipped has excluded other people's things from the start; this section did
+  // not, so an owed thing dated inside next week was counted under both it and
+  // Waiting on.
+  ok('and holds your own work only',
+     !sum.ahead.some(t => t.taskType === 'done_for_me'),
+     sum.ahead.map(t => t.title).join(', '));
   ok('and the week after is not', !sum.ahead.some(t => t.id === 'f'));
   ok('nor is anything already gone by', !sum.ahead.some(t => t.id === 'd'));
 
   ok('the headline says all three figures',
-     headline(sum) === '3 done  ·  1 slipped  ·  3 waiting on 2 people', headline(sum));
+     headline(sum) === '3 done  ·  1 slipped  ·  4 waiting on 2 people', headline(sum));
   ok('the nudge is shorter and still honest',
      nudge(sum) === 'The week: 3 done, 1 slipped', nudge(sum));
 }
@@ -218,8 +241,20 @@ ok('no date, nothing said', waitedFor({}, FRI) === '');
   ok('however the name was typed', groups[0].tasks.length === 2,
      JSON.stringify(groups.map(g => g.person)));
   ok('the name is shown as it was first written', groups[0].person === 'Marchetti', groups[0].person);
-  ok('the person kept waiting longest comes first', groups[0].person === 'Marchetti');
-  ok('oldest first inside the group', groups[0].tasks[0].id === 'h');
+  // The order it was handed, kept: each page decides what "first" means, and a
+  // sort in here would quietly overrule both of them.
+  ok('the order it was given is the order it comes back',
+     groups[0].person === 'Marchetti' && groups[0].tasks[0].id === 'h',
+     JSON.stringify(groups.map(g => g.tasks.map(t => t.id))));
+  // Handed over backwards it comes back backwards, and the name shown is the
+  // one on whichever task arrived first — which is how you can tell the order
+  // is being kept rather than re-derived.
+  ok('and a list handed over backwards comes back backwards',
+     byPerson([...waiting].reverse())[0].person === 'marchetti',
+     byPerson([...waiting].reverse())[0].person);
+  ok('with the tasks in that order too',
+     byPerson([...waiting].reverse())[0].tasks[0].id === 'i',
+     byPerson([...waiting].reverse())[0].tasks.map(t => t.id).join(''));
   ok('and the chases are totalled', groups[0].chases === 2, String(groups[0].chases));
   ok('somebody never chased totals nothing', groups[1].chases === 0);
   ok('a nameless one is not a group', byPerson([task({ owePerson: '   ' })]).length === 0);

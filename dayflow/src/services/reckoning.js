@@ -19,7 +19,7 @@
 
 import { daysSince, span } from './age.js';
 import { chaseCount } from './chase.js';
-import { dueMoment } from './due.js';
+import { dueMoment, mattersAt } from './due.js';
 
 // Friday, Saturday, Sunday. The reckoning belongs to the end of the week
 // rather than to one afternoon of it: plenty of people close the week on a
@@ -121,17 +121,38 @@ export function reckon(tasks = [], archived = [], now = new Date()) {
     })
     .sort((a, b) => dueMoment(a).at - dueMoment(b).at);
 
-  // Still owed, oldest first, because the oldest is the one that has stopped
-  // being late and started being a problem.
+  // Still owed, and near enough to be this week's business.
+  //
+  // The whole outstanding column was listed here, so a promise for November sat
+  // in a Friday summary next to the things that went wrong this week. The
+  // horizon is the page's own: what is due by the end of next week, which is as
+  // far as the section below it looks.
+  //
+  // Anything nobody dated stays, and that is most of Owe Me: there is no
+  // deadline to be early for, and the only signal those carry is how long they
+  // have been sitting. Nothing is lost by the cut — the Owe Me column is the
+  // complete record and always has been, and one person's share of it is a tap
+  // away from any of their tasks.
   const waiting = open
     .filter(t => t.taskType === 'done_for_me' && String(t.owePerson || '').trim())
-    .sort(byOldest);
+    .filter(t => {
+      const moment = dueMoment(t);
+      return !moment || moment.at < nextTo;
+    })
+    .sort((a, b) => mattersAt(a) - mattersAt(b));
 
   const people = new Set(waiting.map(t => t.owePerson.trim().toLowerCase()));
 
   // Next week, already dated. The point of reading this on a Friday is that
   // there is still time to move something.
+  //
+  // Your own work only, for the same reason Slipped is: something another
+  // person owes you next week is named below under the person holding it, and
+  // a page that counts it twice reads worse than the week went. Slipped had
+  // this rule from the start and this section did not, which nothing noticed
+  // until an owed thing was given a date inside next week.
   const ahead = open
+    .filter(t => t.taskType !== 'done_for_me')
     .filter(t => {
       const moment = dueMoment(t);
       return moment && moment.at >= nextFrom && moment.at < nextTo;
@@ -185,8 +206,8 @@ export function waitedFor(task, now = new Date()) {
   return `asked ${span(days)} ago`;
 }
 
-// Everything owed, gathered under the person who owes it, the person with the
-// oldest outstanding thing first. The column is sorted by task, so this is the
+// Everything owed, gathered under the person who owes it, in the order it was
+// given. The column is sorted by task, so this is the
 // one place the relationship is visible at all.
 export function byPerson(waiting) {
   const groups = new Map();
@@ -196,11 +217,11 @@ export function byPerson(waiting) {
     if (!groups.has(key)) groups.set(key, { person: task.owePerson.trim(), tasks: [] });
     groups.get(key).tasks.push(task);
   }
-  return [...groups.values()]
-    .map(g => ({
-      ...g,
-      tasks: [...g.tasks].sort(byOldest),
-      chases: g.tasks.reduce((n, t) => n + chaseCount(t), 0),
-    }))
-    .sort((a, b) => byOldest(a.tasks[0], b.tasks[0]));
+  // The order it was handed, kept. Each page decides what "first" means — the
+  // week reads by when a thing starts mattering — and a sort in here would
+  // quietly overrule both of them.
+  return [...groups.values()].map(g => ({
+    ...g,
+    chases: g.tasks.reduce((n, t) => n + chaseCount(t), 0),
+  }));
 }
