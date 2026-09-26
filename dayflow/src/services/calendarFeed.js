@@ -35,12 +35,6 @@ function startOfDay(date) {
   return d;
 }
 
-function endOfDay(date) {
-  const d = startOfDay(date);
-  d.setDate(d.getDate() + 1);
-  return d;
-}
-
 // ── The imported file ───────────────────────────────────────────────────────
 
 export async function saveFeed(text, key, now = new Date()) {
@@ -74,7 +68,7 @@ export async function clearFeed() {
 
 // Imported only when it is going to be used. expo-calendar has nothing to offer
 // a browser, and loading it there is a module that throws for no reason.
-async function deviceEvents(day) {
+async function deviceEvents(from, to) {
   if (Platform.OS === 'web') return null;
   try {
     const Calendar = await import('expo-calendar');
@@ -85,7 +79,7 @@ async function deviceEvents(day) {
     const ids = calendars.map(c => c.id);
     if (ids.length === 0) return [];
 
-    const raw = await Calendar.getEventsAsync(ids, startOfDay(day), endOfDay(day));
+    const raw = await Calendar.getEventsAsync(ids, from, to);
     return raw.map(event => ({
       id: event.id,
       // The app's own exports are filed with a marker, and showing them back as
@@ -103,11 +97,26 @@ async function deviceEvents(day) {
 
 // ── Either one ──────────────────────────────────────────────────────────────
 
-// Everything in the diary for one day, or null when there is no calendar to
-// read — which is not the same as a day with nothing in it, and the difference
-// is what decides whether the app says anything at all.
+// How far ahead to read.
+//
+// The day's page only needs today, but a task being given a time can be given
+// one for a week on Thursday, and answering "does that run into anything" needs
+// the Thursday. Three weeks is further than anybody schedules in a task list
+// and still a small enough slice of a diary to hold in memory.
+const AHEAD_DAYS = 21;
+
+// Everything in the diary from today to three weeks out, or null when there is
+// no calendar to read — which is not the same as a diary with nothing in it,
+// and the difference is what decides whether the app says anything at all.
+//
+// Whoever wants one day's worth filters it down; tidyEvents already does that,
+// and does it the same way for both sources.
 export async function eventsFor(day, key) {
-  const fromDevice = await deviceEvents(day);
+  const from = startOfDay(day);
+  const to = new Date(from);
+  to.setDate(to.getDate() + AHEAD_DAYS);
+
+  const fromDevice = await deviceEvents(from, to);
   if (fromDevice) return { events: fromDevice, source: 'device', at: new Date() };
 
   if (!key) return null;
@@ -115,7 +124,7 @@ export async function eventsFor(day, key) {
   if (!feed) return null;
 
   return {
-    events: parseICS(feed.text, { from: startOfDay(day), to: endOfDay(day) }),
+    events: parseICS(feed.text, { from, to }),
     source: 'file',
     at: new Date(feed.at),
     name: feed.name,

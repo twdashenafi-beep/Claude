@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Animated, Platform } from 'react-native';
 import { parseNaturalLanguage } from '../services/nlParser';
 import { whenPreview } from '../services/due';
+import { clashNote } from '../services/agenda';
 import { COLORS, SANS, SERIF } from '../utils/theme';
 
 // How long a pause means the sentence is over, when the button was tapped
@@ -68,7 +69,7 @@ function joinSpeech(a, b) {
   return `${left} ${right}`;
 }
 
-export default function AIInput({ onAddTask, viewMode, activeTab = 'todo' }) {
+export default function AIInput({ onAddTask, viewMode, activeTab = 'todo', diary = null }) {
   const [text, setText] = useState('');
   const [preview, setPreview] = useState(null);
   const [processing, setProcessing] = useState(false);
@@ -422,6 +423,15 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo' }) {
             <Text style={st.tag}>{whenPreview(preview.dueDate, preview.dueTime)}</Text>
           ) : null}
           {preview.hasDate && <Text style={st.tag}>{preview.viewScope}</Text>}
+          {/* Before the task exists, which is the cheapest moment to find out.
+              Said in the same row as the date it would land on, because the two
+              are one thought: eleven o'clock on Thursday, and Thursday at
+              eleven is the board call. */}
+          {diary && clashNote(diary.events, preview.dueDate, preview.dueTime) ? (
+            <Text style={[st.tag, st.clash]} dataSet={{ clash: 'true' }}>
+              {clashNote(diary.events, preview.dueDate, preview.dueTime)}
+            </Text>
+          ) : null}
           {preview.priority === 'high' && <Text style={[st.tag, { color: COLORS.accent, fontWeight: '700' }]}>High</Text>}
         </View>
       )}
@@ -462,5 +472,6 @@ const st = StyleSheet.create({
   previewRow: { flexDirection: 'row', alignItems: 'center', paddingTop: 6, gap: 10 },
   previewText: { fontFamily: SERIF, fontSize: 12.5, fontStyle: 'italic', color: COLORS.inkFaint, flex: 1 },
   tag: { fontFamily: SANS, fontSize: 10.5, letterSpacing: 0.6, color: COLORS.inkSoft, textTransform: 'uppercase' },
+  clash: { color: COLORS.accent, fontStyle: 'italic' },
   creating: { fontFamily: SANS, fontSize: 11.5, color: COLORS.inkFaint, paddingTop: 6 },
 });

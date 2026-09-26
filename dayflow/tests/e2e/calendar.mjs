@@ -196,6 +196,82 @@ await page.waitForTimeout(1500);
   await page.waitForTimeout(900);
 }
 
+// ── Running into something ──────────────────────────────────────────────────
+//
+// The cheapest moment to find out that eleven o'clock is the board call is
+// before the task exists, and the second cheapest is while the time is still
+// being chosen. Not a warning and not a block: you are allowed to put a task in
+// the middle of a meeting, and sometimes the meeting is where you do it.
+{
+  const box = page.getByPlaceholder('Write a line…');
+  await box.waitFor({ state: 'visible', timeout: 60000 });
+  // Eleven runs into the board call and nothing else — the double booking
+  // starts at half past twelve, exactly as the hour would end.
+  await box.fill('Draft the resolution at 11am');
+  await page.waitForTimeout(900);
+
+  const warned = page.locator('[data-clash]');
+  ok('the line says what eleven runs into', (await warned.count()) >= 1,
+     (await body()).slice(0, 700));
+  // The preview row is set in capitals, so the words are checked and not the
+  // typography.
+  const said = await warned.first().innerText();
+  ok('naming the meeting', /board call/i.test(said), said);
+  ok('and its hours, because half the time that settles it',
+     /11:00–12:30/.test(said), said);
+
+  // Half past eleven runs into two, and two are not listed out.
+  await box.fill('Draft the resolution at 11:30am');
+  await page.waitForTimeout(900);
+  ok('while two are summed rather than listed',
+     / and 1 other$/i.test((await page.locator('[data-clash]').first().innerText()).trim()),
+     await page.locator('[data-clash]').first().innerText());
+
+  // Three in the afternoon is clear.
+  await box.fill('Draft the resolution at 3pm');
+  await page.waitForTimeout(900);
+  ok('and says nothing about an hour that is free',
+     (await page.locator('[data-clash]').count()) === 0, (await body()).slice(0, 700));
+
+  await box.fill('');
+  await page.waitForTimeout(400);
+}
+
+// ── And in the sheet, where the time is chosen ──────────────────────────────
+{
+  await page.locator('text=Approve the budget').first().click();
+  await page.waitForTimeout(1100);
+
+  // The time is chosen on a drum rather than typed, so it is chosen the way a
+  // person chooses it.
+  const pickTime = async (period, hour, minute) => {
+    await page.getByLabel(/^(Set a time|Due at .*\. Change or clear the time\.)$/).first().click();
+    await page.waitForTimeout(700);
+    await page.getByLabel(period).click();
+    await page.getByLabel(`Hour ${hour}`, { exact: true }).click();
+    await page.waitForTimeout(250);
+    await page.getByLabel(`Minute ${minute}`, { exact: true }).click();
+    await page.waitForTimeout(250);
+    await page.getByLabel('Use this time').click();
+    await page.waitForTimeout(900);
+  };
+
+  // A quarter past nine: the standup.
+  await pickTime('Morning', '9', '15');
+  const inSheet = page.locator('[data-clash]');
+  ok('the sheet says it too', (await inSheet.count()) >= 1, (await body()).slice(-700));
+  ok('naming what is there', /standup/i.test(await inSheet.first().innerText()),
+     await inSheet.first().innerText());
+
+  // Three in the afternoon is clear.
+  await pickTime('Afternoon', '3', '00');
+  ok('and goes quiet when the hour is moved to a free one',
+     (await page.locator('[data-clash]').count()) === 0, (await body()).slice(-700));
+
+  await page.getByText('Cancel', { exact: true }).last().click();
+  await page.waitForTimeout(1100);
+}
+
 // ── Forgetting it ───────────────────────────────────────────────────────────
 await page.getByLabel('Account settings').click();
 await page.waitForTimeout(900);

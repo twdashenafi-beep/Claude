@@ -11,10 +11,11 @@ import { notesOf, noteFields } from '../services/voiceNotes';
 import { REPEATS, repeatOf } from '../services/repeat';
 import { chaseMessage, owedBy, historyWith, chaseDetail } from '../services/chase';
 import { shareText } from '../services/share';
+import { clashNote } from '../services/agenda';
 
 export default function TaskDetail({
   task, visible, onClose, onSave, onMove, place, onChased, onSeeAll,
-  projects = [], tasks = [],
+  projects = [], tasks = [], diary = null,
 }) {
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
@@ -201,6 +202,16 @@ export default function TaskDetail({
               value={{ dueDate, dueTime }}
               onChange={next => { setDueDate(next.dueDate); setDueTime(next.dueTime); }}
             />
+            {/* Said here, where the time is being chosen and there is still
+                time to choose another one. Not a warning and not a block — you
+                are allowed to put a task in the middle of a meeting, and
+                sometimes the meeting is where you do it. It simply says what
+                is already there. */}
+            {diary && clashNote(diary.events, dueDate, dueTime) ? (
+              <Text style={styles.clash} dataSet={{ clash: 'true' }}>
+                {clashNote(diary.events, dueDate, dueTime)}
+              </Text>
+            ) : null}
           </View>
 
           {/* Where it sits, without having to drag it there.
@@ -558,6 +569,7 @@ const styles = StyleSheet.create({
   seeAllBtn: { paddingVertical: 10, marginTop: 2 },
   seeAllText: { fontSize: 13.5, color: COLORS.accent },
   chaseNote: { marginTop: 6, fontSize: 12.5, color: '#8E8E93' },
+  clash: { marginTop: 8, fontSize: 12.5, color: COLORS.accent, fontStyle: 'italic' },
   scopeTextOff: { color: '#B5AFA1' },
   scopeText: { fontSize: 14, color: '#8E8E93' },
   scopeTextOn: { color: '#3A362C', fontWeight: '600' },
