@@ -144,17 +144,40 @@ const OFFSITE = { id: 'off', title: 'Offsite', start: on(2, 0), end: on(3, 0), a
   // empty list, which would read as "there are no meetings" rather than "there
   // are none that day".
   const quiet = choices(events, on(5, 0).toISOString(), NOW);
-  ok('a day with no meetings falls back to what is ahead', quiet.length === 4,
+  ok('a day with no meetings falls back to the page', quiet.length === 2,
      quiet.map(e => e.title).join(', '));
 
+  // Friday 2 October 2026; its week is Mon 28 Sep to Sun 4 Oct.
+  //
+  // A task with nothing of its own to go on is offered the page it is sitting
+  // on, not three weeks of everybody else's meetings. That depth exists so a
+  // time can be checked against next Thursday, and offering it here put a
+  // fortnight of diary inside a task on today's page.
   const undated = choices(events, null, NOW);
-  ok('an undated task is offered the fortnight', undated.length === 4,
+  ok('an undated task on the day page is offered today', undated.length === 2,
      undated.map(e => e.title).join(', '));
-  // A week today is exactly where people schedule, and a window that stopped an
-  // hour short of it would be maddening.
-  ok('including a week today', undated.some(e => e.title === 'Next week'),
-     undated.map(e => e.title).join(', '));
-  ok('but not a month off', !undated.some(e => e.title === 'Too far off'));
+  ok('and nothing from tomorrow', !undated.some(e => e.title === 'Tomorrow call'));
+
+  const onWeek = choices(events, null, NOW, 'week');
+  ok('on the week page it is offered the week', onWeek.length === 3,
+     onWeek.map(e => e.title).join(', '));
+  ok('which reaches tomorrow', onWeek.some(e => e.title === 'Tomorrow call'));
+  ok('and stops at Sunday', !onWeek.some(e => e.title === 'Next week'),
+     onWeek.map(e => e.title).join(', '));
+
+  const onMonth = choices(events, null, NOW, 'month');
+  ok('and on the month page, the month', onMonth.length === 5,
+     onMonth.map(e => e.title).join(', '));
+  ok('which reaches the week after', onMonth.some(e => e.title === 'Next week'));
+  ok('and the far end of it', onMonth.some(e => e.title === 'Too far off'));
+
+  // Its own day still wins over the page: a task dated Thursday is being
+  // prepared for something on Thursday, whichever page you opened it from.
+  const dated = choices(events, on(3, 0).toISOString(), NOW, 'month');
+  ok('a dated task is still offered its own day first',
+     dated.length === 1 && dated[0].title === 'Tomorrow call',
+     dated.map(e => e.title).join(', '));
+
   ok('no diary, nothing to choose', choices(null, null, NOW).length === 0);
 }
 

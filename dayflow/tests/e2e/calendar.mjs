@@ -196,6 +196,46 @@ await page.waitForTimeout(1500);
   await page.waitForTimeout(900);
 }
 
+// ── The page decides how much diary you see ─────────────────────────────────
+//
+// The diary is read three weeks deep so that a time given to a task next
+// Thursday can be checked against Thursday. Shown whole on the day's page it
+// put next week's meetings in front of somebody looking at today.
+{
+  const line = async () => {
+    const l = page.locator('[data-diaryline]');
+    return (await l.count()) ? l.first().innerText() : '';
+  };
+
+  const howMany = text => Number((/^(\d+) meeting/.exec(text) || [])[1] || -1);
+
+  ok('the day page measures the day', /free/.test(await line()), await line());
+
+  await page.getByLabel('Show week tasks').click();
+  await page.waitForTimeout(900);
+  const weekLine = await line();
+  ok('the week page counts the week instead', /meetings/.test(weekLine), weekLine);
+  ok('and does not offer an afternoon spread over five days',
+     !/free/.test(weekLine), weekLine);
+  // The count, not merely the shape of the sentence. Everything in this diary
+  // but the weekly one-to-one falls on the Friday, so the week holds four
+  // meetings — and a window that ran three weeks on from here would sweep up
+  // the one-to-ones after it and say six.
+  ok('and counts this week, not as far as the diary happens to be loaded',
+     howMany(weekLine) === 4, weekLine);
+
+  await page.getByLabel('Show month tasks').click();
+  await page.waitForTimeout(900);
+  const monthLine = await line();
+  ok('and the month counts the month', /meetings/.test(monthLine), monthLine);
+  ok('which is more than the week', howMany(monthLine) > howMany(weekLine),
+     `${weekLine} → ${monthLine}`);
+
+  await page.getByLabel('Show day tasks').click();
+  await page.waitForTimeout(900);
+  ok('back on the day, it is a day again', /free/.test(await line()), await line());
+}
+
 // ── Running into something ──────────────────────────────────────────────────
 //
 // The cheapest moment to find out that eleven o'clock is the board call is

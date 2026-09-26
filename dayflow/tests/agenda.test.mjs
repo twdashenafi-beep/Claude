@@ -11,7 +11,7 @@
 import {
   tidyEvents, dayWindow, mergeBusy, committedMinutes, freeGaps, freeMinutes,
   clashes, spanMinutes, clockOf, dayLoad, loadLine, gapsLine, LEAST_USEFUL_GAP,
-  momentOf, clashNote,
+  momentOf, clashNote, spanWindow, spanLoad, eventsWithin,
 } from '../src/services/agenda.js';
 
 let pass = 0, fail = 0;
@@ -263,6 +263,87 @@ ok('and time cannot go backwards', spanMinutes(-30) === '0m');
   ok('and names no gaps', gapsLine(full) === null);
 
   ok('a broken list is survived', dayLoad([], null, DAY).events.length === 0);
+}
+
+// ── One page's worth of diary ───────────────────────────────────────────────
+//
+// The diary is read three weeks deep so a time given to a task next Thursday
+// can be checked against Thursday. That depth is right for that question and
+// wrong for every other one: shown on the day's page it put next week's
+// meetings in front of somebody looking at today.
+{
+  // Friday 2 October 2026. Its week is Mon 28 Sep to Sun 4 Oct.
+  const at = new Date('2026-10-02T08:00:00');
+  const day = spanWindow('day', at);
+  ok('a day is a day', day.from.getDate() === 2 && day.to.getDate() === 3,
+     `${day.from.toDateString()} → ${day.to.toDateString()}`);
+  ok('and starts at midnight', day.from.getHours() === 0);
+
+  const week = spanWindow('week', at);
+  ok('a week starts on its Monday', week.from.getDay() === 1 && week.from.getDate() === 28,
+     week.from.toDateString());
+  ok('and ends on the next one', week.to.getDate() === 5, week.to.toDateString());
+
+  // From a Sunday, the week is the six days behind you and not the one ahead.
+  const sunday = spanWindow('week', new Date('2026-10-04T21:00:00'));
+  ok('a Sunday belongs to the week it ends', sunday.from.getDate() === 28,
+     sunday.from.toDateString());
+
+  const month = spanWindow('month', at);
+  ok('a month starts on the first', month.from.getDate() === 1 && month.from.getMonth() === 9,
+     month.from.toDateString());
+  ok('and ends on the next first', month.to.getDate() === 1 && month.to.getMonth() === 10,
+     month.to.toDateString());
+
+  ok('anything unrecognised is a day', spanWindow('fortnight', at).to.getDate() === 3);
+}
+
+{
+  const some = (d, hh, title) => ({
+    id: `${title}${d}`, title,
+    start: new Date(2026, 9, d, hh), end: new Date(2026, 9, d, hh + 1), allDay: false,
+  });
+  const diary = [
+    some(2, 9, 'This morning'),
+    some(2, 14, 'This afternoon'),
+    some(4, 10, 'Sunday'),
+    some(7, 10, 'Next week'),
+    some(28, 10, 'Late October'),
+    { id: 'nov', title: 'November', start: new Date(2026, 10, 3, 10), end: new Date(2026, 10, 3, 11), allDay: false },
+  ];
+  const at = new Date('2026-10-02T08:00:00');
+
+  const day = spanLoad([], diary, at, 'day');
+  ok('the day page sees today and nothing else', day.events.length === 2,
+     day.events.map(e => e.title).join(', '));
+  ok('and says what is left of it', /free/.test(loadLine(day)), loadLine(day));
+  ok('and where', gapsLine(day) !== null);
+
+  const week = spanLoad([], diary, at, 'week');
+  ok('the week page sees the week', week.events.length === 3,
+     week.events.map(e => e.title).join(', '));
+  ok('not next week', !week.events.some(e => e.title === 'Next week'));
+  ok('counted rather than measured against an afternoon',
+     loadLine(week) === '3 meetings  ·  3h booked', loadLine(week));
+  ok('and no gaps, because free hours spread over five days are not an afternoon',
+     gapsLine(week) === null);
+
+  const month = spanLoad([], diary, at, 'month');
+  ok('the month page sees the month', month.events.length === 5,
+     month.events.map(e => e.title).join(', '));
+  ok('and not the next one', !month.events.some(e => e.title === 'November'));
+  ok('said the same way', loadLine(month) === '5 meetings  ·  5h booked', loadLine(month));
+
+  ok('one meeting is a meeting', loadLine(spanLoad([], [some(2, 9, 'Alone')], at, 'week'))
+     === '1 meeting  ·  1h booked',
+     loadLine(spanLoad([], [some(2, 9, 'Alone')], at, 'week')));
+  ok('an empty week says nothing at all', loadLine(spanLoad([], [], at, 'week')) === null);
+
+  // dayLoad is what everything else still calls, and must not have moved.
+  ok('the day is still the day, however it is asked for',
+     dayLoad([], diary, at).events.length === 2);
+
+  ok('a window with no shape holds nothing', eventsWithin(diary, null).length === 0);
 }
 
 // ── Three gaps, and the line that names two ─────────────────────────────────
