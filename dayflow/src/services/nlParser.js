@@ -100,13 +100,34 @@ const NOT_POSSESSIVE = "(?![\u2019']s)";
 const TIME_PATTERNS = [
   // "at 11am", "at 3:30pm", "at 14:00"
   { regex: /\bat\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i, handler: (m) => parseTime(m[1], m[2], m[3]) },
-  { regex: /\bat\s+(\d{1,2})(?::(\d{2}))?\s*(a\.m\.|p\.m\.)\b/i, handler: (m) => parseTime(m[1], m[2], m[3].replace(/\./g, '')) },
+  // No \b after the closing full stop. A word boundary needs a word character
+  // on the other side of it, and "p.m." at the end of a sentence has a space or
+  // nothing there — so this never matched, the pattern below caught the time
+  // without the preposition, and every dictated "at 10 p.m." left a task called
+  // "Call Achim at". Dictation writes periods into p.m. more often than not,
+  // which made this the most common way of saying a time and the one way that
+  // came out wrong.
+  { regex: /\bat\s+(\d{1,2})(?::(\d{2}))?\s*(a\.m\.|p\.m\.)/i, handler: (m) => parseTime(m[1], m[2], m[3].replace(/\./g, '')) },
   // "11am", "3pm" standalone
   { regex: /\b(\d{1,2})\s*(am|pm)\b/i, handler: (m) => parseTime(m[1], '00', m[2]) },
   // "11 a.m." standing on its own. The pattern above wants an "at" in front of
   // it, so a perfectly ordinary way of saying eleven o'clock was not a time at
   // all — and a date with no time is not what anybody who said one meant.
   { regex: /\b(\d{1,2})(?::(\d{2}))?\s*(a\.m\.|p\.m\.)/i, handler: (m) => parseTime(m[1], m[2], m[3].replace(/\./g, '')) },
+  // A clock with no am or pm on it, read as a twenty-four hour one: "at 14:00",
+  // "at 22:00", "Monday 09:30".
+  //
+  // The comment at the top of this list has promised "at 14:00" since the list
+  // was written and nothing here has ever matched it. Read literally rather
+  // than guessed at: 9:30 is half past nine in the morning, and somebody who
+  // means the evening writes 21:30 or "9:30pm". Guessing which half of the day
+  // a bare number belongs to is exactly the kind of invention this parser does
+  // not do, and the preview shows the answer before the task exists.
+  //
+  // Two digits after the colon are required, so "3:1" and page references stay
+  // out of it, and this sits below the am/pm patterns so "10:30 pm" is still an
+  // evening.
+  { regex: /\b(?:at\s+)?([01]?\d|2[0-3]):([0-5]\d)\b/, handler: (m) => parseTime(m[1], m[2], '') },
   // "at noon", "at midnight"
   { regex: /\bat\s+(noon|midday)\b/i, handler: () => ({ hour: 12, minute: 0 }) },
   { regex: /\bat\s+midnight\b/i, handler: () => ({ hour: 0, minute: 0 }) },
@@ -344,12 +365,24 @@ export function parseNaturalLanguage(input) {
     }
   }
 
-  // Extract time
+  // Extract time.
+  //
+  // What is left afterwards is what the date patterns read, with the time
+  // blanked out rather than cut out so that every index still lines up with the
+  // original. Without this, "Dentist Monday 12:30" hands the date patterns a
+  // weekday with a number after it — which is the shape of "Monday the 28th",
+  // and the rule that stops half past twelve being read as the twelfth also
+  // stops Monday being read at all. The task came out dated today, with the
+  // word Monday still sitting in its title.
+  let dateText = text;
   for (const pat of TIME_PATTERNS) {
     const match = text.match(pat.regex);
     if (match) {
       time = pat.handler(match);
-      removeParts.push({ start: match.index, end: match.index + match[0].length });
+      const start = match.index;
+      const end = start + match[0].length;
+      removeParts.push({ start, end });
+      dateText = text.slice(0, start) + ' '.repeat(end - start) + text.slice(end);
       break;
     }
   }
@@ -357,7 +390,7 @@ export function parseNaturalLanguage(input) {
   // Extract date. The phrases that were always understood are tried first, so
   // none of them changes meaning; the ones people actually say are tried after.
   for (const pat of [...DATE_PATTERNS, ...SPOKEN_DATE_PATTERNS]) {
-    const match = text.match(pat.regex);
+    const match = dateText.match(pat.regex);
     if (!match) continue;
     const result = pat.handler(match);
     // A pattern can match and still decline — "the 32nd" is not a date.
@@ -380,9 +413,16 @@ export function parseNaturalLanguage(input) {
   // Repeated, not once. Cutting a date out of the middle of "Call John, Monday
   // Sept 28, 11 a.m." leaves two commas side by side, and stripping the last
   // one still leaves the first.
+  //
+  // The full stop is in the trailing set for one reason: dictation ends every
+  // sentence with one. "Call Achim at 10pm." left "Call Achim ." — the stop
+  // orphaned by the words cut out in front of it — and a list full of those
+  // reads as though the app is broken. The cost is that "Call Jr." loses its
+  // period, which is a rare and trivial loss against a common and visible one.
+  // Question and exclamation marks are left alone: those carry meaning.
   title = title
-    .replace(/^(?:[,;:\u2013\u2014-]+\s*)+/, '')
-    .replace(/(?:\s*[,;:\u2013\u2014-]+)+$/, '')
+    .replace(/^(?:[,;:.\u2013\u2014-]+\s*)+/, '')
+    .replace(/(?:\s*[,;:.\u2013\u2014-]+)+$/, '')
     .trim();
 
   // Build date ISO

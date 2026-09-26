@@ -238,6 +238,47 @@ await page.waitForTimeout(PAUSE + 800);
 ok('carrying on from the box still routes',
    (await columnOf('The deposit back')) === 'owe', await columnOf('The deposit back'));
 
+// ── The shapes dictation actually produces ──────────────────────────────────
+//
+// Reported from a real phone: "Call Achim at 10pm" did nothing useful. The
+// phrase itself was fine; what dictation writes is not always what you said.
+// Apple spells out "p.m." with its periods, and ends every sentence with a full
+// stop, and both of those went in as part of the task's name.
+{
+  const box = page.locator('input, textarea').first();
+
+  await box.fill('Call Achim at 10 p.m.');
+  await box.press('Enter');
+  await page.waitForTimeout(1500);
+  let shown = await page.evaluate(() => document.body.textContent || '');
+  ok('a dictated evening makes a task', shown.includes('Call Achim'), shown.slice(0, 400));
+  ok('and the preposition is not part of its name',
+     !/Call Achim at\b/.test(shown), shown.slice(0, 400));
+  ok('with the hour on it', /22:00/.test(shown), shown.slice(0, 400));
+
+  // Asked of the preview rather than of the row. A row prints "Overdue" once
+  // the hour has gone by, so checking it for "14:30" is a test that passes
+  // before lunch and fails after it.
+  await box.fill('Email the auditors at 14:30.');
+  await page.waitForTimeout(700);
+  const tag = await page.evaluate(() => {
+    const leaf = [...document.querySelectorAll('*')]
+      .filter(e => e.children.length === 0)
+      .map(e => (e.textContent || '').trim())
+      .find(t => /^(Today|Tomorrow) \d{1,2}:\d{2}$/.test(t));
+    return leaf || '';
+  });
+  ok('a twenty-four hour clock is read as one', /14:30/.test(tag), tag);
+
+  await box.press('Enter');
+  await page.waitForTimeout(1500);
+  shown = await page.evaluate(() => document.body.textContent || '');
+  ok('and is not left in the title', shown.includes('Email the auditors'),
+     shown.slice(0, 400));
+  ok('nor is the full stop dictation leaves behind',
+     !/Email the auditors \./.test(shown), shown.slice(0, 400));
+}
+
 // ── A date said out loud, shown back before it is committed ─────────────────
 //
 // The preview used to say "week", which names a page rather than a day. A date
