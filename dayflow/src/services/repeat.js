@@ -172,6 +172,11 @@ export function nextOccurrence(task, now = new Date()) {
     projectId: task.projectId || '',
     dueDate: at.toISOString(),
     dueTime: task.dueTime || '',
+    // Carried, like everything else on this list. A weekly call set for three
+    // in London is three in London next week too, and a follow-on that dropped
+    // the zone would quietly re-read itself against wherever the phone happened
+    // to be when the last one was ticked off.
+    tz: task.tz || '',
     reminderEnabled: !!task.reminderEnabled,
     earlyReminderMinutes: task.earlyReminderMinutes || 0,
     repeat: every,

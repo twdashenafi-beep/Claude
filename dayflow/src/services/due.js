@@ -18,6 +18,8 @@
 //
 // Pure: the clock is passed in.
 
+import { instantOf, clockIn, sameClock, deviceZone, zoneLabel } from './zones.js';
+
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -46,14 +48,67 @@ function timeOf(task) {
 }
 
 // The moment a task is actually due: its date, at its time if it has one.
+//
+// A time carries the zone it was set in, and the moment it names is that wall
+// time in that zone. Three o'clock in London is three o'clock in London from
+// anywhere on earth; read in New York it is ten in the morning, and the
+// reminder arrives then rather than five hours after the call.
+//
+// Without a zone — every task written before this, and every device whose
+// platform cannot do zone arithmetic — it falls back to the wall clock the app
+// has always used. That is the behaviour people already have rather than a new
+// and worse one, and it is exactly right until somebody travels.
+//
+// The calendar date is read in the task's own zone too. dueDate is an instant,
+// and an instant near midnight is a different day depending on where you read
+// it; the day that was meant is the day it was in the place it was chosen.
 function dueAt(task) {
   if (!task || !task.dueDate) return null;
   const date = new Date(task.dueDate);
   if (Number.isNaN(date.getTime())) return null;
 
   const time = timeOf(task);
-  if (time) date.setHours(time.h, time.m, 0, 0);
+  if (!time) return date;
+
+  const zone = task.tz;
+  if (zone) {
+    const on = clockIn(zone, date);
+    if (on) {
+      const instant = instantOf(on.year, on.month, on.day, time.h, time.m, zone);
+      if (instant) return instant;
+    }
+  }
+
+  date.setHours(time.h, time.m, 0, 0);
   return date;
+}
+
+// The clock this device shows for a task's time, which is not the clock it was
+// set on once you have moved.
+function shownTime(task, at) {
+  const time = timeOf(task);
+  if (!time) return '';
+  const zone = task && task.tz;
+  const here = deviceZone();
+  if (!zone || !here || sameClock(zone, here, at)) return time.text;
+  const local = clockIn(here, at);
+  return local ? local.text : time.text;
+}
+
+// Where a time came from, when that is somewhere else. Null the rest of the
+// time, which is almost always.
+//
+// Said rather than left to be discovered: a task that reads 10:00 when you
+// typed 15:00 is either a conversion or a bug, and only one of those is worth
+// leaving somebody to work out for themselves.
+export function zoneNote(task, now = new Date()) {
+  const time = timeOf(task);
+  if (!time || !task || !task.tz) return null;
+  const here = deviceZone();
+  if (!here) return null;
+  const at = dueAt(task);
+  if (!at || sameClock(task.tz, here, at || now)) return null;
+  return `Set for ${time.text} ${zoneLabel(task.tz)}`;
 }
 
 // Whether the date on a task is the one the app put there.
@@ -114,7 +169,7 @@ export function dueMoment(task) {
   const time = timeOf(task);
   if (!time && isDefaultStamp(task)) return null;
 
-  return { at, timed: !!time };
+  return { at, timed: !!time, zone: (task && task.tz) || '' };
 }
 
 // The span a task should occupy in a calendar, or null if it should not be in
@@ -172,7 +227,7 @@ export function dueLabel(task, now = new Date()) {
   // scanning — what you need here is which ones to look at.
   if (at.getTime() < now.getTime()) return { text: 'Overdue', late: true };
 
-  const stamp = hasTime ? time.text : '';
+  const stamp = hasTime ? shownTime(task, at) : '';
 
   if (offset === 0) return { text: stamp, late: false };
   if (offset === 1) return { text: `Tomorrow${stamp ? ` ${stamp}` : ''}`, late: false };

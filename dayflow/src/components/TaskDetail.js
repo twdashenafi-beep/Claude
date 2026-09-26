@@ -12,6 +12,8 @@ import { REPEATS, repeatOf } from '../services/repeat';
 import { chaseMessage, owedBy, historyWith, chaseDetail } from '../services/chase';
 import { shareText } from '../services/share';
 import { clashNote, clockOf } from '../services/agenda';
+import { deviceZone } from '../services/zones';
+import { zoneNote } from '../services/due';
 import { attachTo, detach, meetingOf, choices, keyOfEvent, keyOfTask } from '../services/meetings';
 
 export default function TaskDetail({
@@ -76,6 +78,13 @@ export default function TaskDetail({
       priority,
       dueDate,
       dueTime,
+      // The zone is stamped when the time is set or changed, and never merely
+      // because the sheet was opened somewhere else. Opening a call set for
+      // three in London while standing in New York and pressing Save must not
+      // quietly move it to three New York time — the same discipline as the
+      // repeat anchor below, and for the same reason.
+      ...(dueTime && dueTime !== (task.dueTime || '') ? { tz: deviceZone() } : null),
+      ...(dueTime ? null : { tz: '' }),
       reminderEnabled: reminderEnabled || earlyMinutes > 0,
       earlyReminderMinutes: earlyMinutes,
       viewScope,
@@ -212,6 +221,15 @@ export default function TaskDetail({
                 are allowed to put a task in the middle of a meeting, and
                 sometimes the meeting is where you do it. It simply says what
                 is already there. */}
+            {/* Where the time came from, when this device is somewhere else.
+                A task that reads 10:00 when you typed 15:00 is either a
+                conversion or a bug, and only one of those is worth leaving
+                somebody to work out for themselves. */}
+            {zoneNote({ ...task, dueDate, dueTime, tz: dueTime === (task.dueTime || '') ? task.tz : deviceZone() }) ? (
+              <Text style={styles.chaseNote} dataSet={{ zonenote: 'true' }}>
+                {zoneNote({ ...task, dueDate, dueTime, tz: dueTime === (task.dueTime || '') ? task.tz : deviceZone() })}
+              </Text>
+            ) : null}
             {diary && clashNote(diary.events, dueDate, dueTime) ? (
               <Text style={styles.clash} dataSet={{ clash: 'true' }}>
                 {clashNote(diary.events, dueDate, dueTime)}
