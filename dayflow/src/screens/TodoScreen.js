@@ -6,6 +6,7 @@ import { useTasks } from '../context/TaskContext';
 import { sortForDisplay, targetIndex, shiftFor, moveWithin } from '../services/ordering';
 import { pendingAlerts, alertBody, alertSummary, pruneShown } from '../services/alerts';
 import { recordChase } from '../services/chase';
+import { isReckoningDay } from '../services/reckoning';
 import { EVERYTHING, projectOf, projectName } from '../services/projects';
 import { moveTick } from '../services/haptics';
 import { ARCHIVE, deletionOf } from '../services/archive';
@@ -21,6 +22,7 @@ import AddTaskModal from '../components/AddTaskModal';
 import TaskDetail from '../components/TaskDetail';
 import AIInput from '../components/AIInput';
 import DailyBriefing from '../components/DailyBriefing';
+import WeekReckoning from '../components/WeekReckoning';
 import ConfettiOverlay from '../components/ConfettiOverlay';
 import AccountSheet from '../components/AccountSheet';
 import { VIEW_MODES } from '../utils/constants';
@@ -269,6 +271,12 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
   const [selectedDate] = useState(new Date());
   const [detailTask, setDetailTask] = useState(null);
   const [showBriefing, setShowBriefing] = useState(false);
+  // Friday, Saturday, Sunday. A weekly reckoning that sat in the header all
+  // week would be one more thing to ignore on a Tuesday; this one turns up when
+  // the week is over and goes away again when the next one starts. Saturday and
+  // Sunday are included because plenty of people close the week then, and an
+  // action available for one working day would be missed by half the year.
+  const [showWeek, setShowWeek] = useState(false);
   const [banner, setBanner] = useState(null);
 
   // Which project's sheet is on screen. Empty is the main list, and the bar
@@ -643,6 +651,16 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
                 the app's own name. */}
             {narrow ? <View /> : <Text style={s.wordmark}>DayFlow</Text>}
             <View style={s.mastheadActions}>
+              {isReckoningDay() ? (
+                <TouchableOpacity
+                  onPress={() => setShowWeek(true)}
+                  style={s.navHit}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open the week's reckoning"
+                >
+                  <Text style={s.briefing}>Week</Text>
+                </TouchableOpacity>
+              ) : null}
               <TouchableOpacity
                 onPress={() => setShowBriefing(true)}
                 style={s.navHit}
@@ -948,6 +966,12 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
       ) : null}
 
       <DailyBriefing visible={showBriefing} onClose={() => setShowBriefing(false)} tasks={tasks} />
+      <WeekReckoning
+        visible={showWeek}
+        onClose={() => setShowWeek(false)}
+        tasks={tasks}
+        archived={archived}
+      />
       <ConfettiOverlay visible={celebrating} onDone={() => setCelebrating(false)} />
 
       <AccountSheet
