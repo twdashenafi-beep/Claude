@@ -288,6 +288,91 @@ ok('with the list still there', after.includes('Pay the invoice'), after.slice(0
   ok('and it closes', !/LATE/i.test(await body()), (await body()).slice(0, 300));
 }
 
+// ── A task comes to meet the day ────────────────────────────────────────────
+//
+// The three pages are a horizon, not three folders. A thing put on the week
+// because it was due Friday is, on Friday, a thing for today — and walking it
+// across by hand is a chore that fails in the worst possible way when you
+// forget it, because the one thing due today is then the one thing not on
+// today's page.
+{
+  await page.getByLabel('Show week tasks').click();
+  await page.waitForTimeout(700);
+  await toDo('Call the auditors at 4pm');
+
+  // Filed on the week, dated for today.
+  ok('it is not left sitting on the week',
+     !(await body()).includes('Call the auditors'), (await body()).slice(0, 600));
+
+  await page.getByLabel('Show day tasks').click();
+  await page.waitForTimeout(700);
+  const dayPage = await body();
+  ok('it has come to today\'s page on its own',
+     dayPage.includes('Call the auditors'), dayPage.slice(0, 700));
+  ok('and says where it came from, so the page does not look wrong',
+     /from the week/i.test(dayPage), dayPage.slice(0, 700));
+
+  // The negative half, and the one that matters: a week task whose date is
+  // still ahead stays where it was put. Without this the whole of the week
+  // would arrive on the day, because every task carries a date whether or not
+  // anybody chose one.
+  ok('while one still ahead of itself stays on the week',
+     !dayPage.includes('Quarterly review'), dayPage.slice(0, 700));
+
+  await page.getByLabel('Show week tasks').click();
+  await page.waitForTimeout(700);
+  ok('which is where it still is', (await body()).includes('Quarterly review'),
+     (await body()).slice(0, 600));
+  await page.getByLabel('Show day tasks').click();
+  await page.waitForTimeout(700);
+}
+
+// ── Tomorrow, the night before ──────────────────────────────────────────────
+//
+// The moment anybody wants to know what tomorrow holds is the evening before,
+// not at seven the next morning when it is too late to have thought about it.
+// So the day turns over at nine while there is still an evening left in it.
+//
+// Dated Monday rather than tomorrow on purpose: typing "tomorrow" files a task
+// on the day's page at the moment it is written, so it would never have to
+// travel and would prove nothing about whether it can.
+{
+  await page.getByLabel('Show week tasks').click();
+  await page.waitForTimeout(700);
+  await toDo('Call Bob Monday at 11am');
+  ok('a thing for Monday sits on the week on Friday',
+     (await body()).includes('Call Bob'), (await body()).slice(0, 700));
+
+  await page.getByLabel('Show day tasks').click();
+  await page.waitForTimeout(700);
+  ok('and is not on today\'s page', !(await body()).includes('Call Bob'),
+     (await body()).slice(0, 700));
+
+  // Sunday evening, eight o'clock. Still the week's.
+  await page.clock.setFixedTime(new Date('2026-10-04T20:00:00'));
+  await page.waitForTimeout(22000);
+  ok('nor at eight the evening before', !(await body()).includes('Call Bob'),
+     (await body()).slice(0, 700));
+
+  // Half past nine. The page works the horizon out on a twenty-second timer —
+  // the same one that raises reminders — so it catches up within a tick rather
+  // than at the instant the clock passes nine, and the test waits that out
+  // rather than pretending otherwise.
+  await page.clock.setFixedTime(new Date('2026-10-04T21:30:00'));
+  await page.waitForTimeout(22000);
+  const evening = await body();
+  ok('by half past nine it has come to today\'s page', evening.includes('Call Bob'),
+     evening.slice(0, 800));
+  ok('saying when it is due', /Tomorrow 11:00/.test(evening), evening.slice(0, 800));
+  ok('and where it came from, so the page does not look wrong',
+     /from the week/i.test(evening), evening.slice(0, 800));
+
+  // The other Monday task comes with it, which is right — it is the same
+  // evening and the same tomorrow.
+  ok('and everything else for tomorrow comes with it',
+     evening.includes('Quarterly review'), evening.slice(0, 800));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();
 server.close();

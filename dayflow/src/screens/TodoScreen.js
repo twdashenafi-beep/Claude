@@ -8,6 +8,7 @@ import { pendingAlerts, alertBody, alertSummary, pruneShown } from '../services/
 import { recordChase } from '../services/chase';
 import { isReckoningDay } from '../services/reckoning';
 import { eventsFor } from '../services/calendarFeed';
+import { scopeNow, horizonStamp } from '../services/scope';
 import { dayLoad, loadLine, gapsLine } from '../services/agenda';
 import { EVERYTHING, projectOf, projectName } from '../services/projects';
 import { moveTick } from '../services/haptics';
@@ -314,9 +315,19 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
   const [celebrating, setCelebrating] = useState(false);
   const [showAccount, setShowAccount] = useState(false);
 
+  // Where the horizon is, as a string, changed by the same timer that raises
+  // reminders. It turns over at midnight and again at nine in the evening.
+  //
+  // Which page a task belongs on is worked out from the clock, and a phone left
+  // on the desk would otherwise still be showing the afternoon's Day page at
+  // ten at night — which is exactly the hour tomorrow is supposed to arrive.
+  const [today, setToday] = useState(() => horizonStamp());
+
   const inView = useMemo(
-    () => tasks.filter(t => t.viewScope === viewMode && projectOf(t) === project),
-    [tasks, viewMode, project]
+    () => tasks.filter(t => scopeNow(t) === viewMode && projectOf(t) === project),
+    // `today` is not read here and is a dependency on purpose: it is what makes
+    // the list recompute when the date turns over.
+    [tasks, viewMode, project, today]
   );
   const todo = useMemo(() => inView.filter(t => t.taskType === 'todo'), [inView]);
   const oweMe = useMemo(() => inView.filter(t => t.taskType === 'done_for_me'), [inView]);
@@ -507,6 +518,12 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
 
     const tick = async () => {
       const now = Date.now();
+      // Cheap, and this is the one thing in the app that already runs on a
+      // clock rather than on a render.
+      setToday(was => {
+        const stamp = horizonStamp(now);
+        return stamp === was ? was : stamp;
+      });
       const due = pendingAlerts({
         tasks: liveTasks.current,
         now,
@@ -600,7 +617,7 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
       setShowProjects(true);
     } else {
       setProject(projectOf(task));
-      if (task.viewScope) setViewMode(task.viewScope);
+      setViewMode(scopeNow(task));
     }
     setDetailTask(task);
   }, []);

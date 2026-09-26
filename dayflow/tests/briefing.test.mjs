@@ -86,6 +86,12 @@ const task = (extra = {}) => ({
      sum.today.map(t => t.id).join(''));
   ok('nothing from tomorrow has crept in', !sum.today.some(t => t.id === 'g'));
 
+  // A week task whose date has gone by shows on today's page — that is the
+  // point of it doing so — but it belongs under Late, once, not under both.
+  ok('and nothing is counted twice',
+     !sum.today.some(t => sum.late.some(l => l.id === t.id)),
+     sum.today.map(t => t.title).join(', '));
+
   ok('tomorrow is tomorrow', sum.tomorrow.length === 1 && sum.tomorrow[0].id === 'g',
      sum.tomorrow.map(t => t.title).join(', '));
   ok('and next week is not', !sum.tomorrow.some(t => t.id === 'h'));

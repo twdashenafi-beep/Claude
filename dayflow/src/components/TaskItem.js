@@ -10,6 +10,7 @@ import { dueLabel, dueSpoken } from '../services/due';
 import { ageLabel } from '../services/age';
 import { repeatPhrase } from '../services/repeat';
 import { chaseLabel } from '../services/chase';
+import { scopeNote } from '../services/scope';
 import { COLORS, SANS, SERIF } from '../utils/theme';
 import { liftTick, dropTick } from '../services/haptics';
 
@@ -227,9 +228,13 @@ function TaskItem({
   // Whether you have already asked, next to how long it has been waiting —
   // because "waiting three weeks" reads the same the day before you chase and
   // the day after, and those are not the same situation.
+  // Where it came from, when that is not where it was filed. A task you put on
+  // the week turning up on today's page is the app doing its job, but without a
+  // word about it the page looks like it has made a mistake.
   const meta = [
     done ? null : chaseLabel(task),
     task.owePerson || null,
+    done ? null : scopeNote(task),
     done ? null : repeatPhrase(task),
   ].filter(Boolean);
 
@@ -280,6 +285,7 @@ function TaskItem({
             dueSpoken(task),
             age ? age.text : null,
             done ? null : chaseLabel(task),
+            done ? null : scopeNote(task),
             done ? null : repeatPhrase(task),
             task.priority === 'high' ? 'high priority' : null,
             done ? 'completed' : null,

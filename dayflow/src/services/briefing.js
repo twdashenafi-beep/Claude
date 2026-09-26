@@ -19,6 +19,7 @@
 // Pure: the clock is passed in, and so is every task.
 
 import { dueMoment } from './due.js';
+import { scopeNow } from './scope.js';
 
 function startOfDay(date) {
   const d = new Date(date);
@@ -93,12 +94,26 @@ export function brief(tasks = [], archived = [], now = new Date()) {
   // the two answer the same question from different directions: one is what you
   // put here this morning, the other is what fell due while you were not
   // looking at it.
-  const today = mine
-    .filter(t => t.viewScope === 'day' || dated(t, from, nextFrom))
-    .sort(byTimeThenOrder);
+  // Late and Today are disjoint, and this is where that is enforced. A week
+  // task whose date has gone by now shows on today's page — which is the whole
+  // point of it doing so — and without this it would be counted once under Late
+  // and again under Today, making the morning look twice as full as it is.
+  const overdue = new Set(late.map(t => t.id));
 
   const tomorrow = mine
     .filter(t => dated(t, nextFrom, nextTo))
+    .sort(byTimeThenOrder);
+
+  // Tomorrow's work reaches today's page at nine the evening before, which is
+  // the point of it doing so — but in here it is tomorrow's, and listing it
+  // under both headings would make the evening read like a crisis.
+  const ahead = new Set(tomorrow.map(t => t.id));
+
+  const today = mine
+    // scopeNow rather than the stored scope, so the briefing and the page it
+    // describes cannot disagree about what today holds.
+    .filter(t => !overdue.has(t.id) && !ahead.has(t.id))
+    .filter(t => scopeNow(t, at) === 'day' || dated(t, from, nextFrom))
     .sort(byTimeThenOrder);
 
   const waiting = open
