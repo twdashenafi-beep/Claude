@@ -63,6 +63,15 @@ function byTimeThenOrder(a, b) {
 
 const byOldest = (a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
 
+// When a thing starts mattering: the date somebody put on it, or failing that
+// the day it was asked for, since an old ask is its own kind of deadline.
+function mattersAt(task) {
+  const moment = dueMoment(task);
+  if (moment) return moment.at.getTime();
+  const made = task && task.createdAt ? new Date(task.createdAt) : null;
+  return made && !Number.isNaN(made.getTime()) ? made.getTime() : 0;
+}
+
 export function brief(tasks = [], archived = [], now = new Date()) {
   const at = new Date(now);
   if (Number.isNaN(at.getTime())) return null;
@@ -116,9 +125,25 @@ export function brief(tasks = [], archived = [], now = new Date()) {
     .filter(t => scopeNow(t, at) === 'day' || dated(t, from, nextFrom))
     .sort(byTimeThenOrder);
 
+  // What somebody owes you, when it is today's business.
+  //
+  // The whole outstanding column was being listed here, so a thing not due for
+  // a month sat in this morning's briefing next to the things that are. A
+  // month-out promise is not something to act on today; it is something the
+  // Friday page is for, and that page still shows every last one of them.
+  //
+  // Something with no date anybody chose stays: most of Owe Me is like that,
+  // there is no deadline to be early for, and the only signal those carry is
+  // how long they have been sitting — which is a daily question.
   const waiting = open
     .filter(t => t.taskType === 'done_for_me' && String(t.owePerson || '').trim())
-    .sort(byOldest);
+    .filter(t => {
+      const moment = dueMoment(t);
+      return !moment || moment.at < nextTo;
+    })
+    // By when it matters rather than by when it was asked for: a thing due this
+    // morning comes before one asked for a fortnight ago and due next week.
+    .sort((a, b) => mattersAt(a) - mattersAt(b));
 
   const people = new Set(waiting.map(t => t.owePerson.trim().toLowerCase()));
 

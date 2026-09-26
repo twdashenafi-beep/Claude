@@ -7,7 +7,7 @@
 // when it says something the default could not have said.
 //
 // Run with `npm test`.
-import { dueLabel, dueSpoken, dueMoment, calendarWindow, whenPreview } from '../src/services/due.js';
+import { dueLabel, dueSpoken, dueMoment, calendarWindow, whenPreview, zoneNote } from '../src/services/due.js';
 
 let pass = 0, fail = 0;
 const ok = (label, cond, extra = '') => {
@@ -331,6 +331,74 @@ ok('and silence stays silent', dueSpoken(on('2026-09-09'), NOW) === null);
 
   ok('a time that is not a time is left off',
      whenPreview(at(2026, 8, 28), 'elevenish', NOW) === 'Mon 28 Sep');
+}
+
+// ── A time carries the zone it was set in ───────────────────────────────────
+//
+// Run under Europe/London, so a task stamped Europe/London is at home and one
+// stamped America/New_York has travelled. A call set for three in London is
+// three in London from anywhere on earth: read here it is three, and read in
+// New York it is ten in the morning — which is the whole point, because the
+// reminder has to arrive at the call rather than five hours after it.
+{
+  const iso = (y, m, d, hh = 0) => new Date(y, m - 1, d, hh).toISOString();
+  const call = (tz, time = '15:00') => ({
+    id: 'c', title: 'Board call', taskType: 'todo',
+    createdAt: iso(2026, 10, 1), updatedAt: iso(2026, 10, 1),
+    dueDate: iso(2026, 10, 2, 12), dueTime: time, tz,
+  });
+
+  const home = dueMoment(call('Europe/London'));
+  ok('three in London is two o\'clock UTC in October',
+     home.at.toISOString() === '2026-10-02T14:00:00.000Z', home.at.toISOString());
+  ok('and the moment says where it came from', home.zone === 'Europe/London');
+
+  // The same wall time, set in New York. Five hours later in absolute terms,
+  // and the app is being read in London.
+  const away = dueMoment(call('America/New_York'));
+  ok('three in New York is a different moment entirely',
+     away.at.toISOString() === '2026-10-02T19:00:00.000Z', away.at.toISOString());
+
+  // And the label shows the clock this device is on, not the one it was set on.
+  const NOW = new Date('2026-10-02T09:00:00');
+  ok('the row shows the hour here, not the hour there',
+     dueLabel(call('America/New_York'), NOW).text === '20:00',
+     dueLabel(call('America/New_York'), NOW).text);
+  ok('while one set here reads as it was written',
+     dueLabel(call('Europe/London'), NOW).text === '15:00',
+     dueLabel(call('Europe/London'), NOW).text);
+
+  // Said out loud, because a task reading 20:00 when somebody typed 15:00 is
+  // either a conversion or a bug.
+  ok('and the sheet says where it came from',
+     zoneNote(call('America/New_York')) === 'Set for 15:00 New York',
+     String(zoneNote(call('America/New_York'))));
+  ok('but says nothing when there is nothing to say',
+     zoneNote(call('Europe/London')) === null);
+  ok('nor for a task with no time on it',
+     zoneNote({ ...call('America/New_York'), dueTime: '' }) === null);
+  ok('nor for one written before any of this',
+     zoneNote({ ...call('America/New_York'), tz: undefined }) === null);
+
+  // Every task written before this has no zone, and must behave exactly as it
+  // always did: the wall clock, read locally.
+  const old = { ...call('Europe/London'), tz: undefined };
+  ok('a task with no zone keeps the clock it always kept',
+     dueLabel(old, NOW).text === '15:00', dueLabel(old, NOW).text);
+  ok('and its moment is the local reading of it',
+     dueMoment(old).at.getHours() === 15, dueMoment(old).at.toISOString());
+
+  // A date with no time is a day, not an instant, and nobody crosses a date
+  // line to find their Thursday has become a Wednesday.
+  const dated = { ...call('America/New_York'), dueTime: '' };
+  ok('a day is a day wherever it is read',
+     dueMoment(dated) === null || dueMoment(dated).timed === false,
+     JSON.stringify(dueMoment(dated)));
+
+  // An invented zone must not take the task down with it.
+  ok('a zone that does not exist falls back rather than failing',
+     dueLabel({ ...call('Middle/Earth') }, NOW).text === '15:00',
+     dueLabel({ ...call('Middle/Earth') }, NOW).text);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

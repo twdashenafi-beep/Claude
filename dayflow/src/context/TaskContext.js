@@ -7,6 +7,7 @@ import { createTaskEncryptor, decryptTask } from '../services/encryption';
 import { newId } from '../utils/id';
 import { pullTasks, pushTasks, mergeTasks, watchTasks } from '../services/sync';
 import { orderForNewTask } from '../services/ordering';
+import { deviceZone } from '../services/zones';
 import {
   PROJECT_KIND, EVERYTHING, projectOf, isTask, isProject,
   sortProjects, orderForNewProject,
@@ -258,6 +259,10 @@ export function TaskProvider({ children, encryptionKey, synced }) {
       date: taskData.date || now,
       dueDate: taskData.dueDate || taskData.date || now,
       dueTime: taskData.dueTime || '',
+      // The zone the time was set in. Empty when there is no time, and empty on
+      // a device whose platform cannot do zone arithmetic — both of which fall
+      // back to the wall clock the app has always kept.
+      tz: taskData.dueTime ? (taskData.tz || deviceZone()) : '',
       reminderEnabled: taskData.reminderEnabled || false,
       earlyReminderMinutes: taskData.earlyReminderMinutes || 0,
       priority: taskData.priority || 'medium',

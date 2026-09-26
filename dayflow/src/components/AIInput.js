@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Animated, Platform
 import { parseNaturalLanguage } from '../services/nlParser';
 import { whenPreview } from '../services/due';
 import { clashNote } from '../services/agenda';
+import { deviceZone } from '../services/zones';
 import { COLORS, SANS, SERIF } from '../utils/theme';
 
 // How long a pause means the sentence is over, when the button was tapped
@@ -129,6 +130,7 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo', diary
         date: parsed.date || undefined,
         dueDate: parsed.dueDate || undefined,
         dueTime: parsed.dueTime || '',
+        tz: parsed.dueTime ? deviceZone() : '',
         reminderEnabled: !!parsed.dueTime,
         earlyReminderMinutes: 0,
         notes: '',

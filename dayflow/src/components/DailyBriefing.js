@@ -1,5 +1,5 @@
-import React, { useMemo, useState, useEffect } from 'react';
-import { View, Text, ActivityIndicator } from 'react-native';
+import React, { useMemo } from 'react';
+import { View, Text } from 'react-native';
 import PaperSheet, { Section, Line, TaskLines, groupStyles } from './PaperSheet';
 import { brief, headline, finishedNote } from '../services/briefing';
 import { byPerson, waitedFor } from '../services/reckoning';
@@ -8,7 +8,6 @@ import { COLORS } from '../utils/theme';
 import { whenPreview, dueMoment } from '../services/due';
 import { clockOf, dayLoad, loadLine } from '../services/agenda';
 import { tasksFor, meetingNote } from '../services/meetings';
-import { getDailySummary, isAIConfigured } from '../services/ai';
 
 // The day, briefed.
 //
@@ -38,23 +37,6 @@ export default function DailyBriefing({
     [visible, diary, tasks, at],
   );
 
-  // The optional Claude summary, kept because it was here and because somebody
-  // running their own API server may want it. Off unless EXPO_PUBLIC_API_URL is
-  // set: it is the one thing in the app that sends task titles off the device
-  // in the clear, and the rest of DayFlow promises the server sees ciphertext.
-  const [summary, setSummary] = useState(null);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (!visible || !isAIConfigured || !sum) return undefined;
-    let dropped = false;
-    setLoading(true);
-    getDailySummary(sum.today)
-      .then(text => { if (!dropped) setSummary(text); })
-      .finally(() => { if (!dropped) setLoading(false); });
-    return () => { dropped = true; };
-  }, [visible]);
-
   if (!sum) return null;
 
   // The hour, where there is one. A morning is read down the clock, and a task
@@ -78,14 +60,6 @@ export default function DailyBriefing({
       note={finishedNote(sum)}
       marker="briefsheet"
     >
-      {isAIConfigured && (loading || summary) ? (
-        <Section title="Summary" count={summary ? 1 : 0} empty="">
-          {loading
-            ? <ActivityIndicator size="small" color={COLORS.inkFaint} />
-            : <Text style={groupStyles.summary}>{summary}</Text>}
-        </Section>
-      ) : null}
-
       {/* What the day already contains, before any of the below is possible.
           A list of fifteen things on a day with two free hours is not a plan,
           and this is the only section that can say so. */}
@@ -142,10 +116,21 @@ export default function DailyBriefing({
         <TaskLines tasks={sum.today} noteOf={hourOf} />
       </Section>
 
+      {/* So that nothing arrives as a surprise, and while there is still an
+          evening in which to move it. */}
+      <Section title="Tomorrow" count={sum.tomorrow.length} empty="Nothing dated tomorrow.">
+        <TaskLines tasks={sum.tomorrow} noteOf={hourOf} />
+      </Section>
+
+      {/* Last, because it reads in date order and what somebody else owes you
+          is rarely today's deadline. It holds what is due by tomorrow and what
+          nobody put a date on at all — a promise a month out is not something
+          to act on this morning, and the Friday page still shows every one of
+          them. */}
       <Section
         title="Waiting on"
         count={sum.waiting.length}
-        empty="Nobody is holding anything of yours."
+        empty="Nothing owed to you is due yet."
       >
         {groups.map(group => (
           <View key={group.person.toLowerCase()} style={groupStyles.group}>
@@ -159,12 +144,6 @@ export default function DailyBriefing({
             ))}
           </View>
         ))}
-      </Section>
-
-      {/* So that nothing arrives as a surprise, and while there is still an
-          evening in which to move it. */}
-      <Section title="Tomorrow" count={sum.tomorrow.length} empty="Nothing dated tomorrow.">
-        <TaskLines tasks={sum.tomorrow} noteOf={hourOf} />
       </Section>
     </PaperSheet>
   );

@@ -146,5 +146,42 @@ ok('two keys in a row differ', generateDataKey() !== generateDataKey());
     imports.length > 0 && imports[0].includes('secureRandom'), imports[0]);
 }
 
+// ── Zones, on an engine that may not have them ──────────────────────────────
+//
+// Times now carry the zone they were set in, and the arithmetic leans on Intl
+// rather than on a shipped copy of the zone database — the platform has one and
+// a second would be large and out of date. Hermes has shipped Intl for a while
+// and older builds have not, and the dangerous failure is not a crash: it is a
+// formatToParts that quietly ignores timeZone and returns answers that look
+// right. So support is established by asking a question with a known answer.
+{
+  const zones = await import('../src/services/zones.js');
+
+  ok('this engine can do zone arithmetic', zones.supported() === true);
+
+  // With Intl taken away, everything must decline rather than guess. The app
+  // then falls back to the wall clock it has always kept, which is the
+  // behaviour people already have rather than a new and worse one.
+  const saved = globalThis.Intl;
+  try {
+    delete globalThis.Intl;
+    zones.forget();
+    ok('without it, nothing claims to know a zone', zones.supported() === false);
+    ok('no zone is known', zones.knownZone('America/New_York') === false);
+    ok('no offset is offered', zones.offsetAt('America/New_York', new Date()) === null);
+    ok('no moment is named', zones.instantOf(2026, 10, 2, 15, 0, 'America/New_York') === null);
+    ok('and no clock is read', zones.clockIn('America/New_York', new Date()) === null);
+    ok('the device admits it does not know where it is', zones.deviceZone() === '');
+    // Two zones it cannot compare are not worth a sentence about.
+    ok('and nothing is said about a difference it cannot see',
+       zones.sameClock('Europe/London', 'America/New_York') === true);
+  } finally {
+    globalThis.Intl = saved;
+    zones.forget();
+  }
+
+  ok('and it comes back when Intl does', zones.supported() === true);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

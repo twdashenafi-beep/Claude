@@ -262,6 +262,14 @@ ok('with the list still there', after.includes('Pay the invoice'), after.slice(0
   ok('the morning asks its own four questions',
      /LATE/i.test(brief) && /TODAY/i.test(brief)
      && /WAITING ON/i.test(brief) && /TOMORROW/i.test(brief), brief.slice(0, 400));
+  // In date order, and what somebody else owes you last: it is rarely today's
+  // deadline, and reading it between tomorrow and the rest broke the spine of
+  // the page.
+  ok('and reads them in the order the days come',
+     brief.indexOf('LATE') < brief.indexOf('TODAY')
+     && brief.indexOf('TODAY') < brief.indexOf('TOMORROW')
+     && brief.indexOf('TOMORROW') < brief.indexOf('WAITING ON'),
+     brief.slice(0, 400));
 
   // Due at nine this morning, read at three this afternoon. Late in the day's
   // terms is not late in the week's: the weekly page calls it slipped from the

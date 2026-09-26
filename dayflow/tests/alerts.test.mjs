@@ -170,5 +170,39 @@ ok('a day reads as a day',
      alertSummary([one]).includes('Ring the agent'), alertSummary([one]));
 }
 
+// ── A reminder arrives at the call, not five hours after it ─────────────────
+//
+// The moment used to be worked out here as well as in due.js — identically, so
+// nobody noticed — and the two parted company the day a time learned which zone
+// it was set in. One reading of when a task is due, in one place, or the
+// reminder fires on one clock while every label in the app shows another.
+{
+  const iso = (y, m, d, hh = 12) => new Date(y, m - 1, d, hh).toISOString();
+  const call = tz => ({
+    id: 'c', title: 'Board call', dueDate: iso(2026, 10, 2), dueTime: '15:00', tz,
+  });
+
+  const here = alertTimesFor(call('Europe/London'));
+  ok('a call set here fires at two o\'clock UTC',
+     new Date(here.due).toISOString() === '2026-10-02T14:00:00.000Z',
+     new Date(here.due).toISOString());
+
+  const there = alertTimesFor(call('America/New_York'));
+  ok('and one set in New York fires five hours later',
+     new Date(there.due).toISOString() === '2026-10-02T19:00:00.000Z',
+     new Date(there.due).toISOString());
+  ok('which is not the same moment', there.due !== here.due);
+
+  // An early reminder is counted back from the real moment, not from a wall
+  // clock read in the wrong place.
+  const early = alertTimesFor({ ...call('America/New_York'), earlyReminderMinutes: 30 });
+  ok('an early reminder is half an hour before the call, wherever it is',
+     early.due - early.early === 30 * 60000, String((early.due - early.early) / 60000));
+
+  // Everything written before this has no zone and must fire exactly as before.
+  ok('a task with no zone keeps the clock it always kept',
+     new Date(alertTimesFor({ ...call('Europe/London'), tz: undefined }).due).getHours() === 15);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

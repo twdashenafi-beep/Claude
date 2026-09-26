@@ -41,22 +41,22 @@ npx expo start
 ```
 
 `expo start` opens the dev server: press **w** for the browser, **i** for the
-iOS simulator. Two others worth knowing:
+iOS simulator. One other worth knowing:
 
 ```bash
 npm run build:web
 ```
 
-```bash
-npm run api
-```
-
-The first writes an installable web app to `web-build/`. The second runs the
-optional API server, for the AI and Supabase features, on port 3001.
+This writes an installable web app to `web-build/`.
 
 DayFlow runs fully offline out of the box — no account, no keys, no network.
-The optional cloud and AI features are configured through `.env`; copy
+Optional encrypted sync across your devices is configured through `.env`; copy
 `.env.example` to get started.
+
+Nothing in the app sends your task content anywhere. There is no model in it and
+no server that could read one: everything that reads a date, decides what is
+late or works out how long something has been sitting is local, instant, and
+works with the aeroplane mode on.
 
 ## Install it
 
@@ -88,7 +88,6 @@ Full instructions, including the one-time GitHub Pages switch, are in
 dayflow/
 ├── App.js                          # Entry point with encryption gate
 ├── index.js                        # Expo root registration
-├── api-server.js                   # Optional backend: Claude proxy + Supabase
 ├── app.json                        # Expo configuration
 ├── app.config.js                   # Layers in the web base path per build
 ├── eas.json                        # EAS Build configuration
@@ -111,7 +110,6 @@ dayflow/
 │   │   └── TodoScreen.js           # Main screen (To Do + Owe Me tabs)
 │   ├── services/
 │   │   ├── account.js              # Sign in / sign up (sends only an auth hash)
-│   │   ├── ai.js                   # Claude client (talks to api-server.js)
 │   │   ├── crypto.js               # Key derivation: auth hash vs encryption key
 │   │   ├── secureRandom.js         # A crypto.getRandomValues on platforms lacking one
 │   │   ├── merge.js                # Conflict policy (pure, tested)
@@ -145,11 +143,11 @@ with AES-256 before being written to storage. The key is derived from your
 master password with PBKDF2 (10,000 iterations, random salt) and never leaves
 the device. Forget the password and the data is unrecoverable — by design.
 
-**No secrets live in this repository.** The client bundle is public by
-definition, so the Anthropic API key stays on the API server (`api-server.js`)
-and the app reaches Claude only through it. Supabase credentials come from the
-environment, and the anon key is safe to expose only because Row Level Security
-scopes every row to its owner (see `supabase/schema.sql`).
+**No secrets live in this repository**, and there is nowhere for one to be
+needed: the app holds no API keys because it calls no model. Supabase
+credentials come from the environment, and the anon key is safe to expose only
+because Row Level Security scopes every row to its owner, and because those rows
+hold nothing but ciphertext (see `supabase/schema.sql`).
 
 ## Configuration
 
@@ -157,11 +155,7 @@ Everything is optional. Copy `.env.example` to `.env` and set what you need:
 
 | Variable | Side | Purpose |
 |---|---|---|
-| `EXPO_PUBLIC_API_URL` | client | Points the app at the API server; enables AI features |
 | `EXPO_PUBLIC_SUPABASE_URL` / `_ANON_KEY` | client | Supabase cloud sync |
-| `ANTHROPIC_API_KEY` | server | Used by `/ai/*` on the API server |
-| `SUPABASE_URL` / `SUPABASE_ANON_KEY` | server | Used by `/task` and `/tasks` |
-| `PORT` | server | API server port (default 3001) |
 
 `EXPO_PUBLIC_*` values are inlined into the app bundle and are therefore public.
 Never put a secret behind that prefix.

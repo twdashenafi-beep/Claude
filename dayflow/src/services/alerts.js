@@ -6,16 +6,21 @@
 // task finished in the meantime, and one so old that shouting about it on next
 // launch would be noise rather than a reminder.
 
+import { dueMoment } from './due.js';
+
 // A task alerts at its due time, and again earlier if an early reminder is set.
+//
+// The moment comes from due.js rather than being worked out again here. It was
+// worked out again here, identically, until a time learned which zone it was
+// set in — at which point the two answers parted company and the reminder for a
+// call set in London would have arrived on New York's clock while every label
+// in the app said otherwise. One reading of when a task is due, in one place.
 export function alertTimesFor(task) {
   if (!task || !task.dueDate || !task.dueTime) return null;
 
-  const [h, m] = String(task.dueTime).split(':').map(Number);
-  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
-
-  const at = new Date(task.dueDate);
-  if (Number.isNaN(at.getTime())) return null;
-  at.setHours(h, m, 0, 0);
+  const moment = dueMoment(task);
+  if (!moment || !moment.timed) return null;
+  const at = moment.at;
 
   const early = Number(task.earlyReminderMinutes) || 0;
   return {
