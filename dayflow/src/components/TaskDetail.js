@@ -29,6 +29,9 @@ export default function TaskDetail({
   const [earlyReminderIdx, setEarlyReminderIdx] = useState(0);
   const [owePerson, setOwePerson] = useState('');
   const [viewScope, setViewScope] = useState('day');
+  // Whether the scope below was chosen here rather than inherited from the page
+  // the task was typed on. Only a choice made out loud overrides the date.
+  const [scopePinned, setScopePinned] = useState(false);
   const [projectId, setProjectId] = useState('');
   const [voiceNotes, setVoiceNotes] = useState([]);
   const [taskType, setTaskType] = useState('todo');
@@ -51,6 +54,7 @@ export default function TaskDetail({
       setEarlyReminderIdx(idx >= 0 ? idx : 0);
       setOwePerson(task.owePerson || '');
       setViewScope(task.viewScope || 'day');
+      setScopePinned(!!task.scopePinned);
       setProjectId(task.projectId || '');
       setVoiceNotes(notesOf(task));
       setMeeting(task.meeting || null);
@@ -88,6 +92,7 @@ export default function TaskDetail({
       reminderEnabled: reminderEnabled || earlyMinutes > 0,
       earlyReminderMinutes: earlyMinutes,
       viewScope,
+      scopePinned,
       projectId,
       repeat,
       meeting,
@@ -402,7 +407,7 @@ export default function TaskDetail({
                   <TouchableOpacity
                     key={scope.key}
                     style={[styles.scopeBtn, on && styles.scopeBtnOn]}
-                    onPress={() => setViewScope(scope.key)}
+                    onPress={() => { setViewScope(scope.key); setScopePinned(true); }}
                     accessibilityRole="radio"
                     aria-checked={on}
                     accessibilityLabel={`Show under ${scope.label}`}
