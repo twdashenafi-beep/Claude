@@ -144,6 +144,26 @@ ok('the account offers to read one',
    (await page.getByText('Read a calendar', { exact: true }).count()) === 1,
    (await body()).slice(0, 500));
 
+// Anything can be chosen now, so what keeps a wrong file out is reading it
+// rather than filtering the picker. An accept list is a hint on a desktop and a
+// rule on iOS, where a type it does not recognise greys the file out — and a
+// calendar exported from Proton could not be selected at all.
+{
+  const [wrong] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    page.getByText('Read a calendar', { exact: true }).click(),
+  ]);
+  await wrong.setFiles({
+    name: 'notes.txt', mimeType: 'text/plain',
+    buffer: Buffer.from('shopping list\nmilk\nbread'),
+  });
+  await page.waitForTimeout(1200);
+  ok('something that is not a calendar is named as such',
+     /not a calendar/i.test(await body()), (await body()).slice(0, 700));
+  ok('and nothing is remembered from it',
+     (await page.getByText('Forget the calendar', { exact: true }).count()) === 0);
+}
+
 const [chooser] = await Promise.all([
   page.waitForEvent('filechooser'),
   page.getByText('Read a calendar', { exact: true }).click(),

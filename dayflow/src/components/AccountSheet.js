@@ -141,6 +141,12 @@ export default function AccountSheet({
     const file = await pickTextFile();
     // Cancelled, or a browser that cannot do this. Neither is worth a message.
     if (!file) return;
+    if (file.tooBig) {
+      setPending(null);
+      setView('restore');
+      setError('That file is too large to read.');
+      return;
+    }
 
     const read = readBackup(file.text);
     if (!read.ok) {
@@ -189,8 +195,12 @@ export default function AccountSheet({
   // put between you and your data. So: the file every calendar can export.
   const chooseCalendar = async () => {
     setCalendar('');
-    const file = await pickTextFile('text/calendar,.ics');
+    const file = await pickTextFile();
     if (!file) return;
+    if (file.tooBig) {
+      setCalendar('That file is too large to read');
+      return;
+    }
     try {
       const saved = await saveFeed(file.text, dataKey);
       if (!saved) {
