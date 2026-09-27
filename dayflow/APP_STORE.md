@@ -32,11 +32,18 @@ That is fixed:
 `tests/native-readiness.test.mjs` covers all of it, including a sandbox that
 reproduces the Hermes environment exactly.
 
-**Still unverified:** that `expo-crypto`'s native module loads on a real device.
-It is a first-party Expo module so the risk is low, but no test here can prove
-it — only a build on hardware can. **The first TestFlight build must be checked
-for this**: create an account, add a task, then look at the `tasks` table in
-Supabase. The `ciphertext` column must be unreadable. If you can read a task
+**Verified on hardware, build 1.** That `expo-crypto`'s native module loads on
+a real device was the one thing no test here could prove — a first-party Expo
+module, so the risk was low, but low is not nothing when what is riding on it is
+whether every task syncs in the clear. The first TestFlight build was checked by
+hand: a fresh account, one task, then the `tasks` table in Supabase. The
+`ciphertext` column was unreadable.
+
+**Check it again the same way after any change to the crypto path**, or after an
+Expo SDK upgrade, which is when a native module's loading is most likely to
+change underneath this: create an account, add a task, read the `ciphertext`
+column. It must be a base64 blob beginning `U2FsdGVkX1+` — that prefix is
+`Salted__`, which is how CryptoJS marks real AES output. If you can read a task
 title in it, stop and say so.
 
 ---
