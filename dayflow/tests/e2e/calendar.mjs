@@ -172,6 +172,10 @@ await chooser.setFiles({ name: 'work.ics', mimeType: 'text/calendar', buffer: Bu
 await page.waitForTimeout(1500);
 
 ok('and says what it found', /Read 5 events from Work/i.test(await body()), (await body()).slice(0, 700));
+// And how much of it is any use. A file can parse perfectly and still show
+// nothing, and the two numbers are the difference between those cases.
+ok('and how much of it is ahead of you',
+   /in the next three weeks/i.test(await body()), (await body()).slice(0, 700));
 ok('and offers to forget it again',
    (await page.getByText('Forget the calendar', { exact: true }).count()) === 1);
 

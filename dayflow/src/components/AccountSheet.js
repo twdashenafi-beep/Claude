@@ -202,15 +202,21 @@ export default function AccountSheet({
       return;
     }
     try {
-      const saved = await saveFeed(file.text, dataKey);
+      const saved = await saveFeed(file.text, dataKey, new Date(), file.name);
       if (!saved) {
         setCalendar('That file is not a calendar');
         return;
       }
       setFeed(saved);
       if (onCalendar) onCalendar();
-      setCalendar(`Read ${saved.events} ${saved.events === 1 ? 'event' : 'events'}`
-        + `${saved.name ? ` from ${saved.name}` : ''}`);
+      // Both numbers. A file can parse perfectly and still show you nothing,
+      // and until this said so the only way to find out was to open the
+      // briefing and wonder.
+      const held = `Read ${saved.events} ${saved.events === 1 ? 'event' : 'events'}`;
+      const soon = saved.ahead === 0
+        ? 'none in the next three weeks'
+        : `${saved.ahead} in the next three weeks`;
+      setCalendar(`${held}${saved.name ? ` from ${saved.name}` : ''} · ${soon}`);
     } catch (e) {
       setCalendar(`Could not read it: ${String(e.message || e)}`);
     }
@@ -336,7 +342,7 @@ export default function AccountSheet({
                 label={feed ? 'Calendar' : 'Read a calendar'}
                 detail={calendar
                   || (feed
-                    ? `${feed.name || 'Imported'} · ${feedAge({ source: 'file', at: feed.at }) || ''}`
+                    ? `${feed.name || 'Imported'} · ${typeof feed.ahead === 'number' ? `${feed.ahead} ahead · ` : ''}${feedAge({ source: 'file', at: feed.at }) || ''}`
                     : CALENDAR_HINT)}
                 onPress={chooseCalendar}
               />

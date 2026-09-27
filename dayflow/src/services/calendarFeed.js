@@ -29,6 +29,14 @@ import { parseICS, describeICS } from './ics';
 
 export const FEED_KEY = '@dayflow_calendar_v1';
 
+// How far ahead to read.
+//
+// The day's page only needs today, but a task being given a time can be given
+// one for a week on Thursday, and answering "does that run into anything" needs
+// the Thursday. Three weeks is further than anybody schedules in a task list
+// and still a small enough slice of a diary to hold in memory.
+const AHEAD_DAYS = 21;
+
 function startOfDay(date) {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
@@ -37,10 +45,35 @@ function startOfDay(date) {
 
 // ── The imported file ───────────────────────────────────────────────────────
 
-export async function saveFeed(text, key, now = new Date()) {
+export async function saveFeed(text, key, now = new Date(), label = '') {
   const seen = describeICS(text);
   if (!seen) return null;
-  const record = { text: String(text), at: new Date(now).toISOString(), name: seen.name, events: seen.events };
+
+  // What it holds, and what it can actually show. Those are different numbers
+  // and the difference is the whole diagnosis: a file of 363 events that yields
+  // none for the next three weeks has parsed perfectly and is still useless,
+  // and "read 363 events" says nothing about which of those two you have.
+  const from = startOfDay(now);
+  const to = new Date(from);
+  to.setDate(to.getDate() + AHEAD_DAYS);
+  let ahead = 0;
+  try {
+    ahead = parseICS(text, { from, to }).length;
+  } catch {
+    ahead = 0;
+  }
+
+  const record = {
+    text: String(text),
+    at: new Date(now).toISOString(),
+    // Proton writes X-WR-TIMEZONE and no X-WR-CALNAME, so a calendar exported
+    // from it had no name to show — which is exactly when you need one, since
+    // it exports one file per calendar and the only way to tell which you
+    // picked is what it is called.
+    name: seen.name || String(label || '').replace(/\.ics$/i, ''),
+    events: seen.events,
+    ahead,
+  };
   await AsyncStorage.setItem(FEED_KEY, encrypt(JSON.stringify(record), key));
   return record;
 }
@@ -96,14 +129,6 @@ async function deviceEvents(from, to) {
 }
 
 // ── Either one ──────────────────────────────────────────────────────────────
-
-// How far ahead to read.
-//
-// The day's page only needs today, but a task being given a time can be given
-// one for a week on Thursday, and answering "does that run into anything" needs
-// the Thursday. Three weeks is further than anybody schedules in a task list
-// and still a small enough slice of a diary to hold in memory.
-const AHEAD_DAYS = 21;
 
 // Everything in the diary from today to three weeks out, or null when there is
 // no calendar to read — which is not the same as a diary with nothing in it,
