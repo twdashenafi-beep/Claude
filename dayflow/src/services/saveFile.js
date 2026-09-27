@@ -115,7 +115,26 @@ function downloadAsFile(name, text, type) {
 // Resolves to { name, text } or null — null being both "cancelled" and "could
 // not", because to the person standing there they are the same thing and
 // neither is a failure worth a message.
-export function pickTextFile(accept = 'application/json,.json') {
+//
+// No filter on what can be chosen, and that is deliberate rather than lazy.
+// An accept list is a hint on a desktop and a rule on iOS, where it is matched
+// against Apple's own type identifiers rather than against the extension — and
+// a type it does not recognise does not narrow the picker, it greys the file
+// out. A calendar exported from Proton, sitting in Files, could not be selected
+// at all: the one file the person had come to fetch was the one the picker
+// refused to hand over.
+//
+// Nothing is lost by opening it up, because the filter was never what kept a
+// wrong file out. Both callers read the file and say what it is — "that file is
+// not a calendar", or the restore sheet's account of what a backup contains —
+// and they would have had to do that anyway, since an .ics extension is not a
+// promise about what is inside.
+//
+// What replaces it is a size check. Without a filter somebody can pick a video,
+// and readAsText on a gigabyte of film is a frozen tab rather than an error.
+export const MAX_PICK_BYTES = 25 * 1024 * 1024;
+
+export function pickTextFile() {
   if (Platform.OS !== 'web') return Promise.resolve(null);
   const doc = typeof document === 'undefined' ? null : document;
   const Reader = globalThis.FileReader;
@@ -132,7 +151,6 @@ export function pickTextFile(accept = 'application/json,.json') {
 
     const input = doc.createElement('input');
     input.type = 'file';
-    input.accept = accept;
     // Off-screen rather than hidden: a display:none input is ignored by some
     // browsers when clicked from script.
     input.style.position = 'fixed';
@@ -141,6 +159,12 @@ export function pickTextFile(accept = 'application/json,.json') {
     input.addEventListener('change', () => {
       const file = input.files && input.files[0];
       if (!file) return finish(null);
+      // Said rather than silently refused: picking the wrong thing is an easy
+      // mistake now that everything can be picked, and a picker that closes
+      // with no explanation is indistinguishable from a broken one.
+      if (typeof file.size === 'number' && file.size > MAX_PICK_BYTES) {
+        return finish({ name: file.name, text: null, tooBig: true });
+      }
       const reader = new Reader();
       reader.onerror = () => finish(null);
       reader.onloadend = () => finish(
