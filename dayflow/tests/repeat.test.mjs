@@ -139,6 +139,7 @@ ok('a task that does not repeat has no next date', nextDate(task('2026-05-10T09:
     taskType: 'todo',
     section: 'todo',
     viewScope: 'week',
+    scopePinned: true,
     owePerson: 'Mrs Kelly',
     projectId: 'p1',
     dueTime: '09:00',
@@ -156,6 +157,10 @@ ok('a task that does not repeat has no next date', nextDate(task('2026-05-10T09:
   ok('how urgent it is travels', next.priority === 'high');
   ok('which column travels', next.taskType === 'todo' && next.section === 'todo');
   ok('which horizon travels', next.viewScope === 'week');
+  // And that the horizon was chosen rather than inherited. Without this the
+  // date would file the follow-on somewhere else and a task somebody moved by
+  // hand would creep back every week.
+  ok('and that it was chosen by hand', next.scopePinned === true);
   ok('who it concerns travels', next.owePerson === 'Mrs Kelly');
   ok('which project travels', next.projectId === 'p1');
   ok('the time of day travels', next.dueTime === '09:00');
