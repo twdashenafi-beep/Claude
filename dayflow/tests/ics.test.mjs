@@ -194,6 +194,77 @@ const week = (from, to) => ({ from, to });
   ok('a yearly event comes round', parseICS(text, week(day(2026, 4, 2), day(2026, 4, 3))).length === 1);
 }
 
+// ── A meeting that has been running for years ───────────────────────────────
+//
+// Found in a real diary of 363 events: an eleven-thirty meeting that simply was
+// not there. The expansion walked from the first occurrence to the window one
+// period at a time and gave up after two thousand steps — which a daily meeting
+// reaches in five and a half years, so anything repeating daily since 2019 ran
+// out somewhere in 2024 and vanished.
+//
+// It now jumps most of the way and walks the last stretch, because the walk is
+// what gets the clock changes and the week alignment right.
+{
+  const daily = since => wrap(vevent([
+    'UID:long@example.com', 'SUMMARY:Stand-up',
+    `DTSTART;TZID=Europe/London:${since}T113000`, 'DURATION:PT1H', 'RRULE:FREQ=DAILY',
+  ]));
+  const onThe = (text, d) => parseICS(text, week(day(2026, 9, d), day(2026, 9, d + 1)));
+
+  ok('a daily meeting started this month is there', onThe(daily('20260901'), 27).length === 1);
+  ok('and one started in 2019 is there too', onThe(daily('20190101'), 27).length === 1,
+     'two thousand days short of today');
+  ok('and one started in 2010', onThe(daily('20100101'), 27).length === 1);
+  ok('at the hour it was set', onThe(daily('20100101'), 27)[0].start.getHours() === 11,
+     clock(onThe(daily('20100101'), 27)[0].start));
+
+  // The jump has to land where the walk would have. Every other day since 2015
+  // falls on the 28th and not the 27th, and a series begun a week ago agrees:
+  // 4,287 days is an odd number, so the parity is the answer either way.
+  const everyOther = since => wrap(vevent([
+    'UID:alt@example.com', 'SUMMARY:Alternate',
+    `DTSTART;TZID=Europe/London:${since}T113000`, 'DURATION:PT1H',
+    'RRULE:FREQ=DAILY;INTERVAL=2',
+  ]));
+  ok('a jumped series keeps the parity it started with',
+     onThe(everyOther('20150101'), 27).length === 0
+     && onThe(everyOther('20150101'), 28).length === 1,
+     'an odd number of days from the first one');
+  ok('and a walked one gives the same answer',
+     onThe(everyOther('20260921'), 27).length === 1
+     && onThe(everyOther('20260921'), 28).length === 0);
+
+  // A weekly one twenty years old, landing on the right weekday.
+  const weekly = wrap(vevent([
+    'UID:wk@example.com', 'SUMMARY:Sunday call',
+    'DTSTART;TZID=Europe/London:20050102T113000', 'DURATION:PT1H', 'RRULE:FREQ=WEEKLY',
+  ]));
+  ok('a weekly meeting from 2005 still lands on its Sunday',
+     onThe(weekly, 27).length === 1 && onThe(weekly, 28).length === 0,
+     'the 27th is a Sunday');
+
+  // Nothing is skipped past its own ending.
+  const counted = wrap(vevent([
+    'UID:c@example.com', 'SUMMARY:Five of them',
+    'DTSTART;TZID=Europe/London:20190101T113000', 'DURATION:PT1H',
+    'RRULE:FREQ=DAILY;COUNT=5',
+  ]));
+  ok('a counted series is still over when its count is spent', onThe(counted, 27).length === 0);
+  const ended = wrap(vevent([
+    'UID:u@example.com', 'SUMMARY:Ended',
+    'DTSTART;TZID=Europe/London:20190101T113000', 'DURATION:PT1H',
+    'RRULE:FREQ=DAILY;UNTIL=20200101T000000Z',
+  ]));
+  ok('and one with an end date is over on it', onThe(ended, 27).length === 0);
+
+  // Still right across a clock change, which is what the last stretch of walking
+  // is for. Britain put the clocks back on 25 October 2026.
+  const after = parseICS(daily('20190101'), week(day(2026, 11, 2), day(2026, 11, 3)));
+  ok('and a years-old daily meeting is still at half past eleven in November',
+     after.length === 1 && clock(after[0].start) === '11:30',
+     after.map(e => clock(e.start)).join(', '));
+}
+
 // ── The Tuesday somebody cancelled ──────────────────────────────────────────
 {
   const text = wrap(vevent([

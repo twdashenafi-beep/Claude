@@ -148,12 +148,43 @@ const MAX_STEPS = 2000;
 // Walked one period at a time rather than by adding milliseconds: a fortnightly
 // meeting stepped in 1,209,600,000ms crosses a clock change twice a year and
 // arrives an hour early for the rest of the winter.
+// How many whole periods fit between the first occurrence and the window.
+//
+// Only for the two frequencies that can outrun the step limit within a working
+// life: a daily meeting reaches two thousand days in five and a half years, and
+// this diary had one running since 2019 — so the walk ran out somewhere in 2024
+// and the meeting simply was not there today. Monthly needs a hundred and sixty
+// years to hit the same wall and yearly two thousand, so those still walk.
+//
+// Skipped only when the rule has no COUNT. A counted series is bounded and
+// short by definition, and keeping the tally honest through a jump is a second
+// piece of arithmetic to get wrong for no gain.
+function periodsToSkip(start, rule, from) {
+  if (rule.count) return 0;
+  if (rule.freq !== 'DAILY' && rule.freq !== 'WEEKLY') return 0;
+
+  const days = Math.floor((from - start) / 86400000);
+  if (days <= 0) return 0;
+  const per = (rule.freq === 'WEEKLY' ? 7 : 1) * rule.interval;
+  // One short on purpose. The walk that follows is what gets the clock changes
+  // and the week alignment right, and it needs a period in hand to do it.
+  return Math.max(0, Math.floor(days / per) - 1);
+}
+
 function occurrences(start, rule, from, to) {
   if (!rule) return (start >= from && start < to) ? [start] : [];
 
   const out = [];
   let emitted = 0;
   let cursor = new Date(start);
+
+  // Counted in days rather than added in milliseconds, so the jump lands on the
+  // same wall clock it left — which is the whole reason the walk below steps a
+  // period at a time rather than adding 604,800,000 to a Monday.
+  const skip = periodsToSkip(start, rule, from);
+  if (skip > 0) {
+    cursor.setDate(cursor.getDate() + skip * (rule.freq === 'WEEKLY' ? 7 : 1) * rule.interval);
+  }
 
   const keep = when => {
     if (rule.until && when > rule.until) return false;
