@@ -92,12 +92,34 @@ No Mac is required for any of this. EAS builds on Apple hardware in the cloud.
 
 Both blanks this file used to list are filled and committed:
 
-- `extra.eas.projectId` — `b5d74812-ef07-41f7-8fd6-ea31f0c8673d`. `eas init` in
-  step 2 will now find that project instead of creating one. If you happen to be
-  signed in as a different Expo account, it will offer to make a second project
-  — decline, and sign in as the owner instead.
+- `extra.eas.projectId` — `9ce7b9c9-b773-446f-8005-ba52efdac39b`, owned by the
+  Expo account **tashenafi**. `eas init` finds that project rather than creating
+  one. Signed in as any other Expo account it cannot even read it, which is the
+  next paragraph.
 - `ios.config.usesNonExemptEncryption` — `false`. A legal declaration rather
   than a setting; the reasoning is in section 4.
+
+**An id committed here is only good to the account that owns it.** This file
+used to name `b5d74812-…`, written by an Expo account nobody had the password
+for any more, and advised declining if `eas init` offered to make a second
+project. That advice was wrong, and the error it produced does not sound like an
+ownership problem at all:
+
+    You don't have the required permissions to perform this operation.
+    Entity Not Authorized: Entity not authorized: AppEntity[b5d74812-…]
+
+Nothing about signing in again fixes that. The fix is to delete the field and
+let EAS write a fresh one, which costs nothing — the build-number counter
+starting at 1 is correct for a first submission, and the bundle identifier is
+registered against the Apple team rather than the Expo project, so it is
+untouched:
+
+```bash
+node -e 'const fs=require("fs"),f="app.json",j=JSON.parse(fs.readFileSync(f));delete j.expo.extra;fs.writeFileSync(f,JSON.stringify(j,null,2)+"\n")'
+```
+
+Then `eas init` again, and commit the id it writes — which is where the one
+above came from.
 
 ---
 
