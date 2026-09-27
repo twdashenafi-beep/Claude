@@ -171,9 +171,17 @@ await say('owe me the signed lease');
 ok('"owe me…" lands in Owe Me', (await columnOf('The signed lease')) === 'owe',
    await columnOf('The signed lease'));
 
+// A date, to prove it does not confuse the routing — and it now decides the
+// page as well, so this one is read where it actually goes. A thing due
+// tomorrow is the week's business until nine this evening; it is the column
+// that is being checked here, not the horizon.
 await say('call the bank tomorrow');
+await A.page.getByLabel('Show week tasks').click();
+await A.page.waitForTimeout(700);
 ok('an ordinary task still lands in To Do', (await columnOf('Call the bank')) === 'todo',
    await columnOf('Call the bank'));
+await A.page.getByLabel('Show day tasks').click();
+await A.page.waitForTimeout(700);
 
 // ── The words that chose the column do not end up in the task ──
 //
