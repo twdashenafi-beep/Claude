@@ -257,6 +257,9 @@ export default function AddTaskModal({ visible, onClose, onAdd, section = 'todo'
                 placeholderTextColor="#C7C7CC"
                 value={owePerson}
                 onChangeText={setOwePerson}
+                returnKeyType="done"
+                onSubmitEditing={handleAdd}
+                blurOnSubmit={false}
               />
               <Text style={s.oweHint}>
                 Who you are waiting on. Add a date to remind yourself to chase it.

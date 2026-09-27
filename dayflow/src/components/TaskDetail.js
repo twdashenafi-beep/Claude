@@ -172,7 +172,17 @@ export default function TaskDetail({
         </View>
 
         <ScrollView style={styles.body} keyboardShouldPersistTaps="handled">
-          {/* Title */}
+          {/* Title.
+
+              Return saves and closes, here and in the other single-line field
+              on this sheet. Pressing it and watching nothing happen is the one
+              thing every other form has taught you not to expect, and a sheet
+              you have to reach back to the top of to commit is a sheet edited
+              less often than it should be.
+
+              The notes box is the exception, and the only one. There Return is
+              a new line and always has been — a note is the one field on here
+              somebody writes more than a line in. */}
           <View style={styles.section}>
             <Text style={styles.label}>Title</Text>
             <TextInput
@@ -182,6 +192,8 @@ export default function TaskDetail({
               onChangeText={setTitle}
               placeholder="Task title"
               placeholderTextColor="#C7C7CC"
+              returnKeyType="done"
+              onSubmitEditing={handleSave}
             />
           </View>
 
@@ -487,6 +499,8 @@ export default function TaskDetail({
                 onChangeText={setOwePerson}
                 placeholder="Who owes you?"
                 placeholderTextColor="#C7C7CC"
+                returnKeyType="done"
+                onSubmitEditing={handleSave}
               />
 
               {/* Asking for it back.
