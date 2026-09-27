@@ -141,10 +141,18 @@ ok('an undated task carries no date', !/Overdue|Tomorrow/.test(text), text.slice
 ok('and it is on the page', text.includes('Pick up the prescription'));
 
 // ── Tomorrow says tomorrow ──
+//
+// Read on the week's page, because that is where a thing due tomorrow lives
+// until nine in the evening. What is being checked is the label the row
+// carries, not which page carries it.
 await add('Book the MOT tomorrow');
+await A.page.getByLabel('Show week tasks').click();
+await A.page.waitForTimeout(700);
 text = await page();
 ok('a task for tomorrow says so', /Tomorrow/.test(text), text.slice(0, 300));
 ok('and is not called late', !/Overdue/.test(text), text.slice(0, 300));
+await A.page.getByLabel('Show day tasks').click();
+await A.page.waitForTimeout(700);
 
 // ── Late looks like late ──
 //
