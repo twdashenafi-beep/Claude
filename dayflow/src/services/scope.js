@@ -14,12 +14,12 @@
 // scope is still what you chose — it is what the sheet shows and what you edit;
 // this is only where the choice lands as time passes.
 //
-// Two rules, and they only ever move a task nearer:
+// A date decides the horizon; the page you happened to be standing on does not.
 //
-//   due tomorrow or sooner,    → Day, from nine the evening before
+//   due tomorrow or sooner,  → Day, from nine the evening before
 //     or overdue
-//   due inside this week, and  → Week
-//     filed under Month
+//   due within a week        → Week
+//   further off              → Month
 //
 // Nine in the evening rather than midnight, because the point of a day's page
 // is to be read, and the moment anybody wants to know what tomorrow holds is
@@ -27,9 +27,18 @@
 // to have thought about it. So the day changes over while there is still an
 // evening left in it.
 //
-// Never the other way. A task you have deliberately put on Day stays on Day
-// however far off its date is: you put it in front of you on purpose, and an
-// app that quietly filed it away again would be arguing with you.
+// The first version of this only ever moved a task nearer, on the reasoning
+// that a task on the day's page had been put there deliberately. It had not.
+// Nothing asked: a task takes the scope of the page it was typed on, and the
+// parser calls anything within a couple of days "day" — so something owed
+// tomorrow night sat on today's page from the moment it was written, and the
+// nine o'clock hand-over it was supposed to arrive by had nothing to do.
+//
+// So a chosen date now decides, and the stored scope is what answers when
+// nobody chose one. The exception is the sheet: picking Show under is a person
+// saying where they want it, and that is honoured — short of the day it comes
+// due, because a thing due tomorrow belongs in front of you whatever anybody
+// filed it as.
 //
 // A date only counts if somebody chose it, by the same test the row labels use.
 // Every task carries a dueDate whether or not anyone picked one, and without
@@ -60,15 +69,6 @@ function addDays(date, days) {
   return d;
 }
 
-// The Monday after the one this week started on. Monday-first, like the Friday
-// page: a working week that starts on Sunday puts the weekend at the wrong end
-// of it.
-function endOfWeek(now) {
-  const monday = startOfDay(now);
-  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
-  return addDays(monday, 7);
-}
-
 // The scope as it is stored — what you chose, and what the sheet shows.
 export function scopeOf(task) {
   const raw = task && task.viewScope;
@@ -76,24 +76,32 @@ export function scopeOf(task) {
 }
 
 // The scope as it stands today.
+// How far ahead still counts as this week's business.
+//
+// Seven rolling days rather than the calendar week, because the calendar week
+// is the wrong shape for a horizon: on a Sunday afternoon it has three hours
+// left in it, and everything due on Monday would fall straight past Week into
+// Month. A week from now is a week from now whatever day it is.
+const WEEK_DAYS = 7;
+
 export function scopeNow(task, now = new Date()) {
   const stored = scopeOf(task);
-  // An early-out rather than a rule: neither test below can return anything
-  // further off than what is stored, so a task already on the day would come
-  // back as the day anyway. It is here because it is the common case, and
-  // because reading the date of every task on every render to be told what we
-  // already knew is work for nothing.
-  if (stored === DAY) return DAY;
-
-  const moment = dueMoment(task);
-  if (!moment) return stored;
 
   const at = new Date(now);
   if (Number.isNaN(at.getTime())) return stored;
 
+  // Nobody chose a date, so the page it was filed on is all there is to go on.
+  const moment = dueMoment(task);
+  if (!moment) return stored;
+
+  // Near enough to be today's business, whatever it was filed as.
   if (at >= showsFrom(moment.at)) return DAY;
-  if (stored === MONTH && moment.at < endOfWeek(at)) return WEEK;
-  return stored;
+
+  // Said out loud in the sheet: honoured until the day it comes due.
+  if (task && task.scopePinned) return stored;
+
+  if (moment.at < addDays(startOfDay(at), WEEK_DAYS)) return WEEK;
+  return MONTH;
 }
 
 // The moment a task due on a given day starts appearing on the day's page:
@@ -128,7 +136,10 @@ export function movedItself(task, now = new Date()) {
 // mistake. Nothing for a task that is where it was put.
 export function scopeNote(task, now = new Date()) {
   if (!movedItself(task, now)) return null;
-  return scopeOf(task) === MONTH && scopeNow(task, now) === WEEK
-    ? 'from the month'
-    : `from the ${scopeOf(task)}`;
+  // Only worth saying when a task has come nearer. A thing filed further off
+  // than it was typed has not arrived anywhere; it is simply waiting, and "from
+  // the day" on a task nobody moved would read as an accusation.
+  const order = { day: 0, week: 1, month: 2 };
+  if (order[scopeNow(task, now)] > order[scopeOf(task)]) return null;
+  return `from the ${scopeOf(task) === MONTH ? 'month' : scopeOf(task)}`;
 }

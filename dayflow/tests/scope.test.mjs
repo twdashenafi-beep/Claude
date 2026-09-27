@@ -93,23 +93,66 @@ ok('as is nothing at all', scopeOf(null) === 'day');
   ok('one due next week stays the month\'s',
      scopeNow(nextWeek, NOW) === 'month', scopeNow(nextWeek, NOW));
 
-  // Sunday is the last day of this week; the Monday after is not.
-  ok('Sunday is still this week', scopeNow(on('month', 2026, 10, 4), NOW) === 'week');
-  ok('and the Monday after is not', scopeNow(on('month', 2026, 10, 5), NOW) === 'month');
+  // Seven rolling days rather than the calendar week. The calendar week is the
+  // wrong shape for a horizon: read on a Sunday afternoon it has three hours
+  // left in it, and everything due on Monday would fall past Week into Month.
+  ok('Sunday is this week', scopeNow(on('month', 2026, 10, 4), NOW) === 'week');
+  ok('and so is the Monday after, five days out',
+     scopeNow(on('month', 2026, 10, 5), NOW) === 'week',
+     scopeNow(on('month', 2026, 10, 5), NOW));
+  ok('a week from today is not', scopeNow(on('month', 2026, 10, 7), NOW) === 'month',
+     scopeNow(on('month', 2026, 10, 7), NOW));
 }
 
-// ── It never pushes anything away ───────────────────────────────────────────
+// ── The date decides, not the page it was typed on ──────────────────────────
 //
-// Stated as a contract rather than guarded in one place: neither rule above can
-// return anything further off than what was stored, so these hold however the
-// inside of scopeNow is rearranged. That is the point of writing them down.
+// This used only ever to move a task nearer, on the reasoning that a task on
+// the day's page had been put there deliberately. It had not: a task takes the
+// scope of the page it was typed on, and the parser calls anything within a
+// couple of days "day". So something owed tomorrow night sat on today's page
+// from the moment it was written, and the nine o'clock hand-over it was
+// supposed to arrive by had nothing left to do.
 {
-  ok('a day task due next month is still on the day, because you put it there',
-     scopeNow(on('day', 2026, 11, 20), NOW) === 'day');
-  ok('and a week task due next month stays on the week',
-     scopeNow(on('week', 2026, 11, 20), NOW) === 'week');
+  ok('a task typed on the day but due next month is filed under the month',
+     scopeNow(on('day', 2026, 11, 20), NOW) === 'month',
+     scopeNow(on('day', 2026, 11, 20), NOW));
+  ok('and one due next month from the week goes the same way',
+     scopeNow(on('week', 2026, 11, 20), NOW) === 'month');
   ok('a month task due next year is the month\'s',
      scopeNow(on('month', 2027, 2, 2), NOW) === 'month');
+
+  // The exception. Picking Show under in the sheet is somebody saying where
+  // they want it, and that is honoured — short of the day it comes due, because
+  // a thing due tomorrow belongs in front of you whatever it was filed as.
+  const pinned = { ...on('day', 2026, 11, 20), scopePinned: true };
+  ok('unless it was said out loud, in which case it stays where it was put',
+     scopeNow(pinned, NOW) === 'day', scopeNow(pinned, NOW));
+  const pinnedWeek = { ...on('week', 2026, 10, 1), scopePinned: true };
+  ok('and a pinned one still comes forward the evening before it is due',
+     scopeNow(pinnedWeek, new Date('2026-09-30T21:00:00')) === 'day',
+     scopeNow(pinnedWeek, new Date('2026-09-30T21:00:00')));
+  ok('but not before', scopeNow(pinnedWeek, NOW) === 'week');
+}
+
+// ── The one this was reported for ───────────────────────────────────────────
+//
+// Sunday lunchtime, and a thing owed at ten tomorrow night was sitting on
+// today's page. It should be the week's until nine this evening.
+{
+  const sunday = new Date('2026-09-27T13:02:00');
+  const owed = {
+    id: 'j', title: 'Jim owes me a message', taskType: 'done_for_me', owePerson: 'Jim',
+    viewScope: 'day',
+    createdAt: iso(2026, 9, 27, 12), updatedAt: iso(2026, 9, 27, 12),
+    dueDate: iso(2026, 9, 28), dueTime: '22:00',
+  };
+  ok('at one in the afternoon it is the week\'s', scopeNow(owed, sunday) === 'week',
+     scopeNow(owed, sunday));
+  ok('at nine in the evening it is today\'s',
+     scopeNow(owed, new Date('2026-09-27T21:00:00')) === 'day');
+  ok('and it says where it came from once it arrives',
+     scopeNote(owed, new Date('2026-09-27T21:00:00')) === null,
+     'filed as day, so there is nowhere it came from');
 }
 
 // ── A date nobody chose moves nothing ───────────────────────────────────────
@@ -157,7 +200,11 @@ ok('as is nothing at all', scopeOf(null) === 'day');
      scopeNote(on('month', 2026, 9, 29), NOW) === 'from the month',
      scopeNote(on('month', 2026, 9, 29), NOW));
   ok('moved is moved', movedItself(on('week', 2026, 9, 29), NOW) === true);
-  ok('and put is put', movedItself(on('week', 2026, 10, 20), NOW) === false);
+  // Filed further off than it was typed is still a move, but not one worth a
+  // word: nothing has arrived, it is simply waiting.
+  ok('and filed further off says nothing',
+     scopeNote(on('week', 2026, 10, 20), NOW) === null,
+     String(scopeNote(on('week', 2026, 10, 20), NOW)));
 }
 
 // ── When the screen has to look again ───────────────────────────────────────
@@ -178,14 +225,19 @@ ok('as is nothing at all', scopeOf(null) === 'day');
 
 // ── The clocks changing ─────────────────────────────────────────────────────
 {
-  // Britain puts them back on Sunday 25 October 2026. A week counted in hours
-  // from the Monday ends an hour inside the Sunday.
-  const sunday = on('month', 2026, 10, 25);
-  ok('a month task on the day the clocks change is still that week\'s',
-     scopeNow(sunday, new Date('2026-10-20T10:00:00')) === 'week',
-     scopeNow(sunday, new Date('2026-10-20T10:00:00')));
-  ok('and the Monday after is still not',
-     scopeNow(on('month', 2026, 10, 26), new Date('2026-10-20T10:00:00')) === 'month');
+  // Britain puts them back on Sunday 25 October 2026. Seven days counted in
+  // hours across that lands an hour early and pulls the boundary in with it.
+  const from = new Date('2026-10-20T10:00:00');
+  ok('five days out, across the change, is still the week\'s',
+     scopeNow(on('month', 2026, 10, 25), from) === 'week',
+     scopeNow(on('month', 2026, 10, 25), from));
+  ok('and six days out is too',
+     scopeNow(on('month', 2026, 10, 26), from) === 'week',
+     scopeNow(on('month', 2026, 10, 26), from));
+  // The boundary itself: seven days from the start of today, counted in days
+  // rather than in 604,800,000 milliseconds.
+  ok('seven days out is not', scopeNow(on('month', 2026, 10, 27), from) === 'month',
+     scopeNow(on('month', 2026, 10, 27), from));
 }
 
 // ── Finished tasks are not a special case ───────────────────────────────────

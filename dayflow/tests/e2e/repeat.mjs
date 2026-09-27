@@ -82,6 +82,37 @@ const ctx = await browser.newContext({ serviceWorkers: 'block', acceptDownloads:
 const page = await ctx.newPage();
 page.on('pageerror', e => console.log(`  page error: ${e}`));
 await page.route(u => u.hostname === 'stubproject.supabase.co', route);
+
+// Tuesday 6 October 2026, half past nine at night.
+//
+// Pinned for two reasons. The hour: after nine in the evening a task due
+// tomorrow has been handed over to tomorrow and reads on the day's page, so the
+// follow-on this suite is about stands where it was ticked off instead of
+// jumping to the week. Run against the wall clock the same test would pass all
+// evening and fail all morning, which is a property of the hour rather than of
+// repeats. The handover itself is proved in the week suite, where it belongs.
+//
+// And the date: the sixth is a day every month has, so the monthly chain below
+// is not quietly also a test of what February does to the thirty-first.
+//
+// It is a let, not a const: the chain walks a day forward every time one is
+// ticked off, and the evening walks with it.
+let evening = new Date('2026-10-06T21:30:00');
+const nextEvening = async () => {
+  evening = new Date(evening.getTime() + 24 * 3600 * 1000);
+  await page.clock.setFixedTime(evening);
+  // Then look away and back. Which page a task belongs on is worked out as the
+  // list is drawn, so any redraw picks the new hour up; what runs on a clock of
+  // its own is only the timer that forces that redraw, and it ticks every
+  // twenty seconds of real time, which a pinned clock never reaches. Waiting
+  // for it would be twenty idle seconds; changing the view redraws now.
+  await page.getByLabel('Show week tasks').click();
+  await page.waitForTimeout(500);
+  await page.getByLabel('Show day tasks').click();
+  await page.waitForTimeout(700);
+};
+await page.clock.setFixedTime(evening);
+
 await page.goto('http://localhost:4841/Claude/', { waitUntil: 'networkidle' });
 await page.waitForTimeout(900);
 let inputs = page.locator('input, textarea');
@@ -186,6 +217,11 @@ ok('the one just done is still there, finished', (await finished()) === 1, Strin
   const box = page.getByLabel(`Mark ${TASK} as done`).first();
   await box.dblclick({ delay: 20 });
   await page.waitForTimeout(1600);
+  // The one just ticked off was tomorrow's, so the one it left behind is the
+  // day after — and the day after is the week's business until the evening
+  // before it. Another evening comes round, which is what the second tick of a
+  // daily task means anyway.
+  await nextEvening();
   ok('a double tap does not leave a spare copy behind',
      (await waiting()) <= 2, String(await waiting()));
   // Back to one waiting, whichever way the double tap landed.
@@ -255,10 +291,19 @@ async function fieldsOf(title) {
      beforeSave.length === 1 && Number.isInteger(beforeSave[0].repeatDay),
      JSON.stringify(beforeSave.map(t => t.repeatDay)));
 
-  // Opened and saved, with nothing touched.
+  // Opened and saved, with nothing touched. On the month's page, because the
+  // one that has just come round is due next month and that is where a task
+  // due next month is filed.
+  await page.getByLabel('Show month tasks').click();
+  await page.waitForTimeout(700);
+  ok('the rent that has come round is filed under the month',
+     (await page.getByLabel(`Mark ${RENT} as done`).count()) === 1,
+     (await body()).slice(0, 300));
   await page.locator(`text=${RENT}`).first().click();
   await page.waitForTimeout(900);
   await closeSheet('Save');
+  await page.getByLabel('Show day tasks').click();
+  await page.waitForTimeout(700);
 
   const afterSave = await fieldsOf(RENT);
   ok('and a save that touched nothing leaves it alone',

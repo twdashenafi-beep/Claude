@@ -271,6 +271,9 @@ export function TaskProvider({ children, encryptionKey, synced }) {
       section: taskData.section || 'todo',
       taskType: taskData.taskType || 'todo',
       viewScope: taskData.viewScope || 'day',
+      // Not pinned: a scope taken from the page you were standing on, or
+      // guessed from a date, is a default rather than a decision.
+      scopePinned: !!taskData.scopePinned,
       owePerson: taskData.owePerson || '',
       notes: taskData.notes || '',
       voiceNoteUri: taskData.voiceNoteUri || null,

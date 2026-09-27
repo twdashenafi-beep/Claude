@@ -357,6 +357,26 @@ ok('with the list still there', after.includes('Pay the invoice'), after.slice(0
   ok('a thing for Monday sits on the week on Friday',
      (await body()).includes('Call Bob'), (await body()).slice(0, 700));
 
+  // Reported from a phone: a thing owed at ten the following night was sitting
+  // on today's page at lunchtime. It had been typed on the day's page, and
+  // nothing asked whether that was a decision or a default — so the nine
+  // o'clock hand-over it should have arrived by had nothing left to do.
+  await page.getByLabel('Show day tasks').click();
+  await page.waitForTimeout(700);
+  // "Jim owes me …" is a routing phrase: it files the task under Owe Me and
+  // takes those words out of the title, which is what makes it worth checking
+  // the title the app actually made rather than the sentence that was typed.
+  await toDo('Jim owes me a message tomorrow at 10pm');
+  ok('and a thing typed on the day but due tomorrow night does not stay there',
+     !(await body()).includes('A message'), (await body()).slice(0, 800));
+
+  await page.getByLabel('Show week tasks').click();
+  await page.waitForTimeout(700);
+  ok('it is the week\'s until the evening', (await body()).includes('A message'),
+     (await body()).slice(0, 800));
+  ok('filed under the person who owes it', (await body()).includes('Jim'),
+     (await body()).slice(0, 800));
+
   await page.getByLabel('Show day tasks').click();
   await page.waitForTimeout(700);
   ok('and is not on today\'s page', !(await body()).includes('Call Bob'),

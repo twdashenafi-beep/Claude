@@ -168,6 +168,11 @@ export function nextOccurrence(task, now = new Date()) {
     section: task.section,
     taskType: task.taskType,
     viewScope: task.viewScope,
+    // And whether that scope was chosen out loud. A weekly task somebody moved
+    // to the month's page by hand is on the month's page because they put it
+    // there; a follow-on that dropped the pin would be filed by its date and
+    // the move would undo itself once a week, quietly, for ever.
+    scopePinned: !!task.scopePinned,
     owePerson: task.owePerson || '',
     projectId: task.projectId || '',
     dueDate: at.toISOString(),

@@ -462,7 +462,10 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
   // Moving a task to another scope takes it off the page you are looking at.
   // Saying where it went, with a way to follow it, beats it just disappearing.
   const moveScope = useCallback((id, scope) => {
-    updateTask(id, { viewScope: scope });
+    // Pinned, because moving a task by hand is somebody saying where they want
+    // it. Without this the date would file it straight back where it came from
+    // and the move would look like it had failed.
+    updateTask(id, { viewScope: scope, scopePinned: true });
     announceScope(scope);
   }, [updateTask, announceScope]);
 
