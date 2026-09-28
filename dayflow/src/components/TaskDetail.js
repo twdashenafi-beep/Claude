@@ -446,7 +446,7 @@ export default function TaskDetail({
                   return (
                     <TouchableOpacity
                       key={p.id || 'everything'}
-                      style={[styles.scopeBtn, styles.projectBtn, on && styles.scopeBtnOn]}
+                      style={[styles.projectBtn, on && styles.scopeBtnOn]}
                       onPress={() => setProjectId(p.id)}
                       accessibilityRole="radio"
                       aria-checked={on}
@@ -593,6 +593,16 @@ export default function TaskDetail({
   );
 }
 
+// What every one of the sheet's choice buttons looks like, with no flex in it.
+// Whoever uses it says how it should size itself, and says it once.
+const BTN_SHELL = {
+  alignItems: 'center',
+  paddingVertical: 10,
+  borderRadius: 8,
+  borderWidth: 1,
+  borderColor: '#E5E5EA',
+};
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -637,14 +647,31 @@ const styles = StyleSheet.create({
   // Wraps rather than divides: three scopes share a row evenly, but a project
   // list is however long it is, and a seventh share of the width fits no name.
   projectRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  // Not flex: 0 — in React Native that is flexBasis: 0 as well as flexGrow: 0,
-  // so the button collapses to its padding and the name disappears. What is
-  // wanted is "do not stretch, but be as wide as your text".
-  projectBtn: { flexGrow: 0, flexShrink: 1, flexBasis: 'auto', paddingHorizontal: 14 },
-  scopeBtn: {
-    flex: 1, alignItems: 'center', paddingVertical: 10,
-    borderRadius: 8, borderWidth: 1, borderColor: '#E5E5EA',
+  // A project button is built from the shell rather than from scopeBtn, and
+  // this is the whole reason the shell exists.
+  //
+  // It used to be scopeBtn with the flex longhands laid over the top, which
+  // reads as an override and is one on the web: react-native-web turns `flex: 1`
+  // into three CSS longhands and the later ones win. Native does not work that
+  // way. Yoga is handed the shorthand and the longhands as separate properties
+  // and applies them in an order this file does not choose, so `flex: 1` —
+  // flexBasis: 0 among other things — could win instead. The button then
+  // collapsed to its padding, and every project name in the sheet disappeared:
+  // nine blank squares, including the hardcoded "Everything", which is what
+  // ruled out the data and pointed here.
+  //
+  // So the conflict is gone rather than resolved. Nothing composed for a
+  // project button carries `flex` at all, and which side would have won stops
+  // being a question worth knowing the answer to.
+  projectBtn: {
+    ...BTN_SHELL,
+    flexGrow: 0,
+    flexShrink: 1,
+    flexBasis: 'auto',
+    paddingHorizontal: 14,
+    maxWidth: '100%',
   },
+  scopeBtn: { ...BTN_SHELL, flex: 1 },
   scopeBtnOn: { backgroundColor: '#00000010', borderColor: '#C7C2B4' },
   scopeBtnOff: { opacity: 0.35 },
   chaseBtn: { marginTop: 10, alignSelf: 'flex-start', paddingVertical: 6 },
