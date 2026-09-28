@@ -340,5 +340,43 @@ ok('two keys in a row differ', generateDataKey() !== generateDataKey());
      clashes.length === 0, clashes.join('; '));
 }
 
+// ── A sheet you can pull down, and nobody told ──
+//
+// On iOS a pageSheet is dismissed by pulling it down. React Native reports that
+// through onRequestClose and asks for the prop on every pageSheet for exactly
+// that reason. Without it the sheet disappears, nothing is called, and whatever
+// was on it is gone — while the parent goes on believing it is open.
+//
+// There is no such gesture on the web, so nothing in the browser suite can see
+// this, and the way it showed up was a voice note recorded on a phone that was
+// never anywhere afterwards: it lives in the sheet until Save, and the pull-down
+// is not Save.
+{
+  const SRC = new URL('../src/', import.meta.url).pathname;
+  const walk = (dir, out = []) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full, out);
+      else if (entry.name.endsWith('.js')) out.push(full);
+    }
+    return out;
+  };
+
+  const silent = [];
+  for (const file of walk(SRC)) {
+    const src = fs.readFileSync(file, 'utf8');
+    // Each <Modal …> opening tag, up to the > that ends it.
+    for (const tag of src.matchAll(/<Modal\b[^>]*>/g)) {
+      const text = tag[0];
+      if (!/presentationStyle=["']?\{?["']?(pageSheet|formSheet)/.test(text)) continue;
+      if (/onRequestClose/.test(text)) continue;
+      silent.push(path.relative(SRC, file));
+    }
+  }
+
+  ok('every sheet that can be pulled down says what that means',
+     silent.length === 0, silent.join(', '));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

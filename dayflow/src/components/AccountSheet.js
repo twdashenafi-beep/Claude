@@ -16,7 +16,12 @@ import { inspectRows } from '../services/leak';
 import { buildBackup, backupText, backupFilename, describe } from '../services/backup';
 import { readBackup, planRestore, recordsOf, describePlan } from '../services/restore';
 import { saveTextFile, pickTextFile } from '../services/saveFile';
-import { saveFeed, readFeed, clearFeed, feedAge } from '../services/calendarFeed';
+import { saveFeed, readFeed, clearFeed, feedAge, FEED_KEY } from '../services/calendarFeed';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { STORAGE_KEY } from '../context/TaskContext';
+import { decryptTask } from '../services/encryption';
+import { isTask } from '../services/projects';
+import { summarise, deviceLines, bytesOf } from '../services/deviceReport';
 
 // What to say after trying to play it. The first case is the interesting one:
 // the browser reports a sound played, so if none was heard the cause is
@@ -64,6 +69,9 @@ export default function AccountSheet({
   const [calendar, setCalendar] = useState('');
   // What the server turned out to be holding, last time it was asked.
   const [seen, setSeen] = useState('');
+  // What storage turned out to be holding, last time it was asked.
+  const [held, setHeld] = useState('');
+  const [unsaved, setUnsaved] = useState(false);
   const [exposed, setExposed] = useState(false);
   // What happened the last time a copy was asked for.
   const [saved, setSaved] = useState('');
@@ -103,6 +111,46 @@ export default function AccountSheet({
       }
     } catch (e) {
       setSeen(`Could not ask: ${String(e.message || e)}`);
+    }
+  };
+
+  // Ask storage what it has, and compare it with what is on screen.
+  //
+  // The comparison is the whole point. A list drawn from memory looks right
+  // whether or not any of it was written down, so "it is there" and "it was
+  // saved" are different claims and only one of them survives a relaunch. This
+  // reads the drawer back, decrypts it with the same key everything else uses,
+  // and counts — so a recording that never landed is a number that does not
+  // match rather than a mystery a week later.
+  const checkDevice = async () => {
+    setHeld('Reading what is written…');
+    setUnsaved(false);
+    try {
+      const raw = await AsyncStorage.getItem(STORAGE_KEY);
+      const feedRaw = await AsyncStorage.getItem(FEED_KEY);
+
+      let stored = [];
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        stored = (Array.isArray(parsed && parsed.rows) ? parsed.rows : [])
+          .map(row => {
+            try { return decryptTask(row.ciphertext, dataKey); } catch { return null; }
+          })
+          // Projects live in the same drawer. Counted as tasks they would make
+          // every device look like it had saved more than it was shown.
+          .filter(record => record && isTask(record));
+      }
+
+      const summary = summarise({
+        stored,
+        memory: [...tasks, ...archived],
+        vaultBytes: bytesOf(raw),
+        calendarBytes: bytesOf(feedRaw),
+      });
+      setUnsaved(!summary.agrees);
+      setHeld(deviceLines(summary).join(' · '));
+    } catch (e) {
+      setHeld(`Could not read what is stored: ${String((e && e.message) || e)}`);
     }
   };
 
@@ -377,6 +425,17 @@ export default function AccountSheet({
                   onPress={checkEncryption}
                 />
               ) : null}
+              {/* The other half of the row above. That one asks the server what
+                  it has; this one asks the drawer on this device, and says
+                  whether it matches what you are looking at. A recording that
+                  was never written down is invisible until a relaunch, and by
+                  then it is too late to know what happened. */}
+              <Row
+                label="This device"
+                detail={held || 'See what is written down here'}
+                danger={unsaved}
+                onPress={checkDevice}
+              />
               <Row label="Lock" detail="Close the vault on this device" onPress={() => { close(); onLock(); }} />
               <View style={s.gap} />
               <Row label="Delete account" detail="Permanent" danger onPress={() => setView('delete')} />

@@ -158,8 +158,25 @@ export default function TaskDetail({
   // the name field there at once, rather than after a save and a reopen.
   const isOweMe = taskType === 'done_for_me';
 
+  // onRequestClose is what iOS calls when the sheet is pulled down, and React
+  // Native asks for it on every pageSheet for exactly that reason. Without it
+  // the sheet vanishes, nothing is told, and the parent goes on believing it is
+  // still open.
+  //
+  // It saves rather than cancels. A pull-down is how a sheet is left on a phone
+  // — there is no such gesture on the web, which is why this went unnoticed —
+  // and everything on here is an edit somebody made on purpose. A voice note is
+  // the one that bites: it lives in this sheet until Save, so recording one and
+  // pulling the sheet down threw the recording away, on the phone, silently,
+  // and it never reached the vault to sync anywhere. Cancel is still there for
+  // changing your mind, and is now the only thing that discards.
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={handleSave}
+    >
       <View style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity onPress={handleCancel} style={styles.headerBtn}>
