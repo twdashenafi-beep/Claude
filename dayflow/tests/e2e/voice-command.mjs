@@ -88,6 +88,17 @@ const ctx = await browser.newContext({ serviceWorkers: 'block', permissions: ['m
 const page = await ctx.newPage();
 page.on('pageerror', e => console.log(`  page error: ${e}`));
 await page.route(u => u.hostname === 'stubproject.supabase.co', route);
+// Wednesday 23 September 2026, mid-morning.
+//
+// This suite says "Monday 28" out loud and then looks for the task where a date
+// five days out belongs. Run against the wall clock that sentence means
+// something different every week, and on the 28th itself it means today — so
+// the task lands on the day's page while the test is still looking at the
+// week's, and the suite fails on one day in seven for a reason that has nothing
+// to do with dictation. Mid-morning, so that "at 14:30" and "at 10pm" are both
+// still ahead.
+await page.clock.setFixedTime(new Date('2026-09-23T10:00:00'));
+
 await page.goto('http://localhost:4831/Claude/', { waitUntil: 'networkidle' });
 await page.waitForTimeout(900);
 let inputs = page.locator('input, textarea');
@@ -317,7 +328,10 @@ ok('carrying on from the box still routes',
   // A date a few days out puts the task on the Week page, which is where the
   // preview said it was going. Looking for it on Day and not finding it is the
   // test being in the wrong room, not the task being lost.
-  await page.getByText('Week', { exact: true }).first().click();
+  // By its label, not its word. On a Friday the top row carries a Week of its
+  // own — the week's reckoning — and the first "Week" on the page would open
+  // that instead of changing which tasks are listed.
+  await page.getByLabel('Show week tasks').click();
   await page.waitForTimeout(900);
   const after = await page.evaluate(() => document.body.textContent || '');
   ok('the task that lands is titled by the task alone',
