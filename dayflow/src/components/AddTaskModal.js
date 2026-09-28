@@ -163,8 +163,17 @@ export default function AddTaskModal({ visible, onClose, onAdd, section = 'todo'
   const isOwe = taskType === 'done_for_me';
   const canAdd = title.trim().length > 0;
 
+  // onRequestClose is what iOS calls when the sheet is pulled down. Pulled
+  // down, this commits what is on it — the same reasoning as the task sheet,
+  // which has the long version. With nothing typed there is nothing to commit,
+  // and a task with no title is one the Add button refuses too.
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={canAdd ? handleAdd : onClose}
+    >
       <View style={s.container}>
         <View style={s.header}>
           <TouchableOpacity
