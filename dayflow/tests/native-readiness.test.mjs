@@ -8,7 +8,7 @@
 //
 // Run with `npm test`.
 import { createRequire } from 'node:module';
-import { generateDataKey, generateRecoveryCode } from '../src/services/crypto.js';
+import { generateDataKey, generateRecoveryCode, deriveAccountKeys } from '../src/services/crypto.js';
 import { encrypt, decrypt } from '../src/services/encryption.js';
 
 const require = createRequire(import.meta.url);
@@ -43,16 +43,35 @@ function withoutCrypto(fn) {
 
 // And with only what the polyfill installs — getRandomValues and nothing else.
 // Notably no `subtle`, which is what the old code gated on.
+//
+// Puts the platform back only once the work is actually finished. A derivation
+// is asynchronous and awaits partway through, so a plain try/finally hands
+// `subtle` back while the second half is still to run — and the second half
+// would then quietly take the fast path this harness exists to avoid. The test
+// would pass, and would be proving nothing.
 function withPolyfillOnly(fn) {
   const saved = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
   const real = globalThis.crypto;
+  const restore = () => { if (saved) Object.defineProperty(globalThis, 'crypto', saved); };
   Object.defineProperty(globalThis, 'crypto', {
     value: { getRandomValues: a => real.getRandomValues(a) },
     configurable: true, writable: true,
   });
-  try { return fn(); } finally {
-    if (saved) Object.defineProperty(globalThis, 'crypto', saved);
+  let result;
+  try {
+    result = fn();
+  } catch (e) {
+    restore();
+    throw e;
   }
+  if (result && typeof result.then === 'function') {
+    return result.then(
+      value => { restore(); return value; },
+      error => { restore(); throw error; },
+    );
+  }
+  restore();
+  return result;
 }
 
 // ── The premise: crypto-js has no randomness of its own ──
@@ -116,6 +135,44 @@ ok('a key is generated with getRandomValues and no subtle',
 ok('and a recovery code too',
   withPolyfillOnly(() => generateRecoveryCode()).length > 0);
 ok('two keys in a row differ', generateDataKey() !== generateDataKey());
+
+// ── The two key derivations have to agree, byte for byte ──
+//
+// Web Crypto on a browser, @noble/hashes on Hermes, and if they ever disagree a
+// task written on the laptop cannot be opened on the phone. Nothing would
+// crash: the vault would simply refuse the password, on one device, for ever,
+// and the ciphertext on the server is all there is.
+//
+// So both are run here, in the same process, against the same input. The
+// polyfill harness is what makes that possible — it takes `subtle` away and
+// leaves getRandomValues, which is exactly the shape of a native build.
+{
+  const EMAIL = 't.ashenafi@pm.me';
+  const PASSWORD = 'correct horse battery';
+
+  const web = await deriveAccountKeys(EMAIL, PASSWORD);
+  const hermes = await withPolyfillOnly(() => deriveAccountKeys(EMAIL, PASSWORD));
+
+  ok('the same password derives the same key with and without Web Crypto',
+     web.kek === hermes.kek, `${web.kek}\n    vs ${hermes.kek}`);
+  ok('and the same auth hash', web.authHash === hermes.authHash);
+
+  // The pinned value, so this is an agreement on the right answer rather than
+  // two implementations being wrong together.
+  ok('and it is the value the rest of the suite pins',
+     hermes.kek === '07532576c0a78e4ddc9bdabc5d40ab78c01c61b47efa18a8f561862561110ba8',
+     hermes.kek);
+
+  // Hermes has no TextEncoder either, so the step that turns a password into
+  // bytes is the app's own. This is the input that catches a borrowed one.
+  const accentedWeb = await deriveAccountKeys(EMAIL, 'Ünïcodé pässwörd 😀');
+  const accentedHermes = await withPolyfillOnly(() => deriveAccountKeys(EMAIL, 'Ünïcodé pässwörd 😀'));
+  ok('accents and emoji derive the same key on both paths',
+     accentedWeb.kek === accentedHermes.kek, `${accentedWeb.kek}\n    vs ${accentedHermes.kek}`);
+  ok('and that key is the pinned one too',
+     accentedHermes.kek === '57bbc24159f7c4a5ad58d1f3c1df258f6b7acd93df9aae66ec1be35a0f2dceaa',
+     accentedHermes.kek);
+}
 
 // ── Encryption never hands back the thing it was asked to hide ──
 {

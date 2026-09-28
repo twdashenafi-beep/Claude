@@ -18,6 +18,7 @@
     "test:e2e": "node tests/e2e/two-device-sync.mjs && node tests/e2e/voice-routing.mjs && node tests/e2e/delete-and-undo.mjs && node tests/e2e/add-sheet.mjs && node tests/e2e/return-saves.mjs && node tests/e2e/reorder.mjs && node tests/e2e/task-time.mjs && node tests/e2e/scope-move.mjs && node tests/e2e/reminders.mjs && node tests/e2e/sound.mjs && node tests/e2e/reorder-buttons.mjs && node tests/e2e/projects.mjs && node tests/e2e/archive.mjs && node tests/e2e/search.mjs && node tests/e2e/storage-full.mjs && node tests/e2e/mic.mjs && node tests/e2e/due.mjs && node tests/e2e/project-order.mjs && node tests/e2e/task-project.mjs && node tests/e2e/age.mjs && node tests/e2e/encryption.mjs && node tests/e2e/voice-note.mjs && node tests/e2e/column-move.mjs && node tests/e2e/voice-command.mjs && node tests/e2e/voice-notes.mjs && node tests/e2e/chase.mjs && node tests/e2e/export.mjs && node tests/e2e/restore.mjs && node tests/e2e/repeat.mjs && node tests/e2e/week.mjs && node tests/e2e/calendar.mjs && node tests/e2e/accessibility.mjs"
   },
   "dependencies": {
+    "@noble/hashes": "^2.4.0",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@supabase/supabase-js": "^2.99.3",
     "crypto-js": "^4.2.0",

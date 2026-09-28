@@ -1,4 +1,5 @@
-import CryptoJS from 'crypto-js';
+import { pbkdf2 as noblePbkdf2 } from '@noble/hashes/pbkdf2.js';
+import { sha256 } from '@noble/hashes/sha2.js';
 
 // Key derivation for an account that syncs.
 //
@@ -21,9 +22,19 @@ import CryptoJS from 'crypto-js';
 // there is a test that pins them together.
 //
 // 210k iterations is the OWASP figure for PBKDF2-HMAC-SHA256. Measured: ~100ms
-// through Web Crypto, ~3s through CryptoJS. The slow path is only reached in a
-// native build, where the cost lands once at unlock; the installed web app all
-// three devices use takes the fast one.
+// through Web Crypto, ~280ms through @noble/hashes. The slow path is only
+// reached in a native build, where the cost lands once at unlock.
+//
+// That fallback was crypto-js until the first build ran on a real device and
+// unlocking took long enough to look like a hang. Measured on the same input,
+// same iterations: crypto-js 2621ms, noble 277ms — and that was on an engine
+// with a JIT. Hermes has none, so on a phone the difference is the difference
+// between waiting and wondering whether it has crashed.
+//
+// The iteration count is the same on every platform and has to be: the same
+// password must derive the same key in the browser and on the phone, or a vault
+// written on one will not open on the other. Making the phone faster by asking
+// it to do less work was never available.
 const ITERATIONS = 210000;
 const KEY_BYTES = 32;
 
@@ -41,33 +52,70 @@ function toHex(buffer) {
     .join('');
 }
 
-const subtle =
-  typeof globalThis !== 'undefined' && globalThis.crypto && globalThis.crypto.subtle
-    ? globalThis.crypto.subtle
-    : null;
+// Read at call time rather than captured at module load, for the same reason
+// randomBytes below is: what the platform offers depends on import order, and a
+// constant read once cannot be swapped out by a test that wants to exercise the
+// other path. Both paths must be reachable in the same process or nothing can
+// prove they agree.
+function subtleNow() {
+  const source = typeof globalThis !== 'undefined' ? globalThis.crypto : null;
+  return source && source.subtle ? source.subtle : null;
+}
+
+// UTF-8, written out rather than borrowed from TextEncoder.
+//
+// Hermes has no TextEncoder, and this is the one function on the path that both
+// implementations have to agree on byte for byte — a password with an accent in
+// it derives one key or another depending on how its characters were turned
+// into bytes. Doing it here means the answer cannot depend on what the platform
+// happens to provide.
+function utf8Bytes(text) {
+  const str = String(text);
+  const out = [];
+  for (let i = 0; i < str.length; i += 1) {
+    let code = str.codePointAt(i);
+    // A character outside the basic plane is stored as two units; stepping over
+    // the second stops it being encoded again as a lone surrogate.
+    if (code > 0xffff) i += 1;
+    if (code < 0x80) {
+      out.push(code);
+    } else if (code < 0x800) {
+      out.push(0xc0 | (code >> 6), 0x80 | (code & 0x3f));
+    } else if (code < 0x10000) {
+      out.push(0xe0 | (code >> 12), 0x80 | ((code >> 6) & 0x3f), 0x80 | (code & 0x3f));
+    } else {
+      out.push(
+        0xf0 | (code >> 18),
+        0x80 | ((code >> 12) & 0x3f),
+        0x80 | ((code >> 6) & 0x3f),
+        0x80 | (code & 0x3f),
+      );
+    }
+  }
+  return new Uint8Array(out);
+}
 
 async function pbkdf2(password, salt, iterations) {
+  const passwordBytes = utf8Bytes(password);
+  const saltBytes = utf8Bytes(salt);
+  const subtle = subtleNow();
+
   if (subtle) {
-    const encoder = new TextEncoder();
     const material = await subtle.importKey(
-      'raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits']
+      'raw', passwordBytes, 'PBKDF2', false, ['deriveBits']
     );
     const bits = await subtle.deriveBits(
-      { name: 'PBKDF2', salt: encoder.encode(salt), iterations, hash: 'SHA-256' },
+      { name: 'PBKDF2', salt: saltBytes, iterations, hash: 'SHA-256' },
       material,
       KEY_BYTES * 8
     );
     return toHex(bits);
   }
 
-  // The hasher is named explicitly rather than relying on the default: CryptoJS
-  // 4.2 defaults to SHA-256, but earlier versions defaulted to SHA-1, and a
-  // silent change here would make previously written data undecryptable.
-  return CryptoJS.PBKDF2(password, salt, {
-    keySize: (KEY_BYTES * 8) / 32,
-    iterations,
-    hasher: CryptoJS.algo.SHA256,
-  }).toString(CryptoJS.enc.Hex);
+  // The hash is named rather than defaulted. PBKDF2 says nothing about which
+  // one to use, and a library changing its mind — crypto-js once defaulted to
+  // SHA-1 — would make everything already written undecryptable.
+  return toHex(noblePbkdf2(sha256, passwordBytes, saltBytes, { c: iterations, dkLen: KEY_BYTES }));
 }
 
 export function normalizeEmail(email) {

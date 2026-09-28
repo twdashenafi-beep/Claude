@@ -4,7 +4,7 @@
 
 import { mergeTasks } from '../src/services/merge.js';
 import { encryptTask, decryptTask, createTaskEncryptor } from '../src/services/encryption.js';
-import { deriveAccountKeys } from '../src/services/crypto.js';
+import { deriveAccountKeys, deriveRecoveryKey } from '../src/services/crypto.js';
 import { createVault, unlockWithPassword } from '../src/services/vault.js';
 
 let pass = 0, fail = 0;
@@ -19,6 +19,35 @@ const C = await deriveAccountKeys('t.ashenafi@pm.me', 'correct horse batteryX');
 ok('different password -> different kek', C.kek !== A.kek);
 const D = await deriveAccountKeys('other@pm.me', 'correct horse battery');
 ok('different email -> different kek', D.kek !== A.kek);
+
+// ── The bytes themselves, pinned ──
+//
+// Everything above would still pass if the derivation changed, as long as it
+// changed consistently — and a derivation that changes is a vault that no
+// longer opens. There is no migration available either: the server holds only
+// ciphertext, so a key that no longer derives is data nobody can read again.
+//
+// So these are written down. They were computed independently, by node's own
+// crypto.pbkdf2Sync rather than by this app's code, which makes them two claims
+// at once: that what the app does is standard PBKDF2-HMAC-SHA256, and that it
+// will go on doing exactly this.
+const PINNED = await deriveAccountKeys('t.ashenafi@pm.me', 'correct horse battery');
+ok('the auth hash is the value it has always been',
+   PINNED.authHash === 'b0c16580fc01161442a503e6fd65020c0399c2a5edf3bfb760649f420cb202c0');
+ok('and so is the key-encrypting key',
+   PINNED.kek === '07532576c0a78e4ddc9bdabc5d40ab78c01c61b47efa18a8f561862561110ba8');
+
+// A password outside ASCII, because the step that turns characters into bytes
+// is the one most easily got wrong without anybody noticing: it only shows up
+// for the people whose passwords are not English, and it shows up as a vault
+// that will not open.
+const ACCENTED = await deriveAccountKeys('t.ashenafi@pm.me', 'Ünïcodé pässwörd 😀');
+ok('a password with accents and an emoji derives the same key everywhere',
+   ACCENTED.kek === '57bbc24159f7c4a5ad58d1f3c1df258f6b7acd93df9aae66ec1be35a0f2dceaa');
+
+const RECOVERED = await deriveRecoveryKey('0123-4567-89AB-CDEF-GHJK-MNPQ-RSTV-WXYZ', 't.ashenafi@pm.me');
+ok('and the recovery code still derives what it always did',
+   RECOVERED === 'a519e2ac426af3ea25aea775ef002f937c8e7f3dfc97417cc5b65c9266cc2c8e');
 
 // ── Blob encryption ──
 // Tasks are encrypted with the vault's data key, not the password-derived one.
