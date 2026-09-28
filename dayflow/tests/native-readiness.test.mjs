@@ -8,6 +8,8 @@
 //
 // Run with `npm test`.
 import { createRequire } from 'node:module';
+import fs from 'node:fs';
+import path from 'node:path';
 import { generateDataKey, generateRecoveryCode, deriveAccountKeys } from '../src/services/crypto.js';
 import { encrypt, decrypt } from '../src/services/encryption.js';
 
@@ -238,6 +240,104 @@ ok('two keys in a row differ', generateDataKey() !== generateDataKey());
   }
 
   ok('and it comes back when Intl does', zones.supported() === true);
+}
+
+// ── A layout that only collapses off the web ──
+//
+// `flex: 1` is a shorthand. react-native-web expands it into three CSS
+// longhands, so a style laid over the top of it — flexBasis: 'auto', say —
+// wins the way anyone reading the file would expect. Native does not do that.
+// Yoga receives the shorthand and the longhands as separate properties and
+// applies them in an order the stylesheet does not choose, so the shorthand can
+// win instead and take flexBasis: 0 with it.
+//
+// The button then collapses to its padding. Nothing errors, nothing logs, and
+// the text inside is clipped to nothing — which is how every project name in
+// the task sheet came to be nine blank squares on a device while reading
+// perfectly in the browser.
+//
+// So the rule is that the conflict never gets composed in the first place.
+// Whatever it would have resolved to, a style that sets `flex` is not mixed
+// with one that sets a flex longhand.
+//
+// This reads the source rather than a running layout, because a running layout
+// is the one thing this suite cannot have: Yoga is the native side. It
+// understands top-level StyleSheet entries and `style={[...]}` arrays, which is
+// how this codebase writes them, and it would miss a style composed some other
+// way.
+{
+  const SRC = new URL('../src/', import.meta.url).pathname;
+
+  const walk = (dir, out = []) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full, out);
+      else if (entry.name.endsWith('.js')) out.push(full);
+    }
+    return out;
+  };
+
+  // The entries of a file's StyleSheet.create, as name -> the text of its body.
+  const sheetEntries = src => {
+    const entries = new Map();
+    const at = src.indexOf('StyleSheet.create(');
+    if (at < 0) return entries;
+
+    let body = '';
+    let depth = 0;
+    for (let i = src.indexOf('{', at); i < src.length; i += 1) {
+      const ch = src[i];
+      if (ch === '{') depth += 1;
+      if (depth > 0) body += ch;
+      if (ch === '}') { depth -= 1; if (depth === 0) break; }
+    }
+
+    let key = '', value = '', inKey = true, nested = 0;
+    for (let i = 1; i < body.length; i += 1) {
+      const ch = body[i];
+      if (inKey) {
+        if (ch === ':') { inKey = false; value = ''; continue; }
+        if (ch === ',' || ch === '\n') { key = ''; continue; }
+        key += ch;
+        continue;
+      }
+      if (ch === '{') nested += 1;
+      if (ch === '}') nested -= 1;
+      if (nested === 0 && ch === ',') {
+        entries.set(key.trim(), value);
+        key = ''; value = ''; inKey = true;
+        continue;
+      }
+      value += ch;
+    }
+    return entries;
+  };
+
+  const SHORTHAND = /(^|[^a-zA-Z])flex\s*:/;
+  const LONGHAND = /flexBasis|flexGrow|flexShrink/;
+
+  const clashes = [];
+  for (const file of walk(SRC)) {
+    const src = fs.readFileSync(file, 'utf8');
+    const entries = sheetEntries(src);
+    if (!entries.size) continue;
+    const where = path.relative(SRC, file);
+
+    for (const [name, text] of entries) {
+      if (SHORTHAND.test(text) && LONGHAND.test(text)) clashes.push(`${where}: ${name}`);
+    }
+
+    for (const found of src.matchAll(/style=\{\[([^\]]*)\]\}/g)) {
+      const names = [...found[1].matchAll(/styles?\.([A-Za-z0-9_]+)/g)].map(m => m[1]);
+      const texts = names.map(n => entries.get(n) || '');
+      if (texts.some(t => SHORTHAND.test(t)) && texts.some(t => LONGHAND.test(t))) {
+        clashes.push(`${where}: [${names.join(', ')}]`);
+      }
+    }
+  }
+
+  ok('no style mixes the flex shorthand with a flex longhand',
+     clashes.length === 0, clashes.join('; '));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
