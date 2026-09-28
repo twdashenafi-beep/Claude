@@ -129,6 +129,31 @@ export default function VoiceRecorder({ notes = [], onAdd, onRemove }) {
       .catch(() => {});
   }, [recorder]);
 
+  // Hand the microphone back when there is no recording to end.
+  //
+  // prepareToRecordAsync is what opens the microphone on the web: it builds a
+  // MediaRecorder around a live getUserMedia stream. Everything that stops that
+  // stream again hangs off the recorder's own stop — so a path that prepares
+  // and then walks away leaves the microphone on for the life of the page, and
+  // iOS asks whether you want to carry on recording as you leave the app.
+  //
+  // setAudioModeAsync does not do it. That is the audio session, which is a
+  // different thing from the stream, and on the web it is close to a no-op.
+  //
+  // So this starts and immediately ends a recording nobody wanted, which is the
+  // one sequence guaranteed to run the library's own teardown. What it produces
+  // is a fraction of a second of silence that is never read.
+  const releaseMic = async () => {
+    try {
+      recorder.record();
+      await recorder.stop();
+    } catch {
+      // Already stopped, or never prepared. Either way there is nothing holding
+      // the microphone and nothing to report.
+    }
+    await setAudioModeAsync({ allowsRecording: false }).catch(() => {});
+  };
+
   const startRecording = async () => {
     try {
       const permission = await requestRecordingPermissionsAsync();
@@ -161,7 +186,7 @@ export default function VoiceRecorder({ notes = [], onAdd, onRemove }) {
       // this point, so there is nothing to discard and nothing to apologise
       // for — only the next move to name.
       if (!wanted.current) {
-        await setAudioModeAsync({ allowsRecording: false }).catch(() => {});
+        await releaseMic();
         say('Ready — hold to record', 'note');
         return;
       }
@@ -177,6 +202,10 @@ export default function VoiceRecorder({ notes = [], onAdd, onRemove }) {
       liftTick();
       timer.current = setInterval(() => setDuration(d => d + 1), 1000);
     } catch (err) {
+      // Whatever went wrong, the microphone may already be open: the throw can
+      // come from anywhere after prepareToRecordAsync, and a failure that
+      // leaves the mic on is the worst of both.
+      await releaseMic();
       console.warn('Failed to start recording:', err.message);
     }
   };

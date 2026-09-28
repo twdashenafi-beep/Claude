@@ -521,6 +521,61 @@ if (first.length) {
   }
 }
 
+// ── Letting go before the microphone opened ──
+//
+// Reported from a phone, twice: after recording, closing the app brings up
+// iOS asking whether you want to carry on recording audio. That question is
+// only asked of a page still holding a live microphone.
+//
+// A recording that finishes hands it back — the library stops the tracks when
+// its own stop runs. The one that does not is the hold abandoned while the
+// microphone was still opening, which is every first hold there has ever been,
+// because the permission dialog cannot be answered without lifting your finger.
+// That path used to return after preparing, and preparing is what opens the
+// stream.
+//
+// So this counts tracks rather than trusting the absence of a symptom: every
+// stream the page is handed is remembered, and once the dust settles none of
+// them may still be live.
+{
+  await page.evaluate(() => {
+    const media = navigator.mediaDevices;
+    // Layered over whatever is already there, so the slow microphone above
+    // stays slow — which is the condition this needs.
+    const current = media.getUserMedia.bind(media);
+    window.__streams = [];
+    media.getUserMedia = async (...args) => {
+      const stream = await current(...args);
+      window.__streams.push(stream);
+      return stream;
+    };
+  });
+
+  const liveTracks = () => page.evaluate(() =>
+    (window.__streams || [])
+      .flatMap(s => s.getTracks())
+      .filter(t => t.readyState === 'live')
+      .length);
+
+  const handed = () => page.evaluate(() => (window.__streams || []).length);
+
+  const mic = page.getByLabel('Record a voice note');
+  await mic.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(250);
+  const box = await mic.boundingBox();
+  // Down and up well inside the wait the stubbed microphone imposes, so the
+  // release lands while the recorder is still being prepared.
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(200);
+  await page.mouse.up();
+  await page.waitForTimeout(3000);
+
+  ok('the microphone was asked for', (await handed()) > 0, String(await handed()));
+  ok('and every stream it handed back was let go of',
+     (await liveTracks()) === 0, `${await liveTracks()} still live of ${await handed()}`);
+}
+
 if (process.env.SHOT) {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.waitForTimeout(400);
