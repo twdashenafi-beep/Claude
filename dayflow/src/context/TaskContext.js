@@ -1,7 +1,7 @@
 import React, {
   createContext, useContext, useState, useCallback, useEffect, useRef, useMemo,
 } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import Store from '../services/store';
 import { scheduleTaskNotifications, cancelTaskNotifications } from '../services/notifications';
 import { createTaskEncryptor, decryptTask } from '../services/encryption';
 import { newId } from '../utils/id';
@@ -78,7 +78,7 @@ export function TaskProvider({ children, encryptionKey, synced }) {
     let cancelled = false;
     (async () => {
       try {
-        const stored = await AsyncStorage.getItem(STORAGE_KEY);
+        const stored = await Store.getItem(STORAGE_KEY);
         if (stored) {
           const vault = JSON.parse(stored);
           const rows = Array.isArray(vault) ? vault : vault.rows || [];
@@ -106,8 +106,8 @@ export function TaskProvider({ children, encryptionKey, synced }) {
         // there is. So it is put aside first, under its own key, and the app
         // says that it happened rather than starting quietly from nothing.
         try {
-          const raw = await AsyncStorage.getItem(STORAGE_KEY);
-          if (raw) await AsyncStorage.setItem(`${STORAGE_KEY}_unreadable`, raw);
+          const raw = await Store.getItem(STORAGE_KEY);
+          if (raw) await Store.setItem(`${STORAGE_KEY}_unreadable`, raw);
         } catch { /* nothing more can be done for it */ }
         if (!cancelled) {
           setVaultError(
@@ -124,7 +124,7 @@ export function TaskProvider({ children, encryptionKey, synced }) {
   const persist = useCallback(
     async list => {
       const rows = encryptAll(list, encryptionKey);
-      await AsyncStorage.setItem(
+      await Store.setItem(
         STORAGE_KEY,
         JSON.stringify({ v: 2, rows, tombstones: tombstones.current })
       );

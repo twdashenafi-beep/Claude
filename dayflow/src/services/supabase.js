@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import Store from './store';
 import {
   buildConfig, hasBuildConfig, loadStoredConfig, saveStoredConfig, clearStoredConfig,
 } from './syncConfig';
@@ -21,7 +21,7 @@ let activeConfig = null;
 function build({ url, anonKey }) {
   return createClient(url, anonKey, {
     auth: {
-      storage: AsyncStorage,
+      storage: Store,
       autoRefreshToken: true,
       persistSession: true,
       // There is no OAuth redirect in this app, and on web this would

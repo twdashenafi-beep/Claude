@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import Store from './store';
 
 // Where the Supabase connection details come from.
 //
@@ -27,7 +27,7 @@ export { parseConfig, verifyConfig, normalizeUrl, normalizeKey, keyRole } from '
 
 export async function loadStoredConfig() {
   try {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY);
+    const raw = await Store.getItem(STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (parsed && parsed.url && parsed.anonKey) return parsed;
@@ -38,11 +38,11 @@ export async function loadStoredConfig() {
 }
 
 export async function saveStoredConfig(config) {
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+  await Store.setItem(STORAGE_KEY, JSON.stringify(config));
 }
 
 export async function clearStoredConfig() {
-  await AsyncStorage.removeItem(STORAGE_KEY);
+  await Store.removeItem(STORAGE_KEY);
 }
 
 // Remembering that the offer was declined, so a device chosen to stay local is
@@ -50,17 +50,17 @@ export async function clearStoredConfig() {
 const SKIP_KEY = '@dayflow_sync_skipped';
 
 export async function markSyncSkipped() {
-  await AsyncStorage.setItem(SKIP_KEY, '1');
+  await Store.setItem(SKIP_KEY, '1');
 }
 
 export async function wasSyncSkipped() {
   try {
-    return (await AsyncStorage.getItem(SKIP_KEY)) === '1';
+    return (await Store.getItem(SKIP_KEY)) === '1';
   } catch {
     return false;
   }
 }
 
 export async function clearSyncSkipped() {
-  await AsyncStorage.removeItem(SKIP_KEY);
+  await Store.removeItem(SKIP_KEY);
 }

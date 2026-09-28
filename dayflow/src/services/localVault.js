@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import Store from './store';
 
 // Everything DayFlow writes to this device, in one place — so deleting an
 // account can be exhaustive rather than a list of keys that drifts out of date
@@ -9,5 +9,5 @@ const LOCAL_KEYS = [
 ];
 
 export async function clearVaultData() {
-  await AsyncStorage.multiRemove(LOCAL_KEYS);
+  await Store.multiRemove(LOCAL_KEYS);
 }

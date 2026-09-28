@@ -17,7 +17,7 @@ import { buildBackup, backupText, backupFilename, describe } from '../services/b
 import { readBackup, planRestore, recordsOf, describePlan } from '../services/restore';
 import { saveTextFile, pickTextFile } from '../services/saveFile';
 import { saveFeed, readFeed, clearFeed, feedAge, FEED_KEY } from '../services/calendarFeed';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import Store from '../services/store';
 import { STORAGE_KEY } from '../context/TaskContext';
 import { decryptTask } from '../services/encryption';
 import { isTask } from '../services/projects';
@@ -126,8 +126,8 @@ export default function AccountSheet({
     setHeld('Reading what is written…');
     setUnsaved(false);
     try {
-      const raw = await AsyncStorage.getItem(STORAGE_KEY);
-      const feedRaw = await AsyncStorage.getItem(FEED_KEY);
+      const raw = await Store.getItem(STORAGE_KEY);
+      const feedRaw = await Store.getItem(FEED_KEY);
 
       let stored = [];
       if (raw) {
