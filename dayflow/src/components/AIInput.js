@@ -35,10 +35,21 @@ const MAX_EMPTY_RESTARTS = 3;
 // a phone that hears "owe me" from a pocket must not listen for ever.
 const COMMAND_WAITS = 3;
 
-const SpeechRecognition =
-  Platform.OS === 'web' && typeof window !== 'undefined'
-    ? window.SpeechRecognition || window.webkitSpeechRecognition
-    : null;
+// Asked each time rather than answered once.
+//
+// This was a constant, read as the module loaded, and a constant read once is a
+// constant for the life of the page. A window that came up without the engine —
+// restored at login, woken from the background, whatever Safari was doing that
+// morning — had no microphone button until it was closed and opened again, and
+// nothing on screen to say why. Reported exactly that way: there one day, gone
+// the next, back after a reopen.
+//
+// Whether it is true can change; what it costs to ask is a property lookup. The
+// same argument as `subtle` in services/crypto.js, which was the same mistake.
+function speechEngine() {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
+  return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+}
 
 // The language to listen in.
 //
@@ -199,7 +210,8 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo', diary
   }, []);
 
   const startListening = useCallback((resuming = false) => {
-    if (!SpeechRecognition) return;
+    const Engine = speechEngine();
+    if (!Engine) return;
     teardown(recognitionRef.current);
 
     if (!resuming) {
@@ -212,7 +224,7 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo', diary
       setSpeechError('');
     }
 
-    const r = new SpeechRecognition();
+    const r = new Engine();
     r.continuous = true;
     r.interimResults = true;
     r.lang = listeningLanguage();
@@ -355,7 +367,7 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo', diary
             bundle, and the button used to render there and do nothing at all
             when tapped. Nothing is lost by hiding it — both keyboards carry a
             dictation key of their own, which types into this same field. */}
-        {SpeechRecognition ? (
+        {speechEngine() ? (
           <TouchableOpacity
             style={[st.mic, listening && st.micActive]}
             onPressIn={onMicPressIn}

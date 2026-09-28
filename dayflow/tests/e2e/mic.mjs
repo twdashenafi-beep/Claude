@@ -354,6 +354,50 @@ ok('and no empty task was left behind by the unmount',
      made.dated, JSON.stringify(made));
 }
 
+// ── Asking again rather than remembering the answer ──
+//
+// Whether this browser has a speech engine used to be read once, as the module
+// loaded, and kept for the life of the page. A window that came up without one
+// therefore had no microphone for as long as it stayed open, with nothing on
+// screen to explain it — reported exactly that way: there one day, gone the
+// next, back after closing and reopening.
+//
+// Taking the engine away and putting it back is the same question asked twice.
+// A button that survives the first is a button reading a constant, which is the
+// bug; one that comes back on the second is the capability being asked about
+// rather than remembered.
+{
+  const box = A.page.locator('input, textarea').first();
+  const nudge = async text => {
+    // Any render will do. Typing is the one this app does constantly.
+    await box.fill(text);
+    await A.page.waitForTimeout(400);
+  };
+
+  ok('the microphone is there to begin with',
+     (await A.page.getByLabel('Dictate a task').count()) === 1);
+
+  await A.page.evaluate(() => {
+    window.__savedEngine = window.SpeechRecognition || window.webkitSpeechRecognition;
+    delete window.SpeechRecognition;
+    delete window.webkitSpeechRecognition;
+  });
+  await nudge('a');
+  ok('a browser with no engine is offered no microphone',
+     (await A.page.getByLabel('Dictate a task').count()) === 0);
+
+  await A.page.evaluate(() => {
+    window.SpeechRecognition = window.__savedEngine;
+    window.webkitSpeechRecognition = window.__savedEngine;
+  });
+  await nudge('ab');
+  ok('and it comes back when the engine does, without reopening the window',
+     (await A.page.getByLabel('Dictate a task').count()) === 1);
+
+  await box.fill('');
+  await A.page.waitForTimeout(300);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();
 server.close();
