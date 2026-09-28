@@ -160,6 +160,50 @@ ok('and shows some of what is actually stored', /U2FsdGVkX1/.test(said || ''), S
 ok('and how many rows it looked at', /\d+ rows/.test(said || ''), String(said));
 ok('and does not claim anything is readable', !/\bReadable/.test(said || ''), String(said));
 
+// ── And the other half: what this device wrote down ──
+//
+// The row beside it asks the drawer rather than the server, and its job is to
+// notice when the list on screen is ahead of what was actually saved. On a
+// device where saving works they agree, so what is proved here is that the
+// report reads real storage and can tell — the alarm itself is a unit test,
+// since making a save fail on purpose from out here would prove only that a
+// stub can be broken.
+const deviceRow = async () => page.evaluate(() => {
+  const el = [...document.querySelectorAll('[aria-label]')]
+    .find(e => (e.getAttribute('aria-label') || '').startsWith('This device'));
+  return el ? el.getAttribute('aria-label') : null;
+});
+
+ok('the account screen offers what is written here',
+   (await deviceRow()) !== null, String(await deviceRow()));
+ok('and says what it is for before it is pressed',
+   /written down here/i.test(await deviceRow() || ''), String(await deviceRow()));
+
+await page.getByLabel(/^This device/).click();
+await page.waitForTimeout(1500);
+const written = await deviceRow();
+ok('it counts the tasks that were written down',
+   /2 tasks written down/.test(written || ''), String(written));
+ok('and says what the drawer weighs', /\d+ (bytes|KB|MB)/.test(written || ''), String(written));
+ok('it reports no recordings when there are none',
+   /No recordings/i.test(written || ''), String(written));
+ok('and raises no alarm when the two agree',
+   !/has been saved/i.test(written || ''), String(written));
+
+// The alarm has to look like one, the same way the encryption row does.
+const devicePen = await page.evaluate(() => {
+  const row = [...document.querySelectorAll('[aria-label]')]
+    .find(e => (e.getAttribute('aria-label') || '').startsWith('This device'));
+  if (!row) return null;
+  const label = [...row.querySelectorAll('*')]
+    .find(e => e.children.length === 0 && (e.innerText || '').trim() === 'This device');
+  return label ? getComputedStyle(label).color : null;
+});
+// Not the red pen. Which black it is does not matter; that it is not the
+// colour reserved for something being wrong does.
+ok('and the row is not in the red pen while all is well',
+   devicePen !== null && devicePen !== 'rgb(122, 31, 31)', String(devicePen));
+
 // The sample must be the server's own bytes, not something the app made up.
 const stored = [...rows.values()].map(r => r.ciphertext).filter(Boolean);
 ok('the server really is holding ciphertext',

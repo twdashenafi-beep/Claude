@@ -17,7 +17,10 @@ import { isArchived } from '../services/archive';
 import { capitalizeTitle } from '../utils/text';
 
 const TaskContext = createContext();
-const STORAGE_KEY = '@dayflow_vault_v2';
+// Exported so that what reports on the drawer reads the same drawer. A second
+// copy of this string somewhere else would go on agreeing with this one right
+// up until the day it did not.
+export const STORAGE_KEY = '@dayflow_vault_v2';
 // A backstop, not the mechanism. Realtime delivers changes in about a second;
 // this only covers a dropped socket or a device that was asleep.
 const SYNC_BACKSTOP_MS = 300000;
