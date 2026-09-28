@@ -161,8 +161,13 @@ ok('and the row offers to play it', (await playButtons(A.page)) === 1,
 // If the push that carried the note never happened, or carried a path instead
 // of the audio, the row on the server is small — and that is a different bug
 // from one where it arrives and is not shown.
+// Five kilobytes is the line because of what sits on either side of it, not
+// because of what a recording weighs: a file:// path or a blob: URL is a couple
+// of hundred bytes, and a typed task encrypts to well under a thousand. A short
+// recording is tens of kilobytes. Anything over this and the audio itself left
+// the device; anything under it and only a reference did.
 ok('the recording itself was pushed, not a reference to it',
-   biggestPush > 50 * 1024, `biggest push ${biggestPush} bytes`);
+   biggestPush > 5 * 1024, `biggest push ${biggestPush} bytes`);
 ok('and the server is holding it as ciphertext',
    [...rows.values()].every(r => !JSON.stringify(r).includes('data:audio')));
 
