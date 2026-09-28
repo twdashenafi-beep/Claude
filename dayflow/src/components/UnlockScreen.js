@@ -4,6 +4,7 @@ import {
   KeyboardAvoidingView, Platform, ActivityIndicator, ScrollView,
 } from 'react-native';
 import { signIn, signUp, getSession, isSyncConfigured } from '../services/account';
+import { rememberedFor, recall } from '../services/remember';
 import { COLORS, SERIF, SANS, SHEET_MAX_WIDTH } from '../utils/theme';
 
 // Sign in, or unlock this device.
@@ -23,6 +24,11 @@ export default function UnlockScreen({ onUnlock, onSetupSync }) {
   const [checking, setChecking] = useState(true);
   const [recovery, setRecovery] = useState(null);
   const [wroteItDown, setWroteItDown] = useState(false);
+  // The account this device is holding a key for, if it is holding one. Asked
+  // without asking for a face: a Face ID prompt the moment the app opens,
+  // before anybody has asked for one, is the behaviour people turn off and
+  // never turn back on.
+  const [heldFor, setHeldFor] = useState(null);
 
   useEffect(() => {
     // A stored session means the account is known, but the key is not — it only
@@ -30,7 +36,32 @@ export default function UnlockScreen({ onUnlock, onSetupSync }) {
     getSession()
       .then(session => { if (session?.user?.email) setEmail(session.user.email); })
       .finally(() => setChecking(false));
+    rememberedFor().then(who => { if (typeof who === 'string') setHeldFor(who); });
   }, []);
+
+  // The face, rather than the password.
+  //
+  // Nothing falls back to the password on its own: a cancelled prompt is a
+  // decision, and re-asking would make the button impossible to get out of. It
+  // says nothing on a cancel and something only when the key has actually gone,
+  // because that is the case where the password is not a preference but the
+  // only way in.
+  const byFace = async () => {
+    setError(''); setNotice('');
+    setBusy(true);
+    try {
+      const held = await recall();
+      if (!held) {
+        setHeldFor(null);
+        setNotice('Use your password this time.');
+        return;
+      }
+      if (held.email) setEmail(held.email);
+      onUnlock({ dataKey: held.dataKey, synced: isSyncConfigured(), email: held.email || email.trim() });
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const submit = async () => {
     setError(''); setNotice('');
@@ -233,6 +264,21 @@ export default function UnlockScreen({ onUnlock, onSetupSync }) {
                 <Text style={s.buttonText}>{isSignup ? 'Create account' : 'Unlock'}</Text>
               )}
             </TouchableOpacity>
+
+            {/* Offered only where a key is actually being held, and never in
+                the middle of creating an account — there is nothing to
+                remember yet, and a second way in on that screen reads as a
+                choice about the account rather than about this device. */}
+            {!isSignup && heldFor !== null ? (
+              <TouchableOpacity
+                onPress={byFace}
+                disabled={busy}
+                accessibilityRole="button"
+                accessibilityLabel="Unlock with Face ID"
+              >
+                <Text style={s.switch}>Unlock with Face ID</Text>
+              </TouchableOpacity>
+            ) : null}
 
             <TouchableOpacity
               onPress={() => { setMode(isSignup ? 'signin' : 'signup'); setError(''); setNotice(''); }}
