@@ -93,6 +93,18 @@ async function device(name) {
   page.on('pageerror', e => console.log(`  [${name}] page error: ${e}`));
   page.on('console', m => { if (/sync|Sync|fail/i.test(m.text())) console.log(`  [${name}] ${m.text()}`); });
   await page.route(u => u.hostname === 'stubproject.supabase.co', route);
+
+  // Wednesday 23 September 2026, mid-morning.
+  //
+  // One of these says "call the bank tomorrow" and then reads it on the week's
+  // page, which is where a thing due tomorrow lives — until nine in the
+  // evening, when it comes to meet the day. Run against the wall clock this
+  // suite therefore passed all day and failed all night, which is a fact about
+  // the hand-over rather than about routing a spoken task to a column.
+  //
+  // The hand-over itself is proved in the week suite, where it belongs.
+  await page.clock.setFixedTime(new Date('2026-09-23T10:00:00'));
+
   await page.goto('http://localhost:4601/Claude/', { waitUntil: 'networkidle' });
   await page.waitForTimeout(900);
   const inputs = page.locator('input, textarea');
