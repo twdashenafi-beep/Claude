@@ -1,4 +1,4 @@
-import { pbkdf2 as noblePbkdf2 } from '@noble/hashes/pbkdf2.js';
+import { pbkdf2Async as noblePbkdf2 } from '@noble/hashes/pbkdf2.js';
 import { sha256 } from '@noble/hashes/sha2.js';
 
 // Key derivation for an account that syncs.
@@ -115,7 +115,13 @@ async function pbkdf2(password, salt, iterations) {
   // The hash is named rather than defaulted. PBKDF2 says nothing about which
   // one to use, and a library changing its mind — crypto-js once defaulted to
   // SHA-1 — would make everything already written undecryptable.
-  return toHex(noblePbkdf2(sha256, passwordBytes, saltBytes, { c: iterations, dkLen: KEY_BYTES }));
+  //
+  // The asynchronous one, which is the same arithmetic yielding every so often
+  // rather than the same arithmetic holding the thread. It is not faster. What
+  // it buys is that the app can draw while it runs: 210,000 rounds take several
+  // seconds on a phone, and several seconds of a frozen screen is indisting-
+  // uishable from a crash. Several seconds of something moving is a wait.
+  return toHex(await noblePbkdf2(sha256, passwordBytes, saltBytes, { c: iterations, dkLen: KEY_BYTES }));
 }
 
 export function normalizeEmail(email) {

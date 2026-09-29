@@ -135,19 +135,22 @@ ok('nothing is said while saving works', !/out of storage|failed/i.test(await bo
    (await body()).slice(0, 240));
 
 // From here the vault write is refused, exactly as a full origin refuses it.
+//
+// Aimed at IndexedDB rather than at localStorage, which is where the vault
+// lives now — the drawer moved when a voice note turned out to be able to fill
+// the old one. A browser reports this as a DOMException named QuotaExceededError
+// and the store turns that into a message the screen can read, so what is thrown
+// here carries the name rather than the words.
 await A.page.evaluate(() => {
-  // Kept so it can be put back. Deleting the override would take the native
-  // method with it — it is an own property of Storage.prototype, not an
-  // inherited one, so there is nothing underneath to fall through to.
-  window.__realSetItem = Storage.prototype.setItem;
-  const real = window.__realSetItem;
-  Storage.prototype.setItem = function (key, value) {
+  window.__realPut = IDBObjectStore.prototype.put;
+  const real = window.__realPut;
+  IDBObjectStore.prototype.put = function (value, key) {
     if (String(key).includes('dayflow_vault')) {
-      const err = new Error("Failed to execute 'setItem' on 'Storage': the quota has been exceeded.");
+      const err = new Error('The quota has been exceeded.');
       err.name = 'QuotaExceededError';
       throw err;
     }
-    return real.call(this, key, value);
+    return real.call(this, value, key);
   };
 });
 
@@ -172,7 +175,7 @@ ok('and the earlier one is still there', text.includes('Before the disk fills'))
 
 // And it goes away by itself once writing works again, rather than needing a
 // reload to clear a warning that is no longer true.
-await A.page.evaluate(() => { Storage.prototype.setItem = window.__realSetItem; });
+await A.page.evaluate(() => { IDBObjectStore.prototype.put = window.__realPut; });
 await add('Once there is room again');
 await A.page.waitForTimeout(1500);
 text = await body();
@@ -185,9 +188,44 @@ ok('and the task went in', text.includes('Once there is room again'));
 // The write that follows a failed read is a write of the empty list the failure
 // produced. On a device that syncs, the server has another copy; on one that
 // does not, this is the only copy there is.
-await A.page.evaluate(() => {
-  const key = Object.keys(localStorage).find(k => k.includes('dayflow_vault'));
-  localStorage.setItem(key, '{"v":2,"rows":[{"id":"a","ciph');  // truncated mid-write
+await A.page.evaluate(async () => {
+  // Written straight into the drawer the app now uses, rather than through it.
+  const db = await new Promise((resolve, reject) => {
+    const request = indexedDB.open('dayflow', 1);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  const keys = await new Promise((resolve, reject) => {
+    const request = db.transaction('kv', 'readonly').objectStore('kv').getAllKeys();
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  // By its exact name. Two keys contain "dayflow_vault" — the tasks, and the
+  // wrapped key beside them — and IndexedDB hands them back in sorted order, so
+  // a substring match corrupts the wrong one and the app recovers from it
+  // without ever reporting anything.
+  const key = keys.find(k => String(k) === '@dayflow_vault_v2');
+  if (!key) throw new Error(`no vault among ${JSON.stringify(keys)}`);
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction('kv', 'readwrite');
+    // Truncated mid-write, which is what a half-finished save leaves behind.
+    tx.objectStore('kv').put('{"v":2,"rows":[{"id":"a","ciph', key);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+
+  // And then nothing may write over it before the reload.
+  //
+  // The app is still running: a sync tick lands, the list is set again, and the
+  // debounced save puts a perfectly good vault back on top of the broken one.
+  // The old version of this test wrote straight into localStorage and got away
+  // with it; a write to IndexedDB takes long enough to open that the race is
+  // real. Vault writes from here go to a key nobody reads.
+  const realPut = IDBObjectStore.prototype.put;
+  IDBObjectStore.prototype.put = function (value, k) {
+    if (String(k).includes('dayflow_vault')) return realPut.call(this, value, '__ignored__');
+    return realPut.call(this, value, k);
+  };
 });
 await A.page.reload({ waitUntil: 'networkidle' });
 await A.page.waitForTimeout(1200);
@@ -201,9 +239,25 @@ ok('an unreadable vault is reported rather than passed over silently',
    /could not be read/i.test(text), text.slice(0, 400));
 ok('and it says a copy was kept', /copy has been kept/i.test(text), text.slice(0, 400));
 
-const kept = await A.page.evaluate(() => {
-  const key = Object.keys(localStorage).find(k => k.includes('unreadable'));
-  return key ? localStorage.getItem(key) : null;
+const kept = await A.page.evaluate(async () => {
+  const db = await new Promise((resolve, reject) => {
+    const request = indexedDB.open('dayflow', 1);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  const shelf = db.transaction('kv', 'readonly').objectStore('kv');
+  const keys = await new Promise((resolve, reject) => {
+    const request = shelf.getAllKeys();
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  const key = keys.find(k => String(k).includes('unreadable'));
+  if (!key) return null;
+  return new Promise((resolve, reject) => {
+    const request = db.transaction('kv', 'readonly').objectStore('kv').get(key);
+    request.onsuccess = () => resolve(request.result ?? null);
+    request.onerror = () => reject(request.error);
+  });
 });
 ok('the unreadable file is still there under its own key',
    typeof kept === 'string' && kept.includes('ciph'), JSON.stringify(kept));

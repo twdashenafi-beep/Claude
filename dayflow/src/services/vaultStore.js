@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import Store from './store';
 import { getSupabase } from './supabase';
 
 // Where the wrapped data key lives.
@@ -11,7 +11,7 @@ const LOCAL_KEY = '@dayflow_vault_record';
 
 export async function readLocal() {
   try {
-    const raw = await AsyncStorage.getItem(LOCAL_KEY);
+    const raw = await Store.getItem(LOCAL_KEY);
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
@@ -19,11 +19,11 @@ export async function readLocal() {
 }
 
 export async function writeLocal(record) {
-  await AsyncStorage.setItem(LOCAL_KEY, JSON.stringify(record));
+  await Store.setItem(LOCAL_KEY, JSON.stringify(record));
 }
 
 export async function clearLocal() {
-  await AsyncStorage.removeItem(LOCAL_KEY);
+  await Store.removeItem(LOCAL_KEY);
 }
 
 export async function readRemote() {

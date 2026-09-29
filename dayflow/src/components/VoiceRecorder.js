@@ -486,6 +486,24 @@ function useNotePlayer(uri) {
     // Anything else talking stops here, rather than talking over this.
     claim(stopMe);
     if (status?.didJustFinish) player.seekTo(0).catch(() => {});
+
+    // Say out loud that this should be audible.
+    //
+    // Recording sets playsInSilentMode and hands the session back when it ends,
+    // so a note played afterwards runs under whatever iOS considers the default
+    // — which obeys the ring/silent switch. The result is a play button that
+    // works, a progress bar that moves, and no sound: a recording that looks
+    // lost rather than muted.
+    //
+    // A note you have deliberately pressed play on is not background music. It
+    // is the same reasoning every voice message in every messaging app follows,
+    // and it is asked for here rather than once at launch because the recorder
+    // takes the session back every time it runs.
+    //
+    // Not awaited: the permission a browser grants for playing audio belongs to
+    // the gesture that asked for it, and an await would spend it before play()
+    // was ever reached.
+    setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
     player.play();
   };
 

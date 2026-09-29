@@ -17,11 +17,12 @@ import { buildBackup, backupText, backupFilename, describe } from '../services/b
 import { readBackup, planRestore, recordsOf, describePlan } from '../services/restore';
 import { saveTextFile, pickTextFile } from '../services/saveFile';
 import { saveFeed, readFeed, clearFeed, feedAge, FEED_KEY } from '../services/calendarFeed';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import Store from '../services/store';
 import { STORAGE_KEY } from '../context/TaskContext';
 import { decryptTask } from '../services/encryption';
 import { isTask } from '../services/projects';
 import { summarise, deviceLines, bytesOf } from '../services/deviceReport';
+import { canRemember, rememberedFor, remember, forget } from '../services/remember';
 
 // What to say after trying to play it. The first case is the interesting one:
 // the browser reports a sound played, so if none was heard the cause is
@@ -72,6 +73,10 @@ export default function AccountSheet({
   // What storage turned out to be holding, last time it was asked.
   const [held, setHeld] = useState('');
   const [unsaved, setUnsaved] = useState(false);
+  // Whether this device is keeping the key behind a face, and what happened the
+  // last time that was changed.
+  const [face, setFace] = useState(null);
+  const [faceSaid, setFaceSaid] = useState('');
   const [exposed, setExposed] = useState(false);
   // What happened the last time a copy was asked for.
   const [saved, setSaved] = useState('');
@@ -114,6 +119,32 @@ export default function AccountSheet({
     }
   };
 
+  useEffect(() => {
+    if (!visible || !canRemember()) return;
+    rememberedFor().then(who => setFace(typeof who === 'string'));
+  }, [visible]);
+
+  // On, or off again.
+  //
+  // Turning it on needs the key, which this sheet has because the vault is
+  // open — there is nowhere else in the app where both the key and a settings
+  // row exist at the same time, which is why it lives here rather than on the
+  // screen that asks for a password.
+  const toggleFace = async () => {
+    setFaceSaid('');
+    if (face) {
+      await forget();
+      setFace(false);
+      setFaceSaid('Your password is the only way in again');
+      return;
+    }
+    const took = await remember(email, dataKey);
+    setFace(took);
+    setFaceSaid(took
+      ? 'Face ID will open this device from now on'
+      : 'This device would not take it — Face ID may not be set up');
+  };
+
   // Ask storage what it has, and compare it with what is on screen.
   //
   // The comparison is the whole point. A list drawn from memory looks right
@@ -126,8 +157,8 @@ export default function AccountSheet({
     setHeld('Reading what is written…');
     setUnsaved(false);
     try {
-      const raw = await AsyncStorage.getItem(STORAGE_KEY);
-      const feedRaw = await AsyncStorage.getItem(FEED_KEY);
+      const raw = await Store.getItem(STORAGE_KEY);
+      const feedRaw = await Store.getItem(FEED_KEY);
 
       let stored = [];
       if (raw) {
@@ -436,6 +467,19 @@ export default function AccountSheet({
                 danger={unsaved}
                 onPress={checkDevice}
               />
+              {/* Only where there is a keychain to put it in. On the web the
+                  alternative would be the key sitting in the same drawer as
+                  everything else, which is not a weaker version of this idea
+                  but the absence of it. */}
+              {canRemember() ? (
+                <Row
+                  label="Face ID"
+                  detail={faceSaid || (face
+                    ? 'On — your face opens this device'
+                    : 'Open this device with your face instead of your password')}
+                  onPress={toggleFace}
+                />
+              ) : null}
               <Row label="Lock" detail="Close the vault on this device" onPress={() => { close(); onLock(); }} />
               <View style={s.gap} />
               <Row label="Delete account" detail="Permanent" danger onPress={() => setView('delete')} />

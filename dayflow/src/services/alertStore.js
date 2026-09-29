@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import Store from './store';
 
 // Which alerts have already been shown on this device.
 //
@@ -9,7 +9,7 @@ const KEY = '@dayflow_alerts_shown';
 
 export async function loadShown() {
   try {
-    const raw = await AsyncStorage.getItem(KEY);
+    const raw = await Store.getItem(KEY);
     const parsed = raw ? JSON.parse(raw) : [];
     return Array.isArray(parsed) ? parsed : [];
   } catch {
@@ -19,7 +19,7 @@ export async function loadShown() {
 
 export async function saveShown(keys) {
   try {
-    await AsyncStorage.setItem(KEY, JSON.stringify(keys));
+    await Store.setItem(KEY, JSON.stringify(keys));
   } catch {
     // A reminder repeating is a smaller problem than a crash on a full disk.
   }

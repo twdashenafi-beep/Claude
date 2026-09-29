@@ -23,7 +23,7 @@
 // somebody's entire diary through the sync would double the size of the vault
 // to no purpose.
 import { Platform } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import Store from './store';
 import { encrypt, decrypt } from './encryption';
 import { parseICS, describeICS } from './ics';
 
@@ -74,13 +74,13 @@ export async function saveFeed(text, key, now = new Date(), label = '') {
     events: seen.events,
     ahead,
   };
-  await AsyncStorage.setItem(FEED_KEY, encrypt(JSON.stringify(record), key));
+  await Store.setItem(FEED_KEY, encrypt(JSON.stringify(record), key));
   return record;
 }
 
 export async function readFeed(key) {
   try {
-    const stored = await AsyncStorage.getItem(FEED_KEY);
+    const stored = await Store.getItem(FEED_KEY);
     if (!stored) return null;
     const plain = decrypt(stored, key);
     if (!plain) return null;
@@ -94,7 +94,7 @@ export async function readFeed(key) {
 }
 
 export async function clearFeed() {
-  await AsyncStorage.removeItem(FEED_KEY);
+  await Store.removeItem(FEED_KEY);
 }
 
 // ── The phone's own calendar ────────────────────────────────────────────────

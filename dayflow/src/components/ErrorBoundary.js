@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import Store from '../services/store';
 import { COLORS, SERIF, SANS } from '../utils/theme';
 
 const LOG_KEY = '@dayflow_last_error';
@@ -24,13 +24,13 @@ export function recordError(error, info) {
     componentStack: String(info?.componentStack || '').split('\n').slice(0, 8).join('\n'),
     at: new Date().toISOString(),
   };
-  AsyncStorage.setItem(LOG_KEY, JSON.stringify(entry)).catch(() => {});
+  Store.setItem(LOG_KEY, JSON.stringify(entry)).catch(() => {});
   return entry;
 }
 
 export async function readLastError() {
   try {
-    const raw = await AsyncStorage.getItem(LOG_KEY);
+    const raw = await Store.getItem(LOG_KEY);
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
@@ -38,7 +38,7 @@ export async function readLastError() {
 }
 
 export async function clearLastError() {
-  await AsyncStorage.removeItem(LOG_KEY).catch(() => {});
+  await Store.removeItem(LOG_KEY).catch(() => {});
 }
 
 export default class ErrorBoundary extends React.Component {
