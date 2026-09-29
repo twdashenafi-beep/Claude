@@ -98,6 +98,17 @@ async function device(name) {
   page.on('pageerror', e => console.log(`  [${name}] page error: ${e}`));
   page.on('console', m => { if (/sync|Sync|fail/i.test(m.text())) console.log(`  [${name}] ${m.text()}`); });
   await page.route(u => u.hostname === 'stubproject.supabase.co', route);
+
+  // Wednesday 23 September 2026, mid-morning.
+  //
+  // This suite dictates "on Tuesday" and then looks for the task where a date a
+  // few days out belongs, which is the week's page. Run against the wall clock
+  // that sentence means something different every day of the week, and on a
+  // Tuesday it means seven days out — which is the month's page, not the week's.
+  // The suite then failed on one day in seven for a reason that has nothing to
+  // do with dictation. From a Wednesday, Tuesday is six days away and stays put.
+  await page.clock.setFixedTime(new Date('2026-09-23T10:00:00'));
+
   await page.goto('http://localhost:4719/Claude/', { waitUntil: 'networkidle' });
   await page.waitForTimeout(900);
   const inputs = page.locator('input, textarea');
