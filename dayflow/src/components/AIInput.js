@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Animated, Platform } from 'react-native';
+import { speechEngine } from '../services/speech';
 import { parseNaturalLanguage } from '../services/nlParser';
 import { whenPreview } from '../services/due';
 import { clashNote } from '../services/agenda';
@@ -35,21 +36,6 @@ const MAX_EMPTY_RESTARTS = 3;
 // a phone that hears "owe me" from a pocket must not listen for ever.
 const COMMAND_WAITS = 3;
 
-// Asked each time rather than answered once.
-//
-// This was a constant, read as the module loaded, and a constant read once is a
-// constant for the life of the page. A window that came up without the engine —
-// restored at login, woken from the background, whatever Safari was doing that
-// morning — had no microphone button until it was closed and opened again, and
-// nothing on screen to say why. Reported exactly that way: there one day, gone
-// the next, back after a reopen.
-//
-// Whether it is true can change; what it costs to ask is a property lookup. The
-// same argument as `subtle` in services/crypto.js, which was the same mistake.
-function speechEngine() {
-  if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
-  return window.SpeechRecognition || window.webkitSpeechRecognition || null;
-}
 
 // The language to listen in.
 //
