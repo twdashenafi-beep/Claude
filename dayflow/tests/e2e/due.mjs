@@ -97,6 +97,19 @@ async function device(name) {
   page.on('pageerror', e => console.log(`  [${name}] page error: ${e}`));
   page.on('console', m => { if (/sync|Sync|fail/i.test(m.text())) console.log(`  [${name}] ${m.text()}`); });
   await page.route(u => u.hostname === 'stubproject.supabase.co', route);
+
+  // Wednesday 23 September 2026, mid-morning.
+  //
+  // This suite adds a task for tomorrow and reads its label on the week's page,
+  // which is where a thing due tomorrow lives — until nine in the evening, when
+  // it comes to meet the day. Against the wall clock it therefore passed all
+  // day and failed all night, which is a fact about the hand-over and not about
+  // what a row says its date is, which is what this is for.
+  //
+  // The month walked back below is still walked back: from September the
+  // previous month is August, and the fifteenth of it is behind us either way.
+  await page.clock.setFixedTime(new Date('2026-09-23T10:00:00'));
+
   await page.goto('http://localhost:4805/Claude/', { waitUntil: 'networkidle' });
   await page.waitForTimeout(900);
   const inputs = page.locator('input, textarea');
