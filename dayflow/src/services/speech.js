@@ -1,41 +1,29 @@
 // Whether this device can turn speech into text, and what to do it with.
 //
-// On the web that is the browser's own engine, and the answer is asked for each
-// time rather than remembered: it was a constant read once at load, and a window
-// that came up without it had no microphone for as long as it stayed open.
+// Asked each time rather than answered once. It was a constant read as the
+// module loaded, and a constant read once is a constant for the life of the
+// page: a window that came up without the engine had no microphone until it was
+// closed and opened again, with nothing on screen to say why. It is a property
+// lookup, and the answer can change.
 //
-// On a phone there is no such browser API, so the button used to be hidden —
-// correctly, because one that renders and does nothing when tapped is worse than
-// none. What fills that gap is Apple's own on-device recognition, wrapped by
-// expo-speech-recognition in a class shaped exactly like the browser's. That
-// shape is the whole reason this file is three lines of substance: everything
-// that drives the microphone was written against the browser API and does not
-// have to learn a second one.
+// On a phone there is none, and the button is hidden rather than rendered and
+// inert — one that does nothing when tapped is worse than none. The keyboard's
+// own microphone key types into the same box, and the parser cannot tell the
+// difference, because it only ever sees text.
 //
-// Required lazily and never at module scope. A build without the native module
-// must behave exactly as one that never heard of it: no button, no error.
+// It was briefly otherwise. expo-speech-recognition wraps Apple's on-device
+// recogniser in a class shaped exactly like the browser's, which made the change
+// three lines — but no release of it is built for Expo SDK 55, and the nearest
+// one compiled and then took the app down the moment this screen first drew,
+// which is the first moment anything loads that module. A native module failing
+// as it registers is not something a try/catch around the require can help with.
+//
+// Worth revisiting when this project moves to an SDK the package has a release
+// for. Not before: the build succeeding proves nothing, as it turned out.
 
 import { Platform } from 'react-native';
 
-let native;
-let looked = false;
-
-function nativeEngine() {
-  if (looked) return native;
-  looked = true;
-  try {
-    // eslint-disable-next-line global-require
-    native = require('expo-speech-recognition').ExpoWebSpeechRecognition || null;
-  } catch {
-    native = null;
-  }
-  return native;
-}
-
 export function speechEngine() {
-  if (Platform.OS === 'web') {
-    if (typeof window === 'undefined') return null;
-    return window.SpeechRecognition || window.webkitSpeechRecognition || null;
-  }
-  return nativeEngine();
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
+  return window.SpeechRecognition || window.webkitSpeechRecognition || null;
 }

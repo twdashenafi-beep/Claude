@@ -378,8 +378,20 @@ ok('and neither is a quantity with a month-ish word', (() => {
   // sentence with the time already taken out of it, so the weekday is no longer
   // a weekday with a number after it by the time anything looks at it.
   const r = spoken('Dentist Monday 12:30');
-  ok('a clock time is not a day of the month', new Date(r.dueDate).getDate() === 28,
-     new Date(r.dueDate).toDateString());
+  // Said as what it is rather than as a date. This asked for the 28th, which
+  // was the next Monday on the day it was written and has not been one since —
+  // so it failed every week except that one, for a reason that had nothing to
+  // do with clock times. What it is guarding is that the 12 was not taken for a
+  // day of the month: if it had been, the task would be dated the twelfth and
+  // weeks out rather than on the Monday coming.
+  {
+    const at = new Date(r.dueDate);
+    const midnight = d => { const c = new Date(d); c.setHours(0, 0, 0, 0); return c; };
+    const daysOut = Math.round((midnight(at) - midnight(new Date())) / 86400000);
+    ok('a clock time is not a day of the month',
+       at.getDate() !== 12 && daysOut > 0 && daysOut <= 7,
+       `${at.toDateString()} — ${daysOut} days out`);
+  }
   ok('it is a time', r.dueTime === '12:30', String(r.dueTime));
   ok('on the weekday that was named', new Date(r.dueDate).getDay() === 1,
      new Date(r.dueDate).toDateString());
