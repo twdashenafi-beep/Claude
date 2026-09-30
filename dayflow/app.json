@@ -56,6 +56,19 @@
         {
           "microphonePermission": "DayFlow records a voice note when you attach one to a task."
         }
+      ],
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": "DayFlow uses Face ID to unlock your tasks without typing your password."
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "DayFlow listens while you hold the microphone, so a task can be written by saying it.",
+          "speechRecognitionPermission": "DayFlow turns what you say into the text of a task, on this device."
+        }
       ]
     ],
     "scheme": "dayflow",

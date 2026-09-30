@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Animated, Platform } from 'react-native';
-import { speechEngine } from '../services/speech';
+import { speechEngine, withSpeechPermission } from '../services/speech';
 import { parseNaturalLanguage } from '../services/nlParser';
 import { whenPreview } from '../services/due';
 import { clashNote } from '../services/agenda';
@@ -313,7 +313,12 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo', diary
     if (listening) { stopListening(); return; }
     pressAt.current = Date.now();
     latched.current = false;
-    startListening();
+    // A browser is asked for the microphone by being asked to listen; a phone
+    // has to be asked first, and says nothing useful if it is not.
+    withSpeechPermission(
+      () => startListening(),
+      () => setSpeechError(SPEECH_ERROR['not-allowed'])
+    );
   };
 
   const onMicPressOut = () => {

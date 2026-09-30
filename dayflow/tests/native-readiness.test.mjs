@@ -378,5 +378,50 @@ ok('two keys in a row differ', generateDataKey() !== generateDataKey());
      silent.length === 0, silent.join(', '));
 }
 
+// ── A native module built for a different React Native ──
+//
+// This is the check that would have stopped a day being lost. Installing
+// expo-speech-recognition on Expo SDK 55 produced a build that compiled and
+// then killed the app the first moment anything rendered the quick-add line —
+// because a native module can compile against the wrong React Native and still
+// fail as it registers, which no try/catch around the require can help with.
+//
+// The package publishes one release per SDK and names it for that SDK: after
+// 3.1.3 come 56 and 57, and 55 is the one it skipped. So the major of the
+// installed package has to be the major of the installed Expo, and a build
+// succeeding is not evidence of anything until it is.
+{
+  const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+  const majorOf = range => {
+    const match = String(range || '').match(/(\d+)\./);
+    return match ? Number(match[1]) : null;
+  };
+  const sdk = majorOf(pkg.dependencies.expo);
+  const speech = pkg.dependencies['expo-speech-recognition'];
+
+  ok('the Expo SDK in use is readable from the manifest', sdk !== null, String(pkg.dependencies.expo));
+
+  // Absent is a perfectly good answer: the phone falls back to the keyboard's
+  // own microphone key, which is what it did between the two attempts.
+  if (speech) {
+    ok('the speech package is built for the SDK this app is on',
+       majorOf(speech) === sdk, `expo ${pkg.dependencies.expo}, speech ${speech}`);
+
+    // Installed, not merely asked for. A range that resolves to something else
+    // is the same failure wearing a different hat.
+    const installed = JSON.parse(
+      fs.readFileSync(new URL('../node_modules/expo-speech-recognition/package.json', import.meta.url), 'utf8')
+    ).version;
+    ok('and the copy actually installed is that one too',
+       majorOf(installed) === sdk, `expo ${pkg.dependencies.expo}, installed ${installed}`);
+
+    // Asking for the microphone is not optional on a phone, and the error it
+    // gives when you skip it looks exactly like a microphone that is broken.
+    const speechSrc = fs.readFileSync(new URL('../src/services/speech.js', import.meta.url), 'utf8');
+    ok('and permission is asked for before anything listens',
+       /requestPermissionsAsync/.test(speechSrc), 'services/speech.js never asks');
+  }
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
