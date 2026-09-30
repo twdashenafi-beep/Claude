@@ -423,5 +423,107 @@ ok('two keys in a row differ', generateDataKey() !== generateDataKey());
   }
 }
 
+// ── Purpose strings Apple will ask for ──
+//
+// Apple rejects a build whose binary references certain APIs without a
+// user-facing reason in Info.plist, and it does not care whether the app calls
+// them. A dependency deep in the tree is enough: expo depends on
+// expo-file-system, which carries a legacy path for copying a photo out of the
+// library, and that one linked symbol cost a build and an upload.
+//
+// The rejection arrives after the build, the submission and the wait, which is
+// the worst possible place to learn it. Everything needed to know it earlier is
+// on this disk.
+{
+  const appJson = JSON.parse(fs.readFileSync(new URL('../app.json', import.meta.url), 'utf8'));
+  const MODULES = new URL('../node_modules/', import.meta.url).pathname;
+
+  // Kept narrow on purpose. A false alarm here sends somebody looking for a
+  // permission the app does not want, so each pattern is one that means the
+  // API itself rather than a word that appears near it.
+  const NEEDS = [
+    { api: /PHPhotoLibrary|PHPickerViewController|UIImagePickerController/, key: 'NSPhotoLibraryUsageDescription' },
+    { api: /SFSpeechRecognizer/, key: 'NSSpeechRecognitionUsageDescription' },
+    { api: /CNContactStore/, key: 'NSContactsUsageDescription' },
+    { api: /CLLocationManager/, key: 'NSLocationWhenInUseUsageDescription' },
+    { api: /LAContext\b/, key: 'NSFaceIDUsageDescription' },
+    { api: /EKEntityType\.reminder|EKEntityMaskReminder/, key: 'NSRemindersUsageDescription' },
+  ];
+
+  const NATIVE = /\.(swift|m|mm|h)$/;
+  const sources = [];
+  const gather = dir => {
+    let entries;
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) gather(full);
+      else if (NATIVE.test(entry.name)) sources.push(full);
+    }
+  };
+
+  // The native surface of this app: every expo module, and the one other
+  // package that ships iOS code.
+  for (const name of fs.readdirSync(MODULES)) {
+    if (!name.startsWith('expo')) continue;
+    gather(path.join(MODULES, name, 'ios'));
+    gather(path.join(MODULES, name, 'apple'));
+  }
+  gather(path.join(MODULES, '@react-native-async-storage', 'async-storage', 'ios'));
+
+  ok('there is native code to look at', sources.length > 50, String(sources.length));
+
+  // A string counts as present whether it is written here or added by a config
+  // plugin, because the build sees no difference between the two.
+  const declared = new Set(Object.keys((appJson.expo.ios || {}).infoPlist || {}));
+  const pluginNames = (appJson.expo.plugins || []).map(entry => (Array.isArray(entry) ? entry[0] : entry));
+  //
+  // Where a plugin keeps its code varies — some ship plugin/build/*.js, some a
+  // single app.plugin.js at the root — and reading only one of those reports a
+  // string as missing when it is not, which is a worse failure than the one
+  // this is guarding against.
+  const pluginText = pluginNames.map(name => {
+    const root = path.join(MODULES, name);
+    const files = [];
+    const collect = dir => {
+      let entries;
+      try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+      for (const entry of entries) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) collect(full);
+        else if (entry.name.endsWith('.js')) files.push(full);
+      }
+    };
+    collect(path.join(root, 'plugin'));
+    const single = path.join(root, 'app.plugin.js');
+    if (fs.existsSync(single)) files.push(single);
+    return files.map(file => {
+      try { return fs.readFileSync(file, 'utf8'); } catch { return ''; }
+    }).join('\n');
+  }).join('\n');
+
+  const provided = key => declared.has(key) || pluginText.includes(key);
+
+  const wanted = new Map();
+  for (const file of sources) {
+    const text = fs.readFileSync(file, 'utf8');
+    for (const need of NEEDS) {
+      if (!wanted.has(need.key) && need.api.test(text)) {
+        wanted.set(need.key, path.relative(MODULES, file));
+      }
+    }
+  }
+
+  const missing = [...wanted].filter(([key]) => !provided(key));
+  ok('every API Apple asks a reason for has one',
+     missing.length === 0,
+     missing.map(([key, where]) => `${key} (referenced by ${where})`).join('; '));
+
+  // The one that was actually missed, named, so removing it by accident is a
+  // failure with a sentence attached rather than a puzzle.
+  ok('including the photo library, which expo-file-system reaches into',
+     provided('NSPhotoLibraryUsageDescription'), 'nothing declares it');
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
