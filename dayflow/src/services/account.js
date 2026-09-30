@@ -6,6 +6,7 @@ import {
 } from './vault';
 import * as store from './vaultStore';
 import { clearVaultData } from './localVault';
+import { noteStage, nowMs } from './opening';
 
 // Account flows.
 //
@@ -63,14 +64,20 @@ export async function signUp(email, password) {
 
 export async function signIn(email, password) {
   const mail = normalizeEmail(email);
+  // Timed because it is the one cost Face ID removes, and knowing what it was
+  // is how anybody can tell whether removing it helped. See services/opening.js.
+  const derivedAt = nowMs();
   const { authHash, kek } = await deriveAccountKeys(mail, password);
+  noteStage('your password', nowMs() - derivedAt);
 
   if (isSyncConfigured()) {
     const { error } = await getSupabase().auth.signInWithPassword({ email: mail, password: authHash });
     if (error) throw error;
   }
 
+  const recordAt = nowMs();
   const record = await loadRecord();
+  noteStage('the account', nowMs() - recordAt);
   if (!record) throw new Error('NO_VAULT');
 
   const dataKey = unlockWithPassword(record, kek);

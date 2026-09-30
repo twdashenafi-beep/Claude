@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { signIn, signUp, getSession, isSyncConfigured } from '../services/account';
 import { rememberedFor, recall } from '../services/remember';
+import { beginOpening, noteStage, nowMs } from '../services/opening';
 import { COLORS, SERIF, SANS, SHEET_MAX_WIDTH } from '../utils/theme';
 
 // Sign in, or unlock this device.
@@ -49,8 +50,13 @@ export default function UnlockScreen({ onUnlock, onSetupSync }) {
   const byFace = async () => {
     setError(''); setNotice('');
     setBusy(true);
+    // Both ways in start the clock here, so what is reported afterwards is the
+    // whole wait rather than the part of it this screen happens to see.
+    beginOpening();
     try {
+      const askedAt = nowMs();
       const held = await recall();
+      noteStage('your face', nowMs() - askedAt);
       if (!held) {
         setHeldFor(null);
         setNotice('Use your password this time.');
@@ -72,6 +78,7 @@ export default function UnlockScreen({ onUnlock, onSetupSync }) {
     if (mode === 'signup' && password !== confirm) return setError('Passwords do not match.');
 
     setBusy(true);
+    beginOpening();
     try {
       if (mode === 'signup') {
         const { dataKey, recoveryCode, synced, needsConfirmation } = await signUp(mail, password);
