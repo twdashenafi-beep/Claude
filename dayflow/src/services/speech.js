@@ -68,3 +68,21 @@ export function withSpeechPermission(run, refuse) {
     .then(result => (result && result.granted ? run() : refuse()))
     .catch(refuse);
 }
+
+// What is behind the microphone button, named rather than left to be inferred.
+//
+// A button that is not on screen looks identical whether the browser has no
+// engine, the native module failed to load, or the build never contained it at
+// all. That difference has cost two builds to establish by other means, and it
+// is the kind of thing a device ought to be able to answer about itself.
+//
+// Reported in Account → This device, beside everything else this device is
+// holding.
+export function speechSource() {
+  if (Platform.OS === 'web') {
+    return speechEngine() ? 'browser' : 'no-browser-engine';
+  }
+  const mod = nativeModule();
+  if (!mod) return 'not-in-this-build';
+  return mod.ExpoWebSpeechRecognition ? 'device' : 'no-engine-in-module';
+}

@@ -8,7 +8,7 @@
 // Run with `npm test`.
 
 import {
-  bytesOf, sizeWords, notesIn, summarise, deviceLines,
+  bytesOf, sizeWords, notesIn, summarise, deviceLines, dictationLine,
 } from '../src/services/deviceReport.js';
 
 let pass = 0, fail = 0;
@@ -97,6 +97,27 @@ ok('the old single field is counted too',
 ok('an empty call still answers', Array.isArray(deviceLines(summarise())));
 ok('and so does no summary at all', deviceLines(null).length === 0);
 ok('a list that is not a list is empty', notesIn(null).count === 0);
+
+// ── Where the microphone comes from ──
+//
+// The button is absent in four different situations and they are not the same
+// problem. Two builds went by before anybody could tell which one was in front
+// of them, so each has to say something different.
+{
+  const said = ['browser', 'device', 'no-browser-engine', 'not-in-this-build', 'no-engine-in-module']
+    .map(dictationLine);
+  ok('every case says something', said.every(line => line.length > 0), JSON.stringify(said));
+  ok('and no two of them say the same thing', new Set(said).size === said.length, JSON.stringify(said));
+
+  ok('a build without the module says so',
+     /not in this build/.test(dictationLine('not-in-this-build')), dictationLine('not-in-this-build'));
+  ok('which is not what a phone with dictation says',
+     /this device/.test(dictationLine('device')), dictationLine('device'));
+  ok('and a browser is named as the browser',
+     /this browser/.test(dictationLine('browser')), dictationLine('browser'));
+  ok('anything unrecognised says nothing rather than guessing',
+     dictationLine('something-else') === '' && dictationLine() === '');
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

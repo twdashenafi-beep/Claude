@@ -353,11 +353,12 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo', diary
             <Text style={st.sendIcon}>↑</Text>
           </TouchableOpacity>
         )}
-        {/* Only where there is something behind it. Speech recognition is a
-            browser API; on iOS and Android there is no such thing in the
-            bundle, and the button used to render there and do nothing at all
-            when tapped. Nothing is lost by hiding it — both keyboards carry a
-            dictation key of their own, which types into this same field. */}
+        {/* Only where there is something behind it — a button that renders and
+            does nothing when tapped is worse than none. In a browser that is
+            the browser's own engine; on a phone it is Apple's, reached through
+            a native module, and a build without that module has no button and
+            no error. Which of those is the case is said in Account → This
+            device, because on screen the two are the same absence. */}
         {speechEngine() ? (
           <TouchableOpacity
             style={[st.mic, listening && st.micActive]}

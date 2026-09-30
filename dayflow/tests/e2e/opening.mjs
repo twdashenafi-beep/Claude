@@ -239,6 +239,13 @@ ok('reading the vault is counted on its own', /reading /.test(report),
 ok('and so are the tasks', /\d+ tasks /.test(report),
    (report.match(/Opened in [^\n]*/) || [''])[0]);
 
+// Where the microphone comes from, said rather than left to be inferred from
+// whether a button is on screen. In a browser it is the browser; the case that
+// matters is a phone, where the same absence can mean the module is missing or
+// that the build never carried it.
+ok('the report names where dictation comes from', /Dictation comes from this browser/.test(report),
+   (report.match(/Dictation[^\n·]*/) || [''])[0] || report.slice(0, 300));
+
 // The number the whole exercise is for: whether the handful of rows carrying
 // recordings is where the seconds go.
 ok('rows big enough to hold a recording are counted apart from the rest',

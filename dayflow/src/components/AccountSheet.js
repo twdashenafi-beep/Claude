@@ -21,8 +21,9 @@ import Store from '../services/store';
 import { STORAGE_KEY } from '../context/TaskContext';
 import { decryptTask } from '../services/encryption';
 import { isTask } from '../services/projects';
-import { summarise, deviceLines, bytesOf } from '../services/deviceReport';
+import { summarise, deviceLines, bytesOf, dictationLine } from '../services/deviceReport';
 import { openingLine } from '../services/opening';
+import { speechSource } from '../services/speech';
 import { canRemember, rememberedFor, remember, forget } from '../services/remember';
 
 // What to say after trying to play it. The first case is the interesting one:
@@ -184,7 +185,12 @@ export default function AccountSheet({
       // rather than on the unlock screen, because it is a question about this
       // device rather than something to read while waiting.
       const opened = openingLine();
-      setHeld([...deviceLines(summary), ...(opened ? [opened] : [])].join(' · '));
+      const dictation = dictationLine(speechSource());
+      setHeld([
+        ...deviceLines(summary),
+        ...(dictation ? [dictation] : []),
+        ...(opened ? [opened] : []),
+      ].join(' · '));
     } catch (e) {
       setHeld(`Could not read what is stored: ${String((e && e.message) || e)}`);
     }
