@@ -120,10 +120,22 @@ await page.addInitScript(() => {
       setTimeout(() => this.onend && this.onend(), 0);
     }
     abort() { window.__mic.live = false; }
+    // A browser keeps every result of the session and points resultIndex at the
+    // first one that changed — it does not resend only the newest. This used
+    // to send one result at index zero holding just the latest phrase, which
+    // is neither engine: a browser accumulates, and a phone resends the whole
+    // transcript. Code that read it correctly for either would have failed
+    // here, and did.
+    _results = [];
+
     say(text) {
       const alternatives = [{ transcript: text }];
       alternatives.isFinal = true;
-      this.onresult && this.onresult({ resultIndex: 0, results: [alternatives] });
+      this._results.push(alternatives);
+      this.onresult && this.onresult({
+        resultIndex: this._results.length - 1,
+        results: this._results,
+      });
     }
   }
   window.SpeechRecognition = FakeRecognition;
