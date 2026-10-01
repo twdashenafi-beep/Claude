@@ -25,6 +25,14 @@ const HOLD_MS = 350;
 // hear at all would restart forever.
 const MAX_EMPTY_RESTARTS = 3;
 
+// How long a start is given before it is treated as never having happened.
+//
+// On a phone start() is asynchronous — it asks for permission and only then
+// reaches the recogniser — so a failure on that path arrives as neither a throw
+// nor an error event. Nothing happens at all, and the button simply looks
+// broken. Generous, because a cold start on a phone is not instant.
+const START_GRACE_MS = 5000;
+
 // "Owe me" on its own is not a sentence anybody has finished saying. It is an
 // instruction with its task still to come, and naming the column first is
 // exactly when you are most likely to pause — you have said where it goes and
@@ -176,9 +184,15 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo', diary
   const pressAt = useRef(0);
   // How many extra pauses a command with no task after it has been given.
   const commandWaits = useRef(0);
-  // The recording running alongside dictation, when the device allows one.
-  const capture = useRef(null);
 
+  // Only ever called on a recogniser that is still live, because the reference
+  // is dropped the moment one ends. That distinction is not cosmetic: on a
+  // phone the engine is a single shared module and abort() is its global stop,
+  // so aborting a recogniser that has already finished reaches past it and
+  // stops whatever the module is doing next. Which is what happened — the
+  // first dictation after opening the app worked, because there was nothing
+  // stale to tear down, and every one after it was aborted by the corpse of
+  // the one before.
   const teardown = r => {
     if (!r) return;
     r.onstart = null; r.onresult = null; r.onerror = null; r.onend = null;
@@ -249,7 +263,8 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo', diary
       setPreview(display.trim().length > 2 ? parseNaturalLanguage(display) : null);
     };
 
-    r.onstart = () => { setListening(true); armSilence(); };
+    let started = false;
+    r.onstart = () => { started = true; setListening(true); armSilence(); };
 
     r.onresult = e => {
       let interim = '';
@@ -278,10 +293,13 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo', diary
       // after a failure is the worst of both — no dictation, and the recording
       // indicator still lit. So end it here rather than assume.
       try { r.abort(); } catch { /* already finished */ }
+      if (recognitionRef.current === r) recognitionRef.current = null;
     };
 
     r.onend = () => {
       clearTimeout(silenceTimer.current);
+      // Spent. Held on to, it becomes the thing that stops the next one.
+      if (recognitionRef.current === r) recognitionRef.current = null;
 
       // Ended on its own while still wanted. Safari does this constantly, and
       // treating it as the end of the sentence is what made dictation feel like
@@ -301,7 +319,23 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo', diary
       setTimeout(() => { if (said.trim()) submitRef.current(said); }, 120);
     };
 
-    try { r.start(); } catch { /* already running */ }
+    try {
+      r.start();
+    } catch {
+      // Only a browser throws here, and only for a double start.
+    }
+
+    // Nothing at all is the failure that has no symptom. Said out loud rather
+    // than left as a button that does nothing, because a silent dead
+    // microphone is how the last one went unnoticed for a whole build.
+    setTimeout(() => {
+      if (started || !wants.current || recognitionRef.current !== r) return;
+      wants.current = false;
+      clearTimeout(silenceTimer.current);
+      setListening(false);
+      recognitionRef.current = null;
+      setSpeechError('Dictation did not start — tap the microphone again');
+    }, START_GRACE_MS);
   }, [text, stopListening]);
 
   // Press and hold to talk; a quick tap latches it on instead.

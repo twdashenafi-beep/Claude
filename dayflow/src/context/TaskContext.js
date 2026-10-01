@@ -55,6 +55,15 @@ const A_RECORDING = 20000;
 // simply frozen for as long as the vault takes.
 const SLICE_MS = 60;
 
+// How often the count on screen is refreshed.
+//
+// Not the same question as how often to breathe. Yielding often is what keeps
+// the screen alive; re-rendering as often is just work, and a figure that
+// changes sixteen times a second is not more honest than one that changes five
+// times — it is the same truth, read by nobody, at four times the cost.
+
+const TELL_MS = 200;
+
 const breathe = () => new Promise(resolve => setTimeout(resolve, 0));
 
 // Every mutation stamps updatedAt. Merging across devices has nothing else to
@@ -121,7 +130,9 @@ export function TaskProvider({ children, encryptionKey, synced }) {
           const plain = { count: 0, ms: 0 };
           const heavy = { count: 0, ms: 0 };
           let breathedAt = nowMs();
+          let toldAt = 0;
           let done = 0;
+          const loopFrom = nowMs();
           for (const row of rows) {
             // Per row, not per vault. A single malformed entry threw on the
             // first property read and the catch below abandoned the whole load
@@ -138,7 +149,10 @@ export function TaskProvider({ children, encryptionKey, synced }) {
             } catch { /* skip the row, keep the rest */ }
             done += 1;
             if (nowMs() - breathedAt >= SLICE_MS) {
-              setOpening({ done, total: rows.length });
+              if (nowMs() - toldAt >= TELL_MS) {
+                setOpening({ done, total: rows.length });
+                toldAt = nowMs();
+              }
               await breathe();
               if (cancelled) return;
               breathedAt = nowMs();
@@ -151,6 +165,13 @@ export function TaskProvider({ children, encryptionKey, synced }) {
               heavy.ms
             );
           }
+          // Everything the loop cost that was not decrypting: the yields, and
+          // the renders they exist to allow. Reported rather than buried,
+          // because it is the price of the screen that says what is happening,
+          // and whoever pays it should be able to see what it came to. Last,
+          // because it is the only line here that is the app's own doing.
+          const drawing = nowMs() - loopFrom - plain.ms - heavy.ms;
+          if (drawing > 0) noteStage('letting the screen draw', drawing);
           if (!cancelled) { tasksRef.current = decrypted; setTasks(decrypted); }
         }
       } catch (e) {
