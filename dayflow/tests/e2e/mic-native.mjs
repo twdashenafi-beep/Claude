@@ -1,4 +1,7 @@
-// Dictating twice.
+// What the phone's engine does that a browser's does not.
+//
+// Two defects, both invisible in a browser and both reported from a phone
+// within a day of each other.
 //
 // The microphone worked once after opening the app and never again. The cause
 // was the recogniser from the previous sentence: it was kept in a reference
@@ -48,7 +51,7 @@ const server = http.createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': TYPES[path.extname(file)] || 'application/octet-stream' });
   fs.createReadStream(file).pipe(res);
 });
-await new Promise(r => server.listen(4877, r));
+await new Promise(r => server.listen(4879, r));
 
 const PROJECT = 'https://stubproject.supabase.co';
 const KEY = 'sb_publishable_stubkeyabcdefghijkl';
@@ -128,9 +131,21 @@ await page.addInitScript(() => {
       }, 0);
     }
 
-    say(text) {
+    // What iOS sends, which is not what a browser sends.
+    //
+    // One result, always at index zero, holding the whole transcript so far
+    // rather than the part that is new — and on iOS 18 flagged final far more
+    // often than a browser would flag it. Straight from the polyfill:
+    //
+    //     resultIndex: 0,
+    //     results: [ new Result(isFinal, alternatives) ]
+    // The iOS module emits "end" from four separate places, none of them
+    // guarded against the others, so one session can report ending twice.
+    endAgain() { this.onend && this.onend(); }
+
+    say(text, isFinal = true) {
       const alternatives = [{ transcript: text }];
-      alternatives.isFinal = true;
+      alternatives.isFinal = isFinal;
       this.onresult && this.onresult({ resultIndex: 0, results: [alternatives] });
     }
   }
@@ -147,7 +162,7 @@ const mic = () => page.evaluate(() => ({
 }));
 
 // ── An account with the microphone available ──
-await page.goto('http://localhost:4877/Claude/', { waitUntil: 'networkidle' });
+await page.goto('http://localhost:4879/Claude/', { waitUntil: 'networkidle' });
 await page.waitForTimeout(600);
 await page.evaluate(([url, anonKey]) => {
   localStorage.setItem('@dayflow_sync_config', JSON.stringify({ url, anonKey }));
@@ -208,6 +223,117 @@ text = await body();
 ok('and a third sentence still works', text.includes('Water the plants'), text.slice(0, 500));
 ok('the first task did not disappear along the way', text.includes('Collect the parcel'));
 ok('still nothing aborted after ending', (await mic()).abortedAfterEnd === 0, JSON.stringify(await mic()));
+
+// ── One sentence, said the way a phone says it ──
+//
+// The phone resends the whole transcript at every event, growing as it hears
+// more. Appending each one gave the title in the report:
+//
+//     Call Bob Call Bob at 8 PM Call Bob at 8 PM
+//
+// and, because each of those events ended the session and the loop restarted,
+// four rows of it.
+const countOf = (haystack, needle) => haystack.split(needle).length - 1;
+
+await page.getByLabel('Dictate a task').click();
+await page.waitForTimeout(400);
+await page.evaluate(() => {
+  window.__mic.instance.say('call bob');
+  window.__mic.instance.say('call bob at 8');
+  window.__mic.instance.say('call bob at 8 pm');
+});
+await page.waitForTimeout(3400);
+
+text = await body();
+ok('the sentence is not repeated inside the task',
+   !/bob\s+call\s+bob/i.test(text), (text.match(/[^\n]*[Bb]ob[^\n]*/) || [''])[0]);
+ok('and the task is there once, not four times',
+   countOf(text.toLowerCase(), 'call bob') === 1,
+   (text.match(/[^\n]*[Bb]ob[^\n]*/g) || []).join(' | ').slice(0, 300));
+ok('the time it was told is kept', /20:00/.test(text), text.slice(0, 400));
+
+// ── Interim results are not committed twice either ──
+//
+// A phone sends the same growing transcript whether or not it has decided the
+// phrase is final, so an interim that is later repeated as final must not end
+// up in the box twice.
+await page.getByLabel('Dictate a task').click();
+await page.waitForTimeout(400);
+await page.evaluate(() => {
+  window.__mic.instance.say('email dawit', false);
+  window.__mic.instance.say('email dawit tomorrow', false);
+  window.__mic.instance.say('email dawit tomorrow', true);
+});
+await page.waitForTimeout(3400);
+
+text = await body();
+ok('an interim that becomes final is said once',
+   !/dawit\s+email\s+dawit/i.test(text) && countOf(text.toLowerCase(), 'email dawit') <= 1,
+   (text.match(/[^\n]*[Dd]awit[^\n]*/g) || []).join(' | ').slice(0, 300));
+
+// ── A sentence the phone breaks into several sessions ──
+//
+// iOS ends the recognition task after a phrase rather than waiting for the
+// speaker to finish, so one spoken sentence is three sessions and the app
+// restarts between them. Each session starts with an empty transcript, so what
+// earlier ones heard has to be carried — and each session's end must not count
+// as the end of the sentence, or one thing said becomes three tasks.
+await page.getByLabel('Dictate a task').click();
+await page.waitForTimeout(400);
+
+const sayThenEnd = words => page.evaluate(said => {
+  window.__mic.instance.say(said);
+  window.__mic.instance.settle();
+}, words);
+
+// Deliberately without a date in it. A task due on Friday belongs to the
+// week's page, so it would be absent from the day whether or not any of this
+// worked — which says nothing about what is under test.
+await sayThenEnd('book the flight');
+await page.waitForTimeout(700);
+await sayThenEnd('to paris');
+await page.waitForTimeout(700);
+
+const startsBefore = (await mic()).started;
+await page.waitForTimeout(3600);
+
+text = await body();
+ok('what the earlier sessions heard is not lost',
+   /[Bb]ook the flight/.test(text), (text.match(/[^\n]*flight[^\n]*/) || [''])[0]);
+ok('and the whole sentence is one task, not one per session',
+   countOf(text.toLowerCase(), 'book the flight') === 1,
+   (text.match(/[^\n]*flight[^\n]*/g) || []).join(' | ').slice(0, 300));
+ok('nothing is repeated inside it',
+   !/flight\s+book the flight/i.test(text), (text.match(/[^\n]*flight[^\n]*/) || [''])[0]);
+
+// The loop that had no end. Each session ending while something had just been
+// said reset the only counter that bounded it, so it restarted for ever.
+ok('the restarts are bounded rather than endless',
+   (await mic()).started - startsBefore <= 8, JSON.stringify(await mic()));
+
+// ── A session that reports ending twice ──
+//
+// Four places in the module's iOS code send an "end" event and none of them
+// knows about the others. A dictation that ends twice is still one thing
+// somebody said.
+await page.getByLabel('Dictate a task').click();
+await page.waitForTimeout(400);
+await page.evaluate(() => window.__mic.instance.say('tidy the desk'));
+
+// Long enough for the pause to end the sentence and the submission to be on
+// its way, which is exactly when a second end would do the damage.
+await page.waitForTimeout(2600);
+await page.evaluate(() => {
+  const spent = window.__mic.instance;
+  spent.endAgain();
+  spent.endAgain();
+});
+await page.waitForTimeout(1400);
+
+text = await body();
+ok('a sentence that ends three times is still one task',
+   countOf(text.toLowerCase(), 'tidy the desk') === 1,
+   (text.match(/[^\n]*[Tt]idy[^\n]*/g) || []).join(' | ').slice(0, 300));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();

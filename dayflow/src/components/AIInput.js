@@ -25,6 +25,16 @@ const HOLD_MS = 350;
 // hear at all would restart forever.
 const MAX_EMPTY_RESTARTS = 3;
 
+// And a ceiling on restarts of any kind.
+//
+// The cap above counts only restarts that heard nothing, and it resets the
+// moment anything is said — which is fine for a browser that gives up
+// occasionally and fatal for a phone that ends the session after every phrase.
+// There, something had always just been said, so the counter was always zero
+// and the loop had no end: each cycle another recogniser, each recogniser
+// another task.
+const MAX_RESTARTS = 8;
+
 // How long a start is given before it is treated as never having happened.
 //
 // On a phone start() is asynchronous — it asks for permission and only then
@@ -181,6 +191,18 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo', diary
   const spoken = useRef('');          // final transcript so far, across restarts
   const base = useRef('');            // whatever was typed before dictation began
   const emptyRestarts = useRef(0);
+  // Restarts of any kind, which is the number that actually has to be bounded.
+  const restarts = useRef(0);
+  // What earlier sessions of this same dictation left behind, and what the
+  // current one has heard. Kept apart because only the second is rebuilt from
+  // scratch on every result — see onresult.
+  const carried = useRef('');
+  const thisRun = useRef('');
+  // One dictation, one task. Both halves are needed: the run this recogniser
+  // belongs to, so an abandoned one cannot speak for the current one, and
+  // whether that run has already had its say.
+  const runId = useRef(0);
+  const submitted = useRef(false);
   const pressAt = useRef(0);
   // How many extra pauses a command with no task after it has been given.
   const commandWaits = useRef(0);
@@ -219,10 +241,20 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo', diary
       // line half typed is not thrown away by reaching for the microphone.
       base.current = text.trim();
       spoken.current = '';
+      carried.current = '';
+      thisRun.current = '';
       emptyRestarts.current = 0;
+      restarts.current = 0;
+      submitted.current = false;
+      runId.current += 1;
       commandWaits.current = 0;
       setSpeechError('');
     }
+
+    // Which dictation this recogniser belongs to. A restart keeps the number;
+    // a fresh press does not, which is what lets an abandoned recogniser be
+    // recognised as abandoned when it finally ends.
+    const myRun = runId.current;
 
     const r = new Engine();
     r.continuous = true;
@@ -266,13 +298,35 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo', diary
     let started = false;
     r.onstart = () => { started = true; setListening(true); armSilence(); };
 
+    // Rebuilt from the whole event rather than added to, which is the only
+    // reading that is right on both engines.
+    //
+    // A browser sends the results it has, with resultIndex pointing at the
+    // first that changed, so appending from that index works. A phone sends,
+    // every single time, one result at index zero holding the entire
+    // transcript so far:
+    //
+    //     resultIndex: 0,
+    //     results: [ new Result(isFinal, alternatives) ]
+    //
+    // Appending that means appending the whole sentence again at every event,
+    // and on iOS 18 nearly every event is flagged final — so "Call Bob at 8 PM"
+    // arrived as "Call Bob Call Bob at 8 PM Call Bob at 8 PM".
+    //
+    // Reading every result from the start costs nothing and is correct for
+    // both: a browser's list is the whole session, a phone's is the whole
+    // transcript. What a restart left behind is kept separately, because that
+    // is the one thing no event can tell us.
     r.onresult = e => {
+      let finals = '';
       let interim = '';
-      for (let i = e.resultIndex; i < e.results.length; i++) {
+      for (let i = 0; i < e.results.length; i += 1) {
         const said = e.results[i][0].transcript;
-        if (e.results[i].isFinal) spoken.current = joinSpeech(spoken.current, said);
+        if (e.results[i].isFinal) finals = joinSpeech(finals, said);
         else interim = joinSpeech(interim, said);
       }
+      thisRun.current = finals;
+      spoken.current = joinSpeech(carried.current, thisRun.current);
       emptyRestarts.current = 0;
       show(interim);
       armSilence();
@@ -301,13 +355,25 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo', diary
       // Spent. Held on to, it becomes the thing that stops the next one.
       if (recognitionRef.current === r) recognitionRef.current = null;
 
+      // A recogniser from a dictation that is already over. It has nothing to
+      // say about this one, and letting it speak is how one sentence became
+      // four tasks.
+      if (myRun !== runId.current) return;
+
+      // Whatever this session heard is now settled. Moved across before any
+      // restart, because the next session's results replace thisRun entirely.
+      carried.current = joinSpeech(carried.current, thisRun.current);
+      thisRun.current = '';
+      spoken.current = carried.current;
+
       // Ended on its own while still wanted. Safari does this constantly, and
       // treating it as the end of the sentence is what made dictation feel like
       // it was not listening: you were still talking and it had already gone.
       if (wants.current) {
         if (spoken.current) emptyRestarts.current = 0;
         else emptyRestarts.current += 1;
-        if (emptyRestarts.current <= MAX_EMPTY_RESTARTS) {
+        restarts.current += 1;
+        if (emptyRestarts.current <= MAX_EMPTY_RESTARTS && restarts.current <= MAX_RESTARTS) {
           setTimeout(() => { if (wants.current) startListening(true); }, 120);
           return;
         }
@@ -315,6 +381,9 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo', diary
       }
 
       setListening(false);
+      // Once. A dictation that ends twice is still one thing somebody said.
+      if (submitted.current) return;
+      submitted.current = true;
       const said = joinSpeech(base.current, spoken.current);
       setTimeout(() => { if (said.trim()) submitRef.current(said); }, 120);
     };
