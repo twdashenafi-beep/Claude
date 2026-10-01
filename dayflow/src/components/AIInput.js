@@ -90,6 +90,13 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo', diary
   const [preview, setPreview] = useState(null);
   const [processing, setProcessing] = useState(false);
   const [listening, setListening] = useState(false);
+  // A column was named and the task has not arrived yet. "Owe me", then a
+  // think. The app already waits through that pause rather than ending the
+  // sentence — but it said "pause when you have finished", which is the wrong
+  // instruction at the one moment it matters: nothing has been started, let
+  // alone finished, and the silence it is forgiving looks identical to the
+  // silence that ends a sentence.
+  const [awaitingTask, setAwaitingTask] = useState(false);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const recognitionRef = useRef(null);
   const silenceTimer = useRef(null);
@@ -248,6 +255,7 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo', diary
       submitted.current = false;
       runId.current += 1;
       commandWaits.current = 0;
+      setAwaitingTask(false);
       setSpeechError('');
     }
 
@@ -292,7 +300,12 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo', diary
     const show = interim => {
       const display = joinSpeech(joinSpeech(base.current, spoken.current), interim);
       setText(display);
-      setPreview(display.trim().length > 2 ? parseNaturalLanguage(display) : null);
+      const read = display.trim().length > 2 ? parseNaturalLanguage(display) : null;
+      setPreview(read);
+      // Said where it goes, not yet what it is. Read from the parser rather
+      // than matched against a list of command words here, so the two cannot
+      // drift: whatever it treats as routing is what this waits on.
+      setAwaitingTask(!!read && read.commanded && read.title.trim() === '');
     };
 
     let started = false;
@@ -342,6 +355,7 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo', diary
       wants.current = false;
       clearTimeout(silenceTimer.current);
       setListening(false);
+      setAwaitingTask(false);
       // A browser normally follows an error with an end of its own, which
       // releases the microphone. Not every one does, and a microphone left open
       // after a failure is the worst of both — no dictation, and the recording
@@ -381,6 +395,7 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo', diary
       }
 
       setListening(false);
+      setAwaitingTask(false);
       // Once. A dictation that ends twice is still one thing somebody said.
       if (submitted.current) return;
       submitted.current = true;
@@ -402,6 +417,7 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo', diary
       wants.current = false;
       clearTimeout(silenceTimer.current);
       setListening(false);
+      setAwaitingTask(false);
       recognitionRef.current = null;
       setSpeechError('Dictation did not start — tap the microphone again');
     }, START_GRACE_MS);
@@ -486,7 +502,11 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo', diary
         <View style={st.listenRow} dataSet={{ notice: 'true' }}>
           <Animated.View style={[st.dot, { transform: [{ scale: pulseAnim }] }]} />
           <Text style={st.listenText}>
-            {latched.current ? 'Listening — pause when you have finished' : 'Listening — let go to add it'}
+            {awaitingTask
+              ? 'Listening — now say the task'
+              : latched.current
+                ? 'Listening — pause when you have finished'
+                : 'Listening — let go to add it'}
           </Text>
         </View>
       )}
