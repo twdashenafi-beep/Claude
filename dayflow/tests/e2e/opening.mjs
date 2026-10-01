@@ -218,6 +218,13 @@ ok('the day is not drawn empty behind it',
 
 await page.waitForTimeout(6000);
 const open = await body();
+
+// The page says how long it took only when that was long enough to be worth
+// saying. This vault opens in well under a second, so a notice here would be
+// noise on every launch — which is the thing that gets a useful warning
+// switched off and never switched back on.
+ok('a quick opening is not announced on the page',
+   !/Opened in /.test(open), (open.match(/Opened in [^\n]*/) || [''])[0]);
 ok('and then the day arrives', /Order the slate/.test(open), open.slice(0, 200));
 ok('the opening screen is gone', !/Opening your vault/.test(open), open.slice(0, 200));
 

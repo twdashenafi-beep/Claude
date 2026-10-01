@@ -68,3 +68,18 @@ export function openingLine(given) {
     .map(stage => `${stage.name} ${secondsWords(stage.ms)}`);
   return `Opened in ${secondsWords(it.total)} — ${parts.join(' · ')}`;
 }
+
+// When the wait is long enough that somebody would complain about it.
+//
+// There is no point reporting two seconds; everything opens in two seconds.
+// Past this, the app says so on the screen somebody is already staring at
+// rather than filing it where it has to be gone looking for — which is how
+// four requests for one line went unanswered while the same complaint came
+// back three times. The number was always on the device and never in anybody's
+// hands.
+const SLOW_MS = 8000;
+
+export function wasSlow(given) {
+  const it = given || record;
+  return !!it && it.total >= SLOW_MS;
+}

@@ -4,7 +4,7 @@ import React, {
 import Store from '../services/store';
 import { scheduleTaskNotifications, cancelTaskNotifications } from '../services/notifications';
 import { createTaskEncryptor, decryptTask } from '../services/encryption';
-import { noteStage, nowMs } from '../services/opening';
+import { noteStage, nowMs, openingLine, openingRecord, wasSlow } from '../services/opening';
 import Opening from '../components/Opening';
 import { newId } from '../utils/id';
 import { pullTasks, pushTasks, mergeTasks, watchTasks } from '../services/sync';
@@ -111,6 +111,8 @@ export function TaskProvider({ children, encryptionKey, synced }) {
   // How long each part took is kept, because "about ten seconds" is not a
   // number anybody can fix. See services/opening.js.
   const [opening, setOpening] = useState(null);
+  // What the wait came to, when it came to enough to be worth saying.
+  const [slowOpening, setSlowOpening] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -193,7 +195,12 @@ export function TaskProvider({ children, encryptionKey, synced }) {
           );
         }
       }
-      if (!cancelled) { setOpening(null); setLoaded(true); }
+      if (!cancelled) {
+        setOpening(null);
+        setLoaded(true);
+        // Said on the page rather than filed somewhere it has to be found.
+        if (wasSlow(openingRecord())) setSlowOpening(openingLine());
+      }
     })();
     return () => { cancelled = true; };
   }, [encryptionKey]);
@@ -668,6 +675,7 @@ export function TaskProvider({ children, encryptionKey, synced }) {
       value={{
         tasks: visibleTasks, addTask, toggleTask, deleteTask, restoreTask, updateTask,
         reorderTasks, syncState, syncNow, storageError, vaultError,
+        slowOpening, dismissSlowOpening: () => setSlowOpening(''),
         // The same function under a second name. Tasks and projects are one
         // record list underneath, and both carry an order, so moving either is
         // the same write — but a caller passing project changes to something

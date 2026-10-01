@@ -262,7 +262,7 @@ function Column({
 export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
   const {
     tasks, addTask, toggleTask, deleteTask, restoreTask, updateTask, reorderTasks, syncState,
-    storageError, vaultError,
+    storageError, vaultError, slowOpening, dismissSlowOpening,
     projects, addProject, renameProject, deleteProject, moveTaskToProject, reorderProjects,
     archived, archiveTask, archiveTasks, unarchiveTask, deleteTasks, restoreTasks,
     importTasks, tombstones,
@@ -794,6 +794,23 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
           {/* A device that has stopped saving says so, in the one place that is
               always on screen. Not the undo bar at the bottom: that clears
               itself after a few seconds, and this is true until it is not. */}
+          {/* Only when opening took long enough that somebody noticed. It is a
+              real fault reported where it happened, and it goes away when
+              tapped — the alternative was asking somebody to go and read it
+              out of a settings screen, which does not survive contact with
+              anybody having a day. */}
+          {slowOpening ? (
+            <TouchableOpacity
+              style={s.storageBar}
+              onPress={dismissSlowOpening}
+              accessibilityRole="button"
+              accessibilityLabel={`${slowOpening}. Tap to dismiss.`}
+            >
+              <Text style={s.storageText}>{slowOpening}</Text>
+              <Text style={s.storageHint}>Tap to dismiss</Text>
+            </TouchableOpacity>
+          ) : null}
+
           {vaultError ? (
             <View style={s.storageBar} accessibilityRole="alert">
               <Text style={s.storageText}>{vaultError}</Text>
