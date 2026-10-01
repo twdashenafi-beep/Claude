@@ -96,6 +96,19 @@ const page = await ctx.newPage();
 page.on('pageerror', e => console.log(`  page error: ${e}`));
 await page.route(u => u.hostname === 'stubproject.supabase.co', route);
 
+// Wednesday 23 September 2026, mid-morning.
+//
+// One of these dictates "call bob at 8 pm" and then counts how many times the
+// phrase appears on the page. Run against the wall clock, an evening run makes
+// that task due the moment it is created, the reminder bar says "Due now — Call
+// bob", and the count is two. It passed all morning and failed at ten past
+// eight, for a reason that has nothing to do with how a phone sends a
+// transcript — which is what this suite is for.
+//
+// Ninth of these. They are all the same shape: a test that reads the clock and
+// was written at an hour when the answer happened to suit it.
+await page.clock.setFixedTime(new Date('2026-09-23T10:00:00'));
+
 // ── The engine, shaped like the phone's rather than the browser's ──
 await page.addInitScript(() => {
   window.__mic = { started: 0, aborted: 0, abortedAfterEnd: 0, live: null, instance: null };
