@@ -99,20 +99,50 @@ export async function clearFeed() {
 
 // ── The phone's own calendar ────────────────────────────────────────────────
 
+// What went wrong the last time the phone's calendar was read, if anything.
+// Shown in Account → This device, because "no calendar" and "could not read the
+// calendar" are different things and only one of them is the phone's decision.
+let trouble = '';
+
+export function calendarTrouble() {
+  return trouble;
+}
+
+
 // Imported only when it is going to be used. expo-calendar has nothing to offer
 // a browser, and loading it there is a module that throws for no reason.
 async function deviceEvents(from, to) {
   if (Platform.OS === 'web') return null;
   try {
     const Calendar = await import('expo-calendar');
-    const { status } = await Calendar.requestCalendarPermissionsAsync();
+
+    // All three of these were renamed in expo-calendar 57, and the old names
+    // were not kept at the package root — they moved to build/legacy. Calling
+    // one that is no longer there is a TypeError, and the catch at the bottom
+    // of this function turned that into "there is no calendar on this device",
+    // which is exactly what a phone with the permission refused looks like.
+    //
+    // Both names are tried because they are two spellings of one thing and the
+    // app should not care which SDK it is built against. What it must not do is
+    // silently find neither, which is why that case is reported below instead
+    // of returning the same null as an ordinary refusal.
+    const askFor = Calendar.requestCalendarPermissions || Calendar.requestCalendarPermissionsAsync;
+    const theCalendars = Calendar.getCalendars || Calendar.getCalendarsAsync;
+    const theEvents = Calendar.listEvents || Calendar.getEventsAsync;
+
+    if (!askFor || !theCalendars || !theEvents) {
+      trouble = 'The calendar module is not the shape this app expects';
+      return null;
+    }
+
+    const { status } = await askFor();
     if (status !== 'granted') return null;
 
-    const calendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
+    const calendars = await theCalendars(Calendar.EntityTypes.EVENT);
     const ids = calendars.map(c => c.id);
     if (ids.length === 0) return [];
 
-    const raw = await Calendar.getEventsAsync(ids, from, to);
+    const raw = await theEvents(ids, from, to);
     return raw.map(event => ({
       id: event.id,
       // The app's own exports are filed with a marker, and showing them back as
@@ -123,7 +153,11 @@ async function deviceEvents(from, to) {
       allDay: !!event.allDay,
       mine: /^\[DayFlow\]/.test(String(event.title || '')),
     })).filter(event => !event.mine);
-  } catch {
+  } catch (e) {
+    // Kept, rather than only returned as null. A phone that refuses permission
+    // and a phone whose calendar module has moved under us look identical from
+    // the outside — no diary, no complaint — and one of those is a bug.
+    trouble = String((e && e.message) || e);
     return null;
   }
 }

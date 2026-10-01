@@ -8,7 +8,7 @@
 // Run with `npm test`.
 
 import {
-  bytesOf, sizeWords, notesIn, summarise, deviceLines, dictationLine,
+  bytesOf, sizeWords, notesIn, summarise, deviceLines, dictationLine, calendarTroubleLine,
 } from '../src/services/deviceReport.js';
 
 let pass = 0, fail = 0;
@@ -117,6 +117,19 @@ ok('a list that is not a list is empty', notesIn(null).count === 0);
      /this browser/.test(dictationLine('browser')), dictationLine('browser'));
   ok('anything unrecognised says nothing rather than guessing',
      dictationLine('something-else') === '' && dictationLine() === '');
+}
+
+// ── A calendar that could not be read ──
+//
+// Different from a calendar with nothing in it, and from a permission the
+// phone refused. Those two are the user's business; this one is a bug, and it
+// spent a build looking exactly like the other two.
+ok('nothing wrong says nothing', calendarTroubleLine('') === '' && calendarTroubleLine() === '');
+ok('and whitespace is nothing too', calendarTroubleLine('   ') === '');
+{
+  const line = calendarTroubleLine('The calendar module is not the shape this app expects');
+  ok('a fault is reported as one', /could not be read/.test(line), line);
+  ok('and says what it was', /not the shape/.test(line), line);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

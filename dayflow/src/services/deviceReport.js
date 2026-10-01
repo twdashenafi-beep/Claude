@@ -68,6 +68,15 @@ export function dictationLine(source) {
   return DICTATION[source] || '';
 }
 
+// The phone's calendar, when reading it went wrong rather than coming back
+// empty. Those two are not the same and used to look identical: a refused
+// permission and a module whose functions had been renamed both produced no
+// diary and no complaint.
+export function calendarTroubleLine(trouble) {
+  const said = typeof trouble === 'string' ? trouble.trim() : '';
+  return said ? `The calendar on this device could not be read — ${said}` : '';
+}
+
 // What the two sides hold, and whether they agree.
 //
 // `stored` is what came back out of storage; `memory` is the list the app is

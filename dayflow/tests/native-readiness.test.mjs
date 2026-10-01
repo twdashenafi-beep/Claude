@@ -546,5 +546,82 @@ ok('two keys in a row differ', generateDataKey() !== generateDataKey());
   }
 }
 
+// ── Calling a function the module no longer has ──
+//
+// expo-calendar 57 renamed requestCalendarPermissionsAsync, getCalendarsAsync
+// and getEventsAsync and did not keep the old names at the package root; they
+// moved to build/legacy. Calling one that is not there is a TypeError, and the
+// catch around reading the phone's calendar turned that into "this device has
+// no calendar" — indistinguishable from a refused permission.
+//
+// Nothing in a browser can catch that: the whole path is skipped on web. So
+// the names the app calls are checked against the names the installed package
+// actually exports, which is a question answerable from this disk.
+{
+  const MODULES = new URL('../node_modules/', import.meta.url).pathname;
+  const feed = fs.readFileSync(new URL('../src/services/calendarFeed.js', import.meta.url), 'utf8');
+
+  // Every `Calendar.something` the source reaches for.
+  const wanted = [...new Set(
+    [...feed.matchAll(/\bCalendar\.([A-Za-z_]\w*)/g)].map(m => m[1])
+  )];
+  ok('the calendar module is reached for by name', wanted.length > 0, JSON.stringify(wanted));
+
+  // What it exports, read from the built JavaScript rather than the types: the
+  // types describe an intention, the build is what gets bundled.
+  const built = ['Calendar.js', 'index.js']
+    .map(file => {
+      try { return fs.readFileSync(path.join(MODULES, 'expo-calendar', 'build', file), 'utf8'); }
+      catch { return ''; }
+    })
+    .join('\n');
+  ok('and the built module can be read', built.length > 0, 'expo-calendar/build is missing');
+
+  // Exported as a function, as a const, or re-exported in a braced list.
+  const exported = new Set();
+  for (const m of built.matchAll(/export\s+(?:async\s+)?function\s+(\w+)/g)) exported.add(m[1]);
+  for (const m of built.matchAll(/export\s+(?:const|let|var)\s+(\w+)/g)) exported.add(m[1]);
+  for (const m of built.matchAll(/export\s*\{([^}]*)\}/g)) {
+    for (const piece of m[1].split(',')) {
+      const name = piece.trim().split(/\s+as\s+/).pop().trim();
+      if (name) exported.add(name);
+    }
+  }
+
+  // A name the source only reaches for behind a fallback is fine as long as one
+  // of the pair exists; what must never happen is every spelling being absent.
+  const missing = wanted.filter(name => !exported.has(name));
+  const stillThere = wanted.filter(name => exported.has(name));
+
+  ok('at least some of what it calls exists', stillThere.length > 0,
+     `none of ${JSON.stringify(wanted)} is exported`);
+
+  // The three that moved, each tried under both spellings. One of each pair has
+  // to be there or the phone has no diary and says nothing about why.
+  const pairs = [
+    ['requestCalendarPermissions', 'requestCalendarPermissionsAsync'],
+    ['getCalendars', 'getCalendarsAsync'],
+    ['listEvents', 'getEventsAsync'],
+  ];
+  for (const pair of pairs) {
+    const reached = pair.filter(name => wanted.includes(name));
+    if (!reached.length) continue;
+    // Among the spellings the source actually reaches for — not among the
+    // spellings that exist. Asking whether either name is exported passes
+    // happily while the source calls only the one that is gone, which is the
+    // precise bug this is here to catch.
+    ok(`what the source calls for ${pair.join(' / ')} is exported`,
+       reached.some(name => exported.has(name)),
+       `the source calls ${reached.join(' and ')}, and none of those is exported`);
+  }
+
+  // Said rather than hidden: a name that is gone is worth knowing about even
+  // when a fallback covers it, because the fallback is the thing that will be
+  // deleted one day as dead code.
+  if (missing.length) {
+    console.log(`      (not exported, covered by a fallback: ${missing.join(', ')})`);
+  }
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
