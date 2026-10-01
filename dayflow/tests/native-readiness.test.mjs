@@ -525,5 +525,26 @@ ok('two keys in a row differ', generateDataKey() !== generateDataKey());
      provided('NSPhotoLibraryUsageDescription'), 'nothing declares it');
 }
 
+// ── The yield that cost forty-five seconds ──
+//
+// noble yields to the event loop every `asyncTick` milliseconds so a long
+// derivation cannot freeze the page. Its default is 10, and in a browser that
+// is free — the yield is a scheduler callback. On a phone it falls back to
+// setTimeout(0), which on React Native means the timer bridge, and the device
+// reported 45.5 s to derive one key that takes 277 ms on a machine with a JIT.
+//
+// Left to the default it will be ten again, and nothing about the result will
+// look wrong — the key is correct either way. Only the clock says anything,
+// and only on hardware.
+{
+  const src = fs.readFileSync(new URL('../src/services/crypto.js', import.meta.url), 'utf8');
+  const set = src.match(/asyncTick:\s*(\d+)/);
+  ok('the derivation says how often it may stop to look up', !!set, 'asyncTick is left to the default');
+  if (set) {
+    ok('and it is not the default, which is a yield every ten milliseconds',
+       Number(set[1]) >= 100, `asyncTick: ${set[1]}`);
+  }
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

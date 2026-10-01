@@ -121,7 +121,31 @@ async function pbkdf2(password, salt, iterations) {
   // it buys is that the app can draw while it runs: 210,000 rounds take several
   // seconds on a phone, and several seconds of a frozen screen is indisting-
   // uishable from a crash. Several seconds of something moving is a wait.
-  return toHex(await noblePbkdf2(sha256, passwordBytes, saltBytes, { c: iterations, dkLen: KEY_BYTES }));
+  // asyncTick is the whole of why unlocking took forty-five seconds.
+  //
+  // noble yields to the event loop every `asyncTick` milliseconds of work so a
+  // long derivation cannot freeze the page, and its default is 10. In a browser
+  // that costs nothing: the yield is a scheduler callback. On a phone there is
+  // no Web Scheduling API, so it falls back to setTimeout(0) — and on React
+  // Native a setTimeout is a trip through the timer bridge, not a microtask.
+  //
+  // Measured on the device: 45.5 s to derive one key. The hashing itself cannot
+  // be more than about fourteen of those seconds even at fifty times slower
+  // than a machine with a JIT, where it takes 277 ms. The rest was the yielding
+  // — thousands of them, one for every ten milliseconds of work.
+  //
+  // A quarter of a second still redraws a spinner four times a second, which is
+  // all anything on that screen needs, and it asks for the bridge twenty-five
+  // times less often.
+  //
+  // Not a change to the output. The key is the same key; this is only how often
+  // the work stops to look up. The pinned vectors in the test suite are what
+  // guarantee that, and they are why this is safe to tune at all.
+  return toHex(await noblePbkdf2(sha256, passwordBytes, saltBytes, {
+    c: iterations,
+    dkLen: KEY_BYTES,
+    asyncTick: 250,
+  }));
 }
 
 export function normalizeEmail(email) {
