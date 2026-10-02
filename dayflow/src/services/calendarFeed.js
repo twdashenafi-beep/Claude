@@ -162,7 +162,12 @@ async function deviceEvents(from, to) {
       return [];
     }
 
-    const raw = await theEvents(ids, from, to);
+    // The new listEvents takes either the calendar objects or their ids; the
+    // old getEventsAsync took ids only. Handing the newer one the objects it
+    // just produced takes an id round trip out of the middle — the two native
+    // modules in this package are not obliged to spell an id the same way, and
+    // an id that does not match is a silent empty list rather than an error.
+    const raw = await theEvents(Calendar.listEvents ? calendars : ids, from, to);
     reading = `read ${calendars.length} ${calendars.length === 1 ? 'calendar' : 'calendars'}, `
       + `${raw.length} ${raw.length === 1 ? 'event' : 'events'} in the next three weeks`;
     return raw.map(event => ({
