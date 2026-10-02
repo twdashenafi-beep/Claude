@@ -134,8 +134,36 @@ function downloadAsFile(name, text, type) {
 // and readAsText on a gigabyte of film is a frozen tab rather than an error.
 export const MAX_PICK_BYTES = 25 * 1024 * 1024;
 
+// Picking a file on a phone, which this app cannot do.
+//
+// Worth setting down properly, because it looked available twice over.
+//
+// Two features reach for a file: "Read a calendar" and restoring a backup. On
+// the web both open a file input. On a phone this returned null the moment it
+// was called, and the callers read that as a cancellation — so both buttons did
+// nothing at all when tapped, and said nothing about it. Restoring is the one
+// that matters: it is the button somebody presses after losing everything.
+//
+// expo-file-system looks like the answer and is not. Its types declare
+// File.pickFileAsync, the native module really does implement pickFileAsync —
+// at module level, confirmed in FileSystemModule.swift — and no JavaScript in
+// the package connects the two. The module itself is not reachable either: the
+// package's `exports` map allows only "." and "./legacy", and the picker is in
+// neither. The declaration is ahead of the implementation, which is a thing
+// that happens, and a build is a slow way to discover it.
+//
+// Reading a real file on a phone needs expo-document-picker, which is a native
+// module and therefore a deliberate decision rather than something to slip in.
+// Until then this says so, which is the whole of the improvement: a button that
+// cannot work must not look like one that was cancelled.
+const NO_PICKER = 'picking a file is not available on this device yet';
+
+function pickOnDevice() {
+  return Promise.resolve({ name: '', text: null, failed: NO_PICKER });
+}
+
 export function pickTextFile() {
-  if (Platform.OS !== 'web') return Promise.resolve(null);
+  if (Platform.OS !== 'web') return pickOnDevice();
   const doc = typeof document === 'undefined' ? null : document;
   const Reader = globalThis.FileReader;
   if (!doc || typeof Reader !== 'function') return Promise.resolve(null);

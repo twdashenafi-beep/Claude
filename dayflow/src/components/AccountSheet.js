@@ -232,8 +232,17 @@ export default function AccountSheet({
   const chooseCopy = async () => {
     setError(''); setDone('');
     const file = await pickTextFile();
-    // Cancelled, or a browser that cannot do this. Neither is worth a message.
+    // Cancelled. Worth no message, because the person did it on purpose.
     if (!file) return;
+    // Not cancelled: the picker could not open at all. Worth saying, because
+    // this is the button somebody presses after losing everything, and it
+    // spent this long doing nothing in silence on a phone.
+    if (file.failed) {
+      setPending(null);
+      setView('restore');
+      setError(`Could not open a file: ${file.failed}`);
+      return;
+    }
     if (file.tooBig) {
       setPending(null);
       setView('restore');
@@ -290,6 +299,10 @@ export default function AccountSheet({
     setCalendar('');
     const file = await pickTextFile();
     if (!file) return;
+    if (file.failed) {
+      setCalendar(`Could not open a file: ${file.failed}`);
+      return;
+    }
     if (file.tooBig) {
       setCalendar('That file is too large to read');
       return;

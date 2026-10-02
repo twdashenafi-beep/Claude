@@ -623,5 +623,49 @@ ok('two keys in a row differ', generateDataKey() !== generateDataKey());
   }
 }
 
+// ── Two features that were dead on a phone and said nothing ──
+//
+// pickTextFile returned null immediately on anything but the web, so "Read a
+// calendar" did nothing when tapped and so did restoring a backup from a file.
+// The callers read that null as a cancellation, which is why neither said
+// anything. Restoring is the one that matters: it is the button somebody
+// presses after losing everything.
+//
+// It still cannot pick a file on a phone — that needs expo-document-picker,
+// which is a native module and a decision of its own. What it must never do
+// again is be silent about it.
+//
+// Nothing in the browser suite can see any of this: on the web it works.
+{
+  const MODULES = new URL('../node_modules/', import.meta.url).pathname;
+  const picker = fs.readFileSync(new URL('../src/services/saveFile.js', import.meta.url), 'utf8');
+  const sheet = fs.readFileSync(new URL('../src/components/AccountSheet.js', import.meta.url), 'utf8');
+
+  ok('a phone is not handed the same null as a cancellation',
+     !/Platform\.OS !== 'web'\)\s*return Promise\.resolve\(null\)/.test(picker),
+     'pickTextFile still returns a bare null on native');
+  ok('and it says why instead', /failed:/.test(picker), 'no way to report a picker that cannot open');
+
+  // Both callers have to act on it. One of them reporting it and the other
+  // swallowing it is the same bug half fixed.
+  const reported = sheet.match(/file\.failed/g) || [];
+  ok('both features report it, not one', reported.length >= 2,
+     `file.failed is handled ${reported.length} time(s)`);
+
+  // And the reason it is not simply implemented: the picker expo-file-system
+  // declares is not reachable from JavaScript in this version. If a later one
+  // connects it, this fails and the note above can be deleted.
+  let reachable = false;
+  try {
+    const fsPkg = JSON.parse(fs.readFileSync(path.join(MODULES, 'expo-file-system', 'package.json'), 'utf8'));
+    const entries = Object.keys(fsPkg.exports || {});
+    const built = fs.readFileSync(path.join(MODULES, 'expo-file-system', 'build', 'File.js'), 'utf8');
+    reachable = /pickFileAsync/.test(built) || entries.some(e => /ExpoFileSystem/.test(e));
+  } catch { reachable = false; }
+  ok('expo-file-system still offers no picker JavaScript can call',
+     reachable === false,
+     'a picker is reachable now — saveFile.js can use it and the note can go');
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
