@@ -8,7 +8,7 @@
 // Run with `npm test`.
 
 import {
-  bytesOf, sizeWords, notesIn, summarise, deviceLines, dictationLine, calendarTroubleLine,
+  bytesOf, sizeWords, notesIn, summarise, deviceLines, dictationLine, calendarLine,
 } from '../src/services/deviceReport.js';
 
 let pass = 0, fail = 0;
@@ -119,17 +119,26 @@ ok('a list that is not a list is empty', notesIn(null).count === 0);
      dictationLine('something-else') === '' && dictationLine() === '');
 }
 
-// ── A calendar that could not be read ──
+// ── What happened when the phone's calendar was read ──
 //
-// Different from a calendar with nothing in it, and from a permission the
-// phone refused. Those two are the user's business; this one is a bug, and it
-// spent a build looking exactly like the other two.
-ok('nothing wrong says nothing', calendarTroubleLine('') === '' && calendarTroubleLine() === '');
-ok('and whitespace is nothing too', calendarTroubleLine('   ') === '');
+// Four causes, one empty line under the date: refused, no calendars offered,
+// the module's functions moved, or genuinely nothing in the diary. Only one of
+// those is a bug and only one is fixed in iPhone Settings, so the report has to
+// distinguish them rather than say "no calendar".
+ok('nothing read says nothing', calendarLine('') === '' && calendarLine() === '');
+ok('and whitespace is nothing too', calendarLine('   ') === '');
 {
-  const line = calendarTroubleLine('The calendar module is not the shape this app expects');
-  ok('a fault is reported as one', /could not be read/.test(line), line);
-  ok('and says what it was', /not the shape/.test(line), line);
+  const refused = calendarLine('not allowed — denied. iPhone Settings › DayFlow › Calendars › Full Access');
+  ok('a refusal names the setting that fixes it', /Settings/.test(refused), refused);
+
+  const broken = calendarLine('the calendar module is not the shape this app expects');
+  ok('a broken module says so instead', /not the shape/.test(broken), broken);
+  ok('and the two do not read alike', refused !== broken);
+
+  const fine = calendarLine('read 3 calendars, 0 events in the next three weeks');
+  ok('a successful read is reported too, which is the quiet failure',
+     /0 events/.test(fine), fine);
+  ok('all three are told apart', new Set([refused, broken, fine]).size === 3);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

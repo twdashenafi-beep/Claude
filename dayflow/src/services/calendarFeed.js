@@ -99,13 +99,19 @@ export async function clearFeed() {
 
 // ── The phone's own calendar ────────────────────────────────────────────────
 
-// What went wrong the last time the phone's calendar was read, if anything.
-// Shown in Account → This device, because "no calendar" and "could not read the
-// calendar" are different things and only one of them is the phone's decision.
-let trouble = '';
+// What happened the last time the phone's calendar was read — whatever it was.
+//
+// Not only the failures. A diary that shows nothing has four quite different
+// causes: the permission was refused, the phone offered no calendars, the
+// module's functions are not where the app expects them, or it read perfectly
+// well and there is genuinely nothing in the next three weeks. All four look
+// the same from the outside — an empty line under the date — and they are
+// fixed in four different places. One of them is in iPhone Settings and not in
+// this app at all, which is the case worth telling somebody about.
+let reading = '';
 
-export function calendarTrouble() {
-  return trouble;
+export function calendarReading() {
+  return reading;
 }
 
 
@@ -113,6 +119,7 @@ export function calendarTrouble() {
 // a browser, and loading it there is a module that throws for no reason.
 async function deviceEvents(from, to) {
   if (Platform.OS === 'web') return null;
+  reading = '';
   try {
     const Calendar = await import('expo-calendar');
 
@@ -131,18 +138,33 @@ async function deviceEvents(from, to) {
     const theEvents = Calendar.listEvents || Calendar.getEventsAsync;
 
     if (!askFor || !theCalendars || !theEvents) {
-      trouble = 'The calendar module is not the shape this app expects';
+      reading = 'the calendar module is not the shape this app expects';
       return null;
     }
 
     const { status } = await askFor();
-    if (status !== 'granted') return null;
+    if (status !== 'granted') {
+      // The one answer that is not a bug and not fixable from in here. iOS 17
+      // asks whether to give an app the whole calendar or only the right to add
+      // to it, and the second of those reads nothing — so being told where to
+      // change it matters more than being told it failed.
+      reading = `not allowed — ${status}. iPhone Settings › DayFlow › Calendars › Full Access`;
+      return null;
+    }
 
     const calendars = await theCalendars(Calendar.EntityTypes.EVENT);
     const ids = calendars.map(c => c.id);
-    if (ids.length === 0) return [];
+    if (ids.length === 0) {
+      // Allowed, and still nothing to read. On iOS 17 with write-only access
+      // this is what the app is handed: a single calendar it may add to, or
+      // none at all, rather than a refusal.
+      reading = 'allowed, but this device offered no calendars to read';
+      return [];
+    }
 
     const raw = await theEvents(ids, from, to);
+    reading = `read ${calendars.length} ${calendars.length === 1 ? 'calendar' : 'calendars'}, `
+      + `${raw.length} ${raw.length === 1 ? 'event' : 'events'} in the next three weeks`;
     return raw.map(event => ({
       id: event.id,
       // The app's own exports are filed with a marker, and showing them back as
@@ -157,7 +179,7 @@ async function deviceEvents(from, to) {
     // Kept, rather than only returned as null. A phone that refuses permission
     // and a phone whose calendar module has moved under us look identical from
     // the outside — no diary, no complaint — and one of those is a bug.
-    trouble = String((e && e.message) || e);
+    reading = `could not be read — ${String((e && e.message) || e)}`;
     return null;
   }
 }

@@ -68,13 +68,16 @@ export function dictationLine(source) {
   return DICTATION[source] || '';
 }
 
-// The phone's calendar, when reading it went wrong rather than coming back
-// empty. Those two are not the same and used to look identical: a refused
-// permission and a module whose functions had been renamed both produced no
-// diary and no complaint.
-export function calendarTroubleLine(trouble) {
-  const said = typeof trouble === 'string' ? trouble.trim() : '';
-  return said ? `The calendar on this device could not be read — ${said}` : '';
+// What happened when the phone's calendar was last read, whatever it was.
+//
+// Four causes produce the same empty line under the date — refused, no
+// calendars offered, the module's functions moved, or simply nothing in the
+// diary — and they are fixed in four different places, one of them in iPhone
+// Settings rather than in this app. Saying which is the difference between a
+// setting somebody can change and a bug nobody can see.
+export function calendarLine(reading) {
+  const said = typeof reading === 'string' ? reading.trim() : '';
+  return said ? `The calendar on this device: ${said}` : '';
 }
 
 // What the two sides hold, and whether they agree.

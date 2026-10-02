@@ -21,10 +21,10 @@ import Store from '../services/store';
 import { STORAGE_KEY } from '../context/TaskContext';
 import { decryptTask } from '../services/encryption';
 import { isTask } from '../services/projects';
-import { summarise, deviceLines, bytesOf, dictationLine, calendarTroubleLine } from '../services/deviceReport';
+import { summarise, deviceLines, bytesOf, dictationLine, calendarLine } from '../services/deviceReport';
 import { openingLine } from '../services/opening';
 import { speechSource } from '../services/speech';
-import { calendarTrouble } from '../services/calendarFeed';
+import { calendarReading } from '../services/calendarFeed';
 import { canRemember, rememberedFor, remember, forget } from '../services/remember';
 
 // What to say after trying to play it. The first case is the interesting one:
@@ -187,7 +187,7 @@ export default function AccountSheet({
       // device rather than something to read while waiting.
       const opened = openingLine();
       const dictation = dictationLine(speechSource());
-      const diary = calendarTroubleLine(calendarTrouble());
+      const diary = calendarLine(calendarReading());
       setHeld([
         ...deviceLines(summary),
         ...(dictation ? [dictation] : []),
