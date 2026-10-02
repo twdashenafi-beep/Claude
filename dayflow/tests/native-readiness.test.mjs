@@ -667,5 +667,108 @@ ok('two keys in a row differ', generateDataKey() !== generateDataKey());
      'a picker is reachable now — saveFile.js can use it and the note can go');
 }
 
+// ── Every expo name the app uses, against what is installed ──
+//
+// The calendar broke because three functions were renamed in SDK 57 and the
+// old names were called into a catch. That is not a calendar problem, it is a
+// shape of problem, and the rest of the expo surface deserves the same check:
+// a name that has moved is a feature that silently does nothing, and only a
+// device would ever say so.
+{
+  const MODULES = new URL('../node_modules/', import.meta.url).pathname;
+  const ROOT = new URL('../', import.meta.url).pathname;
+
+  // What a package really exports, following `export *` and reading whatever
+  // entry point it declares — not a guess at build/index.js. Two of these do
+  // not have one, and guessing meant checking nothing while looking thorough.
+  const exportsOf = (pkg, file = null, seen = new Set()) => {
+    let full;
+    if (file) {
+      full = path.join(MODULES, pkg, 'build', file);
+    } else {
+      let main;
+      try { main = JSON.parse(fs.readFileSync(path.join(MODULES, pkg, 'package.json'), 'utf8')).main; }
+      catch { return new Set(); }
+      if (!main) return new Set();
+      const built = main.replace(/^src\//, 'build/').replace(/\.tsx?$/, '.js');
+      // A package may ship TypeScript source and let Metro compile it.
+      full = [built, `${built}.js`, main, `${main}.ts`, `${main}.tsx`]
+        .map(c => path.join(MODULES, pkg, c))
+        .find(c => fs.existsSync(c));
+      if (!full) return new Set();
+    }
+    if (seen.has(full) || !fs.existsSync(full)) return new Set();
+    seen.add(full);
+
+    const text = fs.readFileSync(full, 'utf8');
+    const names = new Set();
+    for (const m of text.matchAll(/export\s+(?:async\s+)?function\s+(\w+)/g)) names.add(m[1]);
+    for (const m of text.matchAll(/export\s+(?:const|let|var)\s+(\w+)/g)) names.add(m[1]);
+    for (const m of text.matchAll(/export\s+(?:declare\s+)?class\s+(\w+)/g)) names.add(m[1]);
+    for (const m of text.matchAll(/export\s*\{([^}]*)\}/g)) {
+      for (const piece of m[1].split(',')) {
+        const name = piece.trim().split(/\s+as\s+/).pop().trim();
+        if (name) names.add(name);
+      }
+    }
+    for (const m of text.matchAll(/export\s*\*\s*from\s*["']\.\/([^"']+)["']/g)) {
+      const next = m[1].endsWith('.js') ? m[1] : `${m[1]}.js`;
+      for (const n of exportsOf(pkg, next, seen)) names.add(n);
+    }
+    return names;
+  };
+
+  const sources = [];
+  const gather = dir => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) gather(full);
+      else if (entry.name.endsWith('.js')) sources.push(full);
+    }
+  };
+  gather(path.join(ROOT, 'src'));
+  for (const extra of ['App.js', 'index.js']) {
+    const full = path.join(ROOT, extra);
+    if (fs.existsSync(full)) sources.push(full);
+  }
+
+  const used = new Map();
+  const note = (pkg, name, where) => {
+    if (!used.has(pkg)) used.set(pkg, new Map());
+    if (!used.get(pkg).has(name)) used.get(pkg).set(name, new Set());
+    used.get(pkg).get(name).add(path.relative(ROOT, where));
+  };
+
+  for (const file of sources) {
+    const text = fs.readFileSync(file, 'utf8');
+    for (const m of text.matchAll(/import\s*\{([^}]*)\}\s*from\s*["'](expo-[\w-]+)["']/g)) {
+      for (const piece of m[1].split(',')) {
+        const name = piece.trim().split(/\s+as\s+/)[0].trim();
+        if (name) note(m[2], name, file);
+      }
+    }
+    for (const m of text.matchAll(/import\s*\*\s*as\s+(\w+)\s*from\s*["'](expo-[\w-]+)["']/g)) {
+      for (const hit of text.matchAll(new RegExp(`\\b${m[1]}\\.(\\w+)`, 'g'))) note(m[2], hit[1], file);
+    }
+  }
+
+  ok('the app reaches for expo modules by name', used.size > 0, 'none found to check');
+
+  const unreadable = [];
+  const missing = [];
+  for (const [pkg, names] of used) {
+    const have = exportsOf(pkg);
+    // A package that cannot be read is the failure that looks like a pass.
+    if (!have.size) { unreadable.push(pkg); continue; }
+    for (const name of names.keys()) {
+      if (!have.has(name)) missing.push(`${pkg}.${name} (${[...names.get(name)].join(', ')})`);
+    }
+  }
+
+  ok('every expo module the app uses can be read', unreadable.length === 0, unreadable.join(', '));
+  ok('and every name it uses is exported by the copy installed',
+     missing.length === 0, missing.join('; '));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
