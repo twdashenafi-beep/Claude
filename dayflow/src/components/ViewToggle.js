@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { VIEW_MODES } from '../utils/constants';
-import { COLORS, SANS } from '../utils/theme';
+import { COLORS, SANS, typeSize } from '../utils/theme';
 
 const VIEWS = [
   { key: VIEW_MODES.DAY, label: 'Day' },
@@ -38,12 +38,12 @@ export default function ViewToggle({ activeView, onChangeView }) {
 const s = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: 12 },
   label: {
-    fontFamily: SANS, fontSize: 11.5, letterSpacing: 1.2,
+    fontFamily: SANS, fontSize: typeSize(11.5), letterSpacing: 1.2,
     textTransform: 'uppercase', color: COLORS.inkFaint,
   },
   labelOn: {
     color: COLORS.ink, fontWeight: '700',
     borderBottomWidth: 1.5, borderBottomColor: COLORS.accent, paddingBottom: 2,
   },
-  sep: { color: '#D8D2C4', fontSize: 11 },
+  sep: { color: '#D8D2C4', fontSize: typeSize(11) },
 });

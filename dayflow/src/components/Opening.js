@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, SafeAreaView } from 'react-native';
-import { COLORS, SERIF, SANS } from '../utils/theme';
+import { COLORS, SERIF, SANS, typeSize } from '../utils/theme';
 
 // What is on screen while the vault is being decrypted.
 //
@@ -38,11 +38,11 @@ export default function Opening({ done = 0, total = 0 }) {
 const s = StyleSheet.create({
   desk: { flex: 1, backgroundColor: COLORS.desk },
   middle: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
-  word: { fontFamily: SERIF, fontSize: 24, color: COLORS.ink, marginBottom: 20 },
+  word: { fontFamily: SERIF, fontSize: typeSize(24), color: COLORS.ink, marginBottom: 20 },
   track: {
     width: '100%', maxWidth: 260, height: 2,
     backgroundColor: COLORS.rule, overflow: 'hidden',
   },
   fill: { height: 2, backgroundColor: COLORS.accent },
-  count: { fontFamily: SANS, fontSize: 13, color: COLORS.inkFaint, marginTop: 12 },
+  count: { fontFamily: SANS, fontSize: typeSize(13), color: COLORS.inkFaint, marginTop: 12 },
 });

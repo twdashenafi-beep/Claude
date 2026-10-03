@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import { PRIORITY, PRIORITY_COLORS } from '../utils/constants';
 import { EARLY_REMINDER_OPTIONS } from '../services/notifications';
-import { COLORS } from '../utils/theme';
+import { COLORS, typeSize } from '../utils/theme';
 import DateTimeFields from './DateTimeFields';
 import VoiceRecorder from './VoiceRecorder';
 import { notesOf, noteFields } from '../services/voiceNotes';
@@ -640,16 +640,16 @@ const styles = StyleSheet.create({
     minWidth: 60,
   },
   cancelBtn: {
-    fontSize: 16,
+    fontSize: typeSize(16),
     color: COLORS.inkSoft,
   },
   headerTitle: {
-    fontSize: 17,
+    fontSize: typeSize(17),
     fontWeight: '600',
     color: COLORS.ink,
   },
   saveBtn: {
-    fontSize: 16,
+    fontSize: typeSize(16),
     fontWeight: '600',
     color: COLORS.accent,
     textAlign: 'right',
@@ -692,11 +692,11 @@ const styles = StyleSheet.create({
   scopeBtnOn: { backgroundColor: '#00000010', borderColor: '#C7C2B4' },
   scopeBtnOff: { opacity: 0.35 },
   chaseBtn: { marginTop: 10, alignSelf: 'flex-start', paddingVertical: 6 },
-  chaseText: { fontSize: 14, color: COLORS.accent, fontWeight: '600' },
+  chaseText: { fontSize: typeSize(14), color: COLORS.accent, fontWeight: '600' },
   seeAllBtn: { paddingVertical: 10, marginTop: 2 },
-  seeAllText: { fontSize: 13.5, color: COLORS.accent },
-  chaseNote: { marginTop: 6, fontSize: 12.5, color: '#8E8E93' },
-  clash: { marginTop: 8, fontSize: 12.5, color: COLORS.accent, fontStyle: 'italic' },
+  seeAllText: { fontSize: typeSize(13.5), color: COLORS.accent },
+  chaseNote: { marginTop: 6, fontSize: typeSize(12.5), color: '#8E8E93' },
+  clash: { marginTop: 8, fontSize: typeSize(12.5), color: COLORS.accent, fontStyle: 'italic' },
   meetingList: { marginTop: 2 },
   meetingRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
@@ -704,14 +704,14 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   meetingRowOn: { backgroundColor: '#EFEAE0' },
-  meetingWhen: { fontSize: 13, color: '#8E8E93', minWidth: 44 },
-  meetingTitle: { flex: 1, fontSize: 14.5, color: COLORS.ink },
+  meetingWhen: { fontSize: typeSize(13), color: '#8E8E93', minWidth: 44 },
+  meetingTitle: { flex: 1, fontSize: typeSize(14.5), color: COLORS.ink },
   meetingOnText: { color: COLORS.accent, fontWeight: '600' },
   scopeTextOff: { color: '#B5AFA1' },
-  scopeText: { fontSize: 14, color: '#8E8E93' },
+  scopeText: { fontSize: typeSize(14), color: '#8E8E93' },
   scopeTextOn: { color: '#3A362C', fontWeight: '600' },
   label: {
-    fontSize: 13,
+    fontSize: typeSize(13),
     fontWeight: '600',
     color: COLORS.inkSoft,
     textTransform: 'uppercase',
@@ -722,7 +722,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.sheet,
     borderRadius: 12,
     padding: 14,
-    fontSize: 17,
+    fontSize: typeSize(17),
     fontWeight: '600',
     color: COLORS.ink,
     borderWidth: 0.5,
@@ -732,7 +732,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.sheet,
     borderRadius: 12,
     padding: 14,
-    fontSize: 15,
+    fontSize: typeSize(15),
     color: COLORS.ink,
     borderWidth: 0.5,
     borderColor: COLORS.rule,
@@ -741,7 +741,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.sheet,
     borderRadius: 12,
     padding: 14,
-    fontSize: 15,
+    fontSize: typeSize(15),
     color: COLORS.ink,
     borderWidth: 0.5,
     borderColor: COLORS.rule,
@@ -769,7 +769,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   priorityText: {
-    fontSize: 13,
+    fontSize: typeSize(13),
     fontWeight: '500',
     color: COLORS.inkSoft,
   },
@@ -788,7 +788,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.accent,
   },
   reminderOptionText: {
-    fontSize: 14,
+    fontSize: typeSize(14),
     color: COLORS.inkSoft,
     fontWeight: '500',
   },

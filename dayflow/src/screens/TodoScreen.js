@@ -29,7 +29,7 @@ import WeekReckoning from '../components/WeekReckoning';
 import ConfettiOverlay from '../components/ConfettiOverlay';
 import AccountSheet from '../components/AccountSheet';
 import { VIEW_MODES } from '../utils/constants';
-import { COLORS, SERIF, SANS, mainSheetWidth } from '../utils/theme';
+import { COLORS, SERIF, SANS, mainSheetWidth, typeSize } from '../utils/theme';
 import { format, startOfWeek } from 'date-fns';
 
 const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
@@ -1083,9 +1083,9 @@ const s = StyleSheet.create({
     marginTop: 12, padding: 12,
     borderWidth: 1, borderColor: COLORS.accent, borderRadius: 4,
   },
-  storageText: { fontFamily: SANS, fontSize: 13, fontWeight: '600', color: COLORS.accent },
+  storageText: { fontFamily: SANS, fontSize: typeSize(13), fontWeight: '600', color: COLORS.accent },
   storageHint: {
-    fontFamily: SERIF, fontSize: 12.5, fontStyle: 'italic',
+    fontFamily: SERIF, fontSize: typeSize(12.5), fontStyle: 'italic',
     color: COLORS.inkSoft, marginTop: 4,
   },
   // The tappable half of the strip: everything but the dismiss.
@@ -1096,9 +1096,9 @@ const s = StyleSheet.create({
     gap: 16, paddingHorizontal: 20, paddingVertical: 13,
     backgroundColor: COLORS.accent,
   },
-  alertText: { flex: 1, fontFamily: SERIF, fontSize: 13.5, color: COLORS.sheet },
+  alertText: { flex: 1, fontFamily: SERIF, fontSize: typeSize(13.5), color: COLORS.sheet },
   alertAction: {
-    fontFamily: SANS, fontSize: 12, fontWeight: '700', letterSpacing: 1.2,
+    fontFamily: SANS, fontSize: typeSize(12), fontWeight: '700', letterSpacing: 1.2,
     color: COLORS.sheet,
   },
   undoBar: {
@@ -1107,9 +1107,9 @@ const s = StyleSheet.create({
     gap: 16, paddingHorizontal: 20, paddingVertical: 13,
     backgroundColor: COLORS.ink,
   },
-  undoText: { flex: 1, fontFamily: SERIF, fontSize: 13.5, color: COLORS.sheet },
+  undoText: { flex: 1, fontFamily: SERIF, fontSize: typeSize(13.5), color: COLORS.sheet },
   undoAction: {
-    fontFamily: SANS, fontSize: 12, fontWeight: '700', letterSpacing: 1.2,
+    fontFamily: SANS, fontSize: typeSize(12), fontWeight: '700', letterSpacing: 1.2,
     color: COLORS.sheet,
   },
   desk: { flex: 1, backgroundColor: COLORS.desk },
@@ -1148,20 +1148,20 @@ const s = StyleSheet.create({
   // Same, and worth more: this one is eleven pixels wide.
   plusHit: { paddingVertical: 8, paddingHorizontal: 12, marginVertical: -8, marginHorizontal: -12 },
   lock: {
-    fontFamily: SANS, fontSize: 11.5, letterSpacing: 0.6,
+    fontFamily: SANS, fontSize: typeSize(11.5), letterSpacing: 0.6,
     textTransform: 'uppercase', color: COLORS.inkSoft, fontWeight: '600',
   },
   wordmark: {
-    fontFamily: SERIF, fontSize: 12.5, letterSpacing: 3,
+    fontFamily: SERIF, fontSize: typeSize(12.5), letterSpacing: 3,
     textTransform: 'uppercase', color: COLORS.inkSoft,
   },
   briefing: {
-    fontFamily: SANS, fontSize: 11.5, letterSpacing: 0.6,
+    fontFamily: SANS, fontSize: typeSize(11.5), letterSpacing: 0.6,
     textTransform: 'uppercase', color: COLORS.accent, fontWeight: '600',
   },
-  date: { fontFamily: SERIF, fontSize: 25, color: COLORS.ink, marginTop: 10, letterSpacing: -0.3 },
-  tally: { fontFamily: SANS, fontSize: 12, color: COLORS.inkFaint, marginTop: 4 },
-  diary: { fontFamily: SANS, fontSize: 12, color: COLORS.inkSoft, marginTop: 3 },
+  date: { fontFamily: SERIF, fontSize: typeSize(25), color: COLORS.ink, marginTop: 10, letterSpacing: -0.3 },
+  tally: { fontFamily: SANS, fontSize: typeSize(12), color: COLORS.inkFaint, marginTop: 4 },
+  diary: { fontFamily: SANS, fontSize: typeSize(12), color: COLORS.inkSoft, marginTop: 3 },
 
   // Headings sit above the rule, one per column.
   headings: { flexDirection: 'row', alignItems: 'flex-end' },
@@ -1172,10 +1172,10 @@ const s = StyleSheet.create({
     justifyContent: 'space-between', paddingBottom: 7,
   },
   headText: {
-    fontFamily: SERIF, fontSize: 17, letterSpacing: 2.4,
+    fontFamily: SERIF, fontSize: typeSize(17), letterSpacing: 2.4,
     textTransform: 'uppercase', color: COLORS.ink,
   },
-  addGlyph: { fontFamily: SANS, fontSize: 19, color: COLORS.inkFaint, lineHeight: 22 },
+  addGlyph: { fontFamily: SANS, fontSize: typeSize(19), color: COLORS.inkFaint, lineHeight: typeSize(22) },
 
   headRule: { height: 1, backgroundColor: COLORS.pencil },
 
@@ -1186,18 +1186,18 @@ const s = StyleSheet.create({
   column: { paddingTop: 6 },
 
   empty: {
-    fontFamily: SERIF, fontSize: 13.5, fontStyle: 'italic',
+    fontFamily: SERIF, fontSize: typeSize(13.5), fontStyle: 'italic',
     color: COLORS.inkFaint, paddingVertical: 14,
   },
 
   columnFoot: { paddingTop: 10, gap: 6 },
   footActions: { flexDirection: 'row', gap: 16, flexWrap: 'wrap' },
-  footLink: { fontFamily: SANS, fontSize: 12, color: COLORS.inkSoft },
+  footLink: { fontFamily: SANS, fontSize: typeSize(12), color: COLORS.inkSoft },
 
   totalBlock: { paddingTop: 14 },
   totalRule: { height: 1, backgroundColor: COLORS.rule, marginBottom: 6 },
   totalText: {
-    fontFamily: SERIF, fontSize: 12.5, fontStyle: 'italic', color: COLORS.inkSoft,
+    fontFamily: SERIF, fontSize: typeSize(12.5), fontStyle: 'italic', color: COLORS.inkSoft,
     textAlign: 'right',
   },
 });

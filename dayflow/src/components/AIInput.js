@@ -5,7 +5,7 @@ import { parseNaturalLanguage } from '../services/nlParser';
 import { whenPreview } from '../services/due';
 import { clashNote } from '../services/agenda';
 import { deviceZone } from '../services/zones';
-import { COLORS, SANS, SERIF } from '../utils/theme';
+import { COLORS, SANS, SERIF, typeSize } from '../utils/theme';
 
 // How long a pause means the sentence is over, when the button was tapped
 // rather than held. Long enough to think of the next word, short enough that
@@ -578,29 +578,29 @@ const st = StyleSheet.create({
     paddingBottom: 7,
   },
   barActive: { borderBottomColor: COLORS.accent },
-  pen: { fontSize: 14, color: COLORS.inkFaint },
+  pen: { fontSize: typeSize(14), color: COLORS.inkFaint },
   input: {
-    flex: 1, fontFamily: SANS, fontSize: 15.5, color: COLORS.ink,
+    flex: 1, fontFamily: SANS, fontSize: typeSize(15.5), color: COLORS.ink,
     paddingVertical: 4, outlineStyle: 'none',
   },
   send: {
     width: 24, height: 24, borderRadius: 12, backgroundColor: COLORS.ink,
     justifyContent: 'center', alignItems: 'center',
   },
-  sendIcon: { fontSize: 13, color: COLORS.sheet, fontWeight: '700', marginTop: -1 },
+  sendIcon: { fontSize: typeSize(13), color: COLORS.sheet, fontWeight: '700', marginTop: -1 },
   mic: {
     width: 44, height: 44, borderRadius: 22,
     justifyContent: 'center', alignItems: 'center',
     marginRight: -10,
   },
   micActive: { backgroundColor: COLORS.accent },
-  micIcon: { fontSize: 16, lineHeight: 20 },
+  micIcon: { fontSize: typeSize(16), lineHeight: typeSize(20) },
   listenRow: { flexDirection: 'row', alignItems: 'center', paddingTop: 6, gap: 6 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.accent },
-  listenText: { fontFamily: SANS, fontSize: 11.5, color: COLORS.accent },
+  listenText: { fontFamily: SANS, fontSize: typeSize(11.5), color: COLORS.accent },
   previewRow: { flexDirection: 'row', alignItems: 'center', paddingTop: 6, gap: 10 },
-  previewText: { fontFamily: SERIF, fontSize: 12.5, fontStyle: 'italic', color: COLORS.inkFaint, flex: 1 },
-  tag: { fontFamily: SANS, fontSize: 10.5, letterSpacing: 0.6, color: COLORS.inkSoft, textTransform: 'uppercase' },
+  previewText: { fontFamily: SERIF, fontSize: typeSize(12.5), fontStyle: 'italic', color: COLORS.inkFaint, flex: 1 },
+  tag: { fontFamily: SANS, fontSize: typeSize(10.5), letterSpacing: 0.6, color: COLORS.inkSoft, textTransform: 'uppercase' },
   clash: { color: COLORS.accent, fontStyle: 'italic' },
-  creating: { fontFamily: SANS, fontSize: 11.5, color: COLORS.inkFaint, paddingTop: 6 },
+  creating: { fontFamily: SANS, fontSize: typeSize(11.5), color: COLORS.inkFaint, paddingTop: 6 },
 });

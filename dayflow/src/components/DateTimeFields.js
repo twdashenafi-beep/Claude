@@ -6,7 +6,7 @@ import {
   format, startOfMonth, getDay, getDaysInMonth, addMonths, subMonths,
   isSameDay, isToday as isDateToday,
 } from 'date-fns';
-import { COLORS } from '../utils/theme';
+import { COLORS, typeSize } from '../utils/theme';
 
 // Date and time, in one place.
 //
@@ -103,16 +103,16 @@ const calStyles = StyleSheet.create({
   wrap: { paddingTop: 8, paddingBottom: 4, paddingHorizontal: 4 },
   nav: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   navBtn: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
-  arrow: { fontSize: 20, color: COLORS.accent, fontWeight: '400' },
-  navTitle: { fontSize: 15, fontWeight: '600', color: COLORS.ink },
+  arrow: { fontSize: typeSize(20), color: COLORS.accent, fontWeight: '400' },
+  navTitle: { fontSize: typeSize(15), fontWeight: '600', color: COLORS.ink },
   headerRow: { flexDirection: 'row', marginBottom: 4 },
   hCell: { flex: 1, alignItems: 'center', paddingVertical: 4 },
-  hText: { fontSize: 11, fontWeight: '600', color: COLORS.inkSoft },
+  hText: { fontSize: typeSize(11), fontWeight: '600', color: COLORS.inkSoft },
   row: { flexDirection: 'row' },
   cell: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 7, margin: 1, borderRadius: 20 },
   cellSel: { backgroundColor: COLORS.accent },
   cellToday: { borderWidth: 1.5, borderColor: COLORS.accent },
-  cText: { fontSize: 15, color: COLORS.ink },
+  cText: { fontSize: typeSize(15), color: COLORS.ink },
   cTextSel: { color: COLORS.sheet, fontWeight: '600' },
   cTextToday: { color: COLORS.accent, fontWeight: '600' },
 });
@@ -344,14 +344,14 @@ const tp = StyleSheet.create({
     backgroundColor: COLORS.sheet, borderRadius: 14, width: 300, overflow: 'hidden',
   },
   preview: {
-    fontSize: 32, fontWeight: '700', color: COLORS.ink, textAlign: 'center', paddingTop: 24, paddingBottom: 16,
+    fontSize: typeSize(32), fontWeight: '700', color: COLORS.ink, textAlign: 'center', paddingTop: 24, paddingBottom: 16,
   },
   row: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     paddingHorizontal: 24, paddingBottom: 24, gap: 10,
   },
   col: { alignItems: 'center', gap: 6 },
-  colLabel: { fontSize: 11, fontWeight: '600', color: COLORS.inkSoft, marginBottom: 2 },
+  colLabel: { fontSize: typeSize(11), fontWeight: '600', color: COLORS.inkSoft, marginBottom: 2 },
   drumWrap: { height: DRUM_H, width: 72, justifyContent: 'center' },
   drum: { height: DRUM_H },
   // The chosen value sits in this band rather than being coloured, so the drum
@@ -361,24 +361,24 @@ const tp = StyleSheet.create({
     backgroundColor: '#F4F1EA', borderRadius: 10,
   },
   item: { height: ITEM_H, justifyContent: 'center', alignItems: 'center' },
-  itemText: { fontSize: 22, color: COLORS.inkFaint, fontVariant: ['tabular-nums'] },
-  itemTextOn: { fontSize: 26, fontWeight: '700', color: COLORS.ink },
-  colon: { fontSize: 30, fontWeight: '700', color: COLORS.ink },
+  itemText: { fontSize: typeSize(22), color: COLORS.inkFaint, fontVariant: ['tabular-nums'] },
+  itemTextOn: { fontSize: typeSize(26), fontWeight: '700', color: COLORS.ink },
+  colon: { fontSize: typeSize(30), fontWeight: '700', color: COLORS.ink },
   ampmStack: { gap: 8, justifyContent: 'center', height: DRUM_H },
   ampm: {
     width: 56, height: 46, borderRadius: 12,
     backgroundColor: '#F4F1EA', justifyContent: 'center', alignItems: 'center',
   },
   ampmActive: { backgroundColor: COLORS.accent },
-  ampmText: { fontSize: 15, fontWeight: '600', color: COLORS.inkSoft },
+  ampmText: { fontSize: typeSize(15), fontWeight: '600', color: COLORS.inkSoft },
   ampmTextActive: { color: COLORS.sheet },
   footer: {
     flexDirection: 'row', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: COLORS.rule,
   },
   footerBtn: { flex: 1, paddingVertical: 16, alignItems: 'center' },
   footerDiv: { width: StyleSheet.hairlineWidth, backgroundColor: COLORS.rule },
-  cancelText: { fontSize: 17, color: COLORS.inkSoft },
-  doneText: { fontSize: 17, fontWeight: '600', color: COLORS.accent },
+  cancelText: { fontSize: typeSize(17), color: COLORS.inkSoft },
+  doneText: { fontSize: typeSize(17), fontWeight: '600', color: COLORS.accent },
 });
 
 // ── Helper: Section Row ──────────────────────────────────────────────────────
@@ -396,8 +396,8 @@ const CHIP = StyleSheet.create({
     backgroundColor: '#F4F1EA',
   },
   chipOn: { backgroundColor: COLORS.ink },
-  chipIcon: { fontSize: 13 },
-  chipLabel: { fontSize: 13.5, color: COLORS.inkSoft },
+  chipIcon: { fontSize: typeSize(13) },
+  chipLabel: { fontSize: typeSize(13.5), color: COLORS.inkSoft },
   chipLabelOn: { color: COLORS.sheet, fontWeight: '600' },
 });
 

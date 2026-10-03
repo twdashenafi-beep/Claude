@@ -4,7 +4,7 @@ import {
   useAudioRecorder, useAudioPlayer, useAudioPlayerStatus,
   setAudioModeAsync, requestRecordingPermissionsAsync, RecordingPresets,
 } from 'expo-audio';
-import { COLORS, SANS } from '../utils/theme';
+import { COLORS, SANS, typeSize } from '../utils/theme';
 import { toDurableUri, tooShort, slidUp } from '../services/audio';
 import { canAddNote } from '../services/voiceNotes';
 import { claim, release } from '../services/playback';
@@ -597,27 +597,27 @@ const st = StyleSheet.create({
   },
   micBtnLive: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
   micBtnLocked: { backgroundColor: COLORS.accent, borderColor: COLORS.ink },
-  micIcon: { fontSize: 19 },
-  stopIcon: { fontSize: 15, color: COLORS.sheet },
+  micIcon: { fontSize: typeSize(19) },
+  stopIcon: { fontSize: typeSize(15), color: COLORS.sheet },
 
-  micLabel: { fontFamily: SANS, fontSize: 13.5, color: COLORS.inkFaint },
+  micLabel: { fontFamily: SANS, fontSize: typeSize(13.5), color: COLORS.inkFaint },
   micProblem: { color: COLORS.accent },
 
   recordDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: COLORS.accent },
   recordTime: {
-    fontFamily: SANS, fontSize: 14, color: COLORS.ink, fontVariant: ['tabular-nums'],
+    fontFamily: SANS, fontSize: typeSize(14), color: COLORS.ink, fontVariant: ['tabular-nums'],
   },
-  recordHint: { fontFamily: SANS, fontSize: 12.5, color: COLORS.inkFaint, flexShrink: 1 },
+  recordHint: { fontFamily: SANS, fontSize: typeSize(12.5), color: COLORS.inkFaint, flexShrink: 1 },
 
   existing: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
   noteMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },
-  existingLabel: { fontFamily: SANS, fontSize: 13.5, color: COLORS.inkSoft, flex: 1 },
+  existingLabel: { fontFamily: SANS, fontSize: typeSize(13.5), color: COLORS.inkSoft, flex: 1 },
   noteTime: {
-    fontFamily: SANS, fontSize: 12.5, color: COLORS.inkFaint,
+    fontFamily: SANS, fontSize: typeSize(12.5), color: COLORS.inkFaint,
     fontVariant: ['tabular-nums'],
   },
   deleteBtn: { paddingHorizontal: 4, paddingVertical: 4 },
-  deleteText: { fontFamily: SANS, fontSize: 12.5, color: COLORS.accent },
+  deleteText: { fontFamily: SANS, fontSize: typeSize(12.5), color: COLORS.accent },
 
   progressTrack: {
     position: 'absolute', left: 0, right: 0, bottom: 0, height: 2,
@@ -634,6 +634,6 @@ const st = StyleSheet.create({
     marginHorizontal: -6, marginVertical: -10,
     alignItems: 'center', justifyContent: 'center',
   },
-  listMicIcon: { fontSize: 12, color: COLORS.inkFaint },
+  listMicIcon: { fontSize: typeSize(12), color: COLORS.inkFaint },
   listMicPlaying: { color: COLORS.accent },
 });

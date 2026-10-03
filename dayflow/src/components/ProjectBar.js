@@ -5,7 +5,7 @@ import {
 import { EVERYTHING, cleanProjectName } from '../services/projects';
 import { ARCHIVE } from '../services/archive';
 import { targetIndex, shiftFor, moveWithin } from '../services/ordering';
-import { COLORS, SANS, SERIF } from '../utils/theme';
+import { COLORS, SANS, SERIF, typeSize } from '../utils/theme';
 
 // The gap between tabs, which is part of how far one has to travel to pass
 // another and so belongs in the measurement.
@@ -375,9 +375,9 @@ const s = StyleSheet.create({
   },
   tabOn: { backgroundColor: COLORS.ink },
   tabLifted: { backgroundColor: COLORS.sheetEdge },
-  tabText: { fontFamily: SANS, fontSize: 13, color: COLORS.inkSoft },
+  tabText: { fontFamily: SANS, fontSize: typeSize(13), color: COLORS.inkSoft },
   tabTextOn: { color: COLORS.sheet, fontWeight: '600' },
-  add: { fontFamily: SANS, fontSize: 13, color: COLORS.inkFaint },
+  add: { fontFamily: SANS, fontSize: typeSize(13), color: COLORS.inkFaint },
   spacer: { width: 10 },
   archiveTab: { borderWidth: 1, borderColor: COLORS.rule, borderStyle: 'dashed' },
 
@@ -387,13 +387,13 @@ const s = StyleSheet.create({
   editRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 2 },
   moveRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 10 },
   moveLabel: {
-    fontFamily: SANS, fontSize: 11.5, fontWeight: '700', letterSpacing: 1,
+    fontFamily: SANS, fontSize: typeSize(11.5), fontWeight: '700', letterSpacing: 1,
     color: COLORS.inkFaint,
   },
-  moveWhere: { fontFamily: SERIF, fontSize: 12, fontStyle: 'italic', color: COLORS.inkFaint },
+  moveWhere: { fontFamily: SERIF, fontSize: typeSize(12), fontStyle: 'italic', color: COLORS.inkFaint },
   disabled: { color: COLORS.rule },
   input: {
-    fontFamily: SANS, fontSize: 14, color: COLORS.ink, minWidth: 150,
+    fontFamily: SANS, fontSize: typeSize(14), color: COLORS.ink, minWidth: 150,
     borderBottomWidth: 1, borderBottomColor: COLORS.rule,
     paddingVertical: 5, outlineStyle: 'none',
   },
@@ -401,10 +401,10 @@ const s = StyleSheet.create({
   // finish naming a project, or to get out of doing it.
   actionHit: { paddingVertical: 11, paddingHorizontal: 6, marginVertical: -11, marginHorizontal: -6 },
   action: {
-    fontFamily: SANS, fontSize: 11.5, fontWeight: '700', letterSpacing: 1,
+    fontFamily: SANS, fontSize: typeSize(11.5), fontWeight: '700', letterSpacing: 1,
     color: COLORS.inkSoft,
   },
   danger: { color: COLORS.accent },
-  error: { fontFamily: SANS, fontSize: 12.5, color: COLORS.accent, marginTop: 8 },
-  note: { fontFamily: SERIF, fontSize: 12, fontStyle: 'italic', color: COLORS.inkFaint, marginTop: 8 },
+  error: { fontFamily: SANS, fontSize: typeSize(12.5), color: COLORS.accent, marginTop: 8 },
+  note: { fontFamily: SERIF, fontSize: typeSize(12), fontStyle: 'italic', color: COLORS.inkFaint, marginTop: 8 },
 });

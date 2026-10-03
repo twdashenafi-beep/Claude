@@ -22,6 +22,17 @@ export function mainSheetWidth(windowWidth) {
   return Math.max(SHEET_MAX_WIDTH, Math.min(MAIN_SHEET_LIMIT, Math.round(windowWidth * MAIN_SHEET_SHARE)));
 }
 
+// Every type size in the app goes through here, so the whole of it can be made
+// larger or smaller in one place rather than in a hundred and seventy. Line
+// heights too: a font that grows inside a fixed line height is clipped, and
+// clipped at the bottom, where the descenders are. Rounded to half a point, the
+// step the sizes were written in.
+const TYPE_SCALE = 1.12;
+
+export function typeSize(points) {
+  return Math.round(points * TYPE_SCALE * 2) / 2;
+}
+
 export const COLORS = {
   desk: '#E9E6DF',        // surface the sheet sits on
   sheet: '#FFFFFF',

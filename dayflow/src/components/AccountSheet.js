@@ -4,7 +4,7 @@ import {
   ActivityIndicator, Platform,
 } from 'react-native';
 import { changePassword, newRecoveryCode, deleteAccount } from '../services/account';
-import { COLORS, SERIF, SANS } from '../utils/theme';
+import { COLORS, SERIF, SANS, typeSize } from '../utils/theme';
 
 // Account settings: change the password, issue a new recovery code, delete the
 // account. Deletion has to be reachable in-app — App Store Guideline 5.1.1(v)
@@ -638,11 +638,11 @@ const s = StyleSheet.create({
   },
   // Seventeen pixels of text, and the only way out of this sheet.
   headerHit: { paddingVertical: 11, paddingRight: 16, marginVertical: -11, marginRight: -16 },
-  headerAction: { fontFamily: SANS, fontSize: 15, color: COLORS.accent, width: 46 },
-  headerTitle: { fontFamily: SERIF, fontSize: 16, color: COLORS.ink },
+  headerAction: { fontFamily: SANS, fontSize: typeSize(15), color: COLORS.accent, width: 46 },
+  headerTitle: { fontFamily: SERIF, fontSize: typeSize(16), color: COLORS.ink },
   body: { padding: 20 },
 
-  email: { fontFamily: SERIF, fontSize: 17, color: COLORS.ink },
+  email: { fontFamily: SERIF, fontSize: typeSize(17), color: COLORS.ink },
   rule: { height: 1, backgroundColor: COLORS.pencil, marginTop: 12, marginBottom: 4 },
   gap: { height: 26 },
 
@@ -652,31 +652,31 @@ const s = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COLORS.rule,
   },
   rowText: { flex: 1 },
-  rowLabel: { fontFamily: SANS, fontSize: 15.5, color: COLORS.ink },
-  rowDetail: { fontFamily: SERIF, fontSize: 12.5, fontStyle: 'italic', color: COLORS.inkFaint, marginTop: 2 },
+  rowLabel: { fontFamily: SANS, fontSize: typeSize(15.5), color: COLORS.ink },
+  rowDetail: { fontFamily: SERIF, fontSize: typeSize(12.5), fontStyle: 'italic', color: COLORS.inkFaint, marginTop: 2 },
   danger: { color: COLORS.accent },
-  chevron: { fontSize: 20, color: COLORS.inkFaint, fontWeight: '300' },
+  chevron: { fontSize: typeSize(20), color: COLORS.inkFaint, fontWeight: '300' },
 
   blurb: {
-    fontFamily: SERIF, fontSize: 13.5, fontStyle: 'italic', lineHeight: 20,
+    fontFamily: SERIF, fontSize: typeSize(13.5), fontStyle: 'italic', lineHeight: typeSize(20),
     color: COLORS.inkSoft, marginBottom: 20,
   },
   input: {
-    fontFamily: SANS, fontSize: 15.5, color: COLORS.ink,
+    fontFamily: SANS, fontSize: typeSize(15.5), color: COLORS.ink,
     borderBottomWidth: 1, borderBottomColor: COLORS.rule,
     paddingVertical: 10, marginBottom: 14, outlineStyle: 'none',
   },
   confirmLabel: {
-    fontFamily: SANS, fontSize: 11, letterSpacing: 1.4, textTransform: 'uppercase',
+    fontFamily: SANS, fontSize: typeSize(11), letterSpacing: 1.4, textTransform: 'uppercase',
     color: COLORS.inkSoft, marginBottom: 6,
   },
-  error: { fontFamily: SANS, fontSize: 13, color: COLORS.accent, marginBottom: 10, lineHeight: 18 },
-  done: { fontFamily: SANS, fontSize: 13, color: COLORS.inkSoft, marginBottom: 10 },
+  error: { fontFamily: SANS, fontSize: typeSize(13), color: COLORS.accent, marginBottom: 10, lineHeight: typeSize(18) },
+  done: { fontFamily: SANS, fontSize: typeSize(13), color: COLORS.inkSoft, marginBottom: 10 },
 
   codeBox: { borderWidth: 1, borderColor: COLORS.pencil, paddingVertical: 16, paddingHorizontal: 10, marginBottom: 16 },
   code: {
     fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'ui-monospace, SFMono-Regular, Menlo, monospace' }),
-    fontSize: 15, letterSpacing: 1.4, textAlign: 'center', color: COLORS.ink, lineHeight: 24,
+    fontSize: typeSize(15), letterSpacing: 1.4, textAlign: 'center', color: COLORS.ink, lineHeight: typeSize(24),
   },
 
   button: { backgroundColor: COLORS.ink, paddingVertical: 14, alignItems: 'center', marginTop: 6 },
@@ -684,11 +684,11 @@ const s = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth, borderColor: COLORS.sheetEdge,
     borderRadius: 8, paddingVertical: 13, alignItems: 'center', marginTop: 10,
   },
-  plainButtonText: { fontFamily: SANS, fontSize: 15, color: COLORS.inkSoft },
+  plainButtonText: { fontFamily: SANS, fontSize: typeSize(15), color: COLORS.inkSoft },
   dangerButton: { backgroundColor: COLORS.accent },
   busy: { opacity: 0.45 },
   buttonText: {
-    fontFamily: SANS, fontSize: 14, fontWeight: '600', color: COLORS.sheet,
+    fontFamily: SANS, fontSize: typeSize(14), fontWeight: '600', color: COLORS.sheet,
     letterSpacing: 1.2, textTransform: 'uppercase',
   },
 });

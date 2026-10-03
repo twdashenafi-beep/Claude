@@ -11,6 +11,7 @@ import { initSync } from './src/services/supabase';
 import { markSyncSkipped, wasSyncSkipped } from './src/services/syncConfig';
 import { unlockChime } from './src/services/chime';
 import { hasSecureRandom, RANDOM_SOURCE } from './src/services/secureRandom';
+import { typeSize } from './src/utils/theme';
 
 export default function App() {
   // The encryption key lives in memory only, so closing the app locks it.
@@ -100,7 +101,7 @@ export default function App() {
 
 const fatal = StyleSheet.create({
   wrap: { flex: 1, justifyContent: 'center', padding: 32, backgroundColor: '#E9E6DF' },
-  title: { fontSize: 20, fontWeight: '700', color: '#1A1A18', marginBottom: 12 },
-  body: { fontSize: 15, lineHeight: 22, color: '#57534B' },
-  detail: { fontSize: 12, color: '#96907F', marginTop: 16 },
+  title: { fontSize: typeSize(20), fontWeight: '700', color: '#1A1A18', marginBottom: 12 },
+  body: { fontSize: typeSize(15), lineHeight: typeSize(22), color: '#57534B' },
+  detail: { fontSize: typeSize(12), color: '#96907F', marginTop: 16 },
 });
