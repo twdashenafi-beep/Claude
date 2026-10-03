@@ -1,5 +1,6 @@
 import { pbkdf2Async as noblePbkdf2 } from '@noble/hashes/pbkdf2.js';
 import { sha256 } from '@noble/hashes/sha2.js';
+import { nativeKdf } from './nativeKdf.js';
 
 // Key derivation for an account that syncs.
 //
@@ -30,6 +31,12 @@ import { sha256 } from '@noble/hashes/sha2.js';
 // same iterations: crypto-js 2621ms, noble 277ms — and that was on an engine
 // with a JIT. Hermes has none, so on a phone the difference is the difference
 // between waiting and wondering whether it has crashed.
+//
+// Even noble on Hermes was 12.4 s at unlock on a real device, and no setting of
+// it could do better, because that was the hashing itself on an engine that
+// interprets every line. So a native build now hands the bytes to the system —
+// CommonCrypto on iOS, BoringSSL on Android, through modules/dayflow-kdf — and
+// noble is only what is left for a build without that module, such as Expo Go.
 //
 // The iteration count is the same on every platform and has to be: the same
 // password must derive the same key in the browser and on the phone, or a vault
@@ -110,6 +117,18 @@ async function pbkdf2(password, salt, iterations) {
       KEY_BYTES * 8
     );
     return toHex(bits);
+  }
+
+  // Bytes as hex, not the strings themselves, so the native side never decides
+  // how a character becomes a byte: utf8Bytes above already did, and it is the
+  // one every platform has to agree with. A native failure is not an answer —
+  // it falls through to noble, which derives the same key, only slower.
+  const native = nativeKdf();
+  if (native) {
+    try {
+      const hex = await native(toHex(passwordBytes), toHex(saltBytes), iterations, KEY_BYTES);
+      if (typeof hex === 'string' && hex.length === KEY_BYTES * 2 && /^[0-9a-f]+$/.test(hex)) return hex;
+    } catch { /* the slow path below */ }
   }
 
   // The hash is named rather than defaulted. PBKDF2 says nothing about which

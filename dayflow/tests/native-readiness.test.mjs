@@ -770,5 +770,47 @@ ok('two keys in a row differ', generateDataKey() !== generateDataKey());
      missing.length === 0, missing.join('; '));
 }
 
+// ── The native derivation hands across the right bytes ──
+//
+// On a phone the key is derived by modules/dayflow-kdf, which no test here can
+// run. What can be checked is the half that lives in JavaScript: that crypto.js
+// gives it the password and salt as UTF-8 bytes, in hex, and takes back a key
+// in hex — so that a native side doing standard PBKDF2 lands on the pinned keys.
+// node's own pbkdf2Sync stands in for CommonCrypto, fed only the hex it is given.
+{
+  const nodeCrypto = await import('node:crypto');
+  const { installNativeKdf } = await import('../src/services/nativeKdf.js');
+  const saved = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
+  delete globalThis.crypto;
+  try {
+    let calls = 0;
+    installNativeKdf(async (passwordHex, saltHex, iterations, keyBytes) => {
+      calls += 1;
+      return nodeCrypto.pbkdf2Sync(
+        Buffer.from(passwordHex, 'hex'), Buffer.from(saltHex, 'hex'), iterations, keyBytes, 'sha256'
+      ).toString('hex');
+    });
+    const plain = await deriveAccountKeys('t.ashenafi@pm.me', 'correct horse battery');
+    ok('with no Web Crypto, the derivation goes to the native module', calls > 0);
+    ok('and lands on the pinned key-encrypting key',
+       plain.kek === '07532576c0a78e4ddc9bdabc5d40ab78c01c61b47efa18a8f561862561110ba8', plain.kek);
+    const accented = await deriveAccountKeys('t.ashenafi@pm.me', 'Ünïcodé pässwörd 😀');
+    ok('and on the pinned key for a password outside ASCII',
+       accented.kek === '57bbc24159f7c4a5ad58d1f3c1df258f6b7acd93df9aae66ec1be35a0f2dceaa', accented.kek);
+
+    // A native side that throws, or answers with something that is not a key,
+    // must cost time and nothing else.
+    installNativeKdf(async () => { throw new Error('no CommonCrypto today'); });
+    const thrown = await deriveAccountKeys('t.ashenafi@pm.me', 'correct horse battery');
+    ok('a native failure falls back to the same key', thrown.kek === plain.kek);
+    installNativeKdf(async () => 'not a key');
+    const garbled = await deriveAccountKeys('t.ashenafi@pm.me', 'correct horse battery');
+    ok('and so does a native answer that is not a key', garbled.kek === plain.kek);
+  } finally {
+    installNativeKdf(null);
+    if (saved) Object.defineProperty(globalThis, 'crypto', saved);
+  }
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["DayflowKdfModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.dayflowkdf.DayflowKdfModule"]
+  }
+}
