@@ -29,7 +29,7 @@ import WeekReckoning from '../components/WeekReckoning';
 import ConfettiOverlay from '../components/ConfettiOverlay';
 import AccountSheet from '../components/AccountSheet';
 import { VIEW_MODES } from '../utils/constants';
-import { COLORS, SERIF, SANS, SHEET_MAX_WIDTH } from '../utils/theme';
+import { COLORS, SERIF, SANS, mainSheetWidth } from '../utils/theme';
 import { format, startOfWeek } from 'date-fns';
 
 const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
@@ -697,7 +697,7 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={[s.sheet, { paddingHorizontal: gutter }]}>
+        <View style={[s.sheet, { maxWidth: mainSheetWidth(width), paddingHorizontal: gutter }]}>
           {/* Masthead */}
           <View style={s.mastheadRow}>
             {/* Four actions and a wordmark do not fit across a phone: Account
@@ -1117,7 +1117,6 @@ const s = StyleSheet.create({
 
   sheet: {
     width: '100%',
-    maxWidth: SHEET_MAX_WIDTH,
     flexGrow: 1,
     backgroundColor: COLORS.sheet,
     borderLeftWidth: StyleSheet.hairlineWidth,

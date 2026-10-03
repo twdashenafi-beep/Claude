@@ -8,6 +8,20 @@ import { Platform } from 'react-native';
 // so a wide window shows a page rather than a stretched list.
 export const SHEET_MAX_WIDTH = 780;
 
+// The main page is the exception, because it is not read like a page. It is
+// two columns of short lines, and on a Mac window or an iPad in landscape a
+// 780-wide sheet left more desk showing than paper — the list looked shrunk
+// rather than laid out. So past the point where 780 stops filling the screen,
+// the sheet takes three quarters of the window, up to a width where each column
+// is still a list and not a line of text crossing half the screen.
+// The summaries and the forms keep SHEET_MAX_WIDTH: those are read.
+const MAIN_SHEET_SHARE = 0.75;
+const MAIN_SHEET_LIMIT = 1240;
+
+export function mainSheetWidth(windowWidth) {
+  return Math.max(SHEET_MAX_WIDTH, Math.min(MAIN_SHEET_LIMIT, Math.round(windowWidth * MAIN_SHEET_SHARE)));
+}
+
 export const COLORS = {
   desk: '#E9E6DF',        // surface the sheet sits on
   sheet: '#FFFFFF',
