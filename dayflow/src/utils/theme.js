@@ -12,11 +12,11 @@ export const SHEET_MAX_WIDTH = 780;
 // two columns of short lines, and on a Mac window or an iPad in landscape a
 // 780-wide sheet left more desk showing than paper — the list looked shrunk
 // rather than laid out. So past the point where 780 stops filling the screen,
-// the sheet takes three quarters of the window, up to a width where each column
+// the sheet takes about two thirds of the window, up to a width where each column
 // is still a list and not a line of text crossing half the screen.
 // The summaries and the forms keep SHEET_MAX_WIDTH: those are read.
-const MAIN_SHEET_SHARE = 0.75;
-const MAIN_SHEET_LIMIT = 1240;
+const MAIN_SHEET_SHARE = 0.68;
+const MAIN_SHEET_LIMIT = 1120;
 
 export function mainSheetWidth(windowWidth) {
   return Math.max(SHEET_MAX_WIDTH, Math.min(MAIN_SHEET_LIMIT, Math.round(windowWidth * MAIN_SHEET_SHARE)));
