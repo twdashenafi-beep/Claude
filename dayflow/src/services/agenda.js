@@ -20,6 +20,8 @@
 // to { id, title, start, end, allDay }, from the phone's calendar on native or
 // from an imported file on the web, and this module does not care which.
 
+import { HANDOVER_HOUR } from './scope.js';
+
 // A working day, when the calendar gives no reason to think otherwise. Widened
 // below by whatever is actually in the diary, so a seven o'clock call or an
 // eight o'clock dinner moves the boundary rather than falling outside the day.
@@ -67,30 +69,68 @@ export function tidyEvents(raw, day = new Date()) {
 // Thursday can be checked against Thursday — which is right for that question
 // and wrong for every other one, and showing all of it wherever you happened to
 // be standing was the bug this fixes.
-// Forward from today, never backwards — and that was a bug for a while.
+// Which day the day's page is about.
 //
-// The week used to mean the calendar week, Monday to Monday. The tasks on the
-// same page never did: a task lands on Week when it falls within seven days of
-// today (see scope.js), which is a window that moves. So one page carried two
-// different weeks, and on a Sunday evening they disagreed completely — the
-// tasks showed tomorrow and the diary counted a week that had just ended, so a
-// meeting at nine the next morning appeared nowhere in the app at all.
+// Today, until the evening hands over to tomorrow.
 //
-// A planner looks forward. "This week" on a Sunday means the week coming, not
-// the one going, and the page already took that view of the work on it; the
-// diary was the half that did not.
-export const WEEK_AHEAD = 7;
-export const MONTH_AHEAD = 30;
+// The tasks on that page already work this way: scope.js brings a task due
+// tomorrow onto the day's page at nine the evening before, because at nine
+// o'clock what you need is tomorrow and not the three hours left of tonight.
+// The diary did not, and the result was that somebody could subscribe a
+// calendar, have it read correctly three weeks deep, and still find tomorrow's
+// nine o'clock meeting on no page in the app — not today, and not this week,
+// which on a Sunday is over.
+//
+// Taking the same hour from the same constant is the point: two definitions of
+// when tomorrow begins would be the bug this fixes, wearing a different hat.
+export function dayInFocus(now = new Date()) {
+  const at = asDate(now) || new Date();
+  const focus = startOfDay(at);
+  if (at.getHours() >= HANDOVER_HOUR) focus.setDate(focus.getDate() + 1);
+  return focus;
+}
 
+// Whether the day's page is showing tomorrow rather than today, which anything
+// putting a number on screen has to say out loud. "3h booked" under tonight's
+// date, meaning tomorrow, is worse than not saying it.
+export function showingTomorrow(now = new Date()) {
+  const at = asDate(now) || new Date();
+  return at.getHours() >= HANDOVER_HOUR;
+}
+
+// The stretch of time a page is about.
+//
+// The three pages are a horizon, and the diary should follow it: the day's page
+// answers for today, the week's for this week, the month's for this month. The
+// diary itself is read three weeks deep so that a time given to a task next
+// Thursday can be checked against Thursday — which is right for that question
+// and wrong for every other one, and showing all of it wherever you happened to
+// be standing was the bug this fixes.
+//
+// The week is the calendar week, Monday to Monday, and the month the calendar
+// month. Those are the weeks and months people keep: "this week" means the one
+// on the wall, not the seven days in front of you.
 export function spanWindow(view, now = new Date()) {
   const from = startOfDay(now);
-  const to = new Date(from);
 
-  if (view === 'week') to.setDate(to.getDate() + WEEK_AHEAD);
-  else if (view === 'month') to.setDate(to.getDate() + MONTH_AHEAD);
-  else to.setDate(to.getDate() + 1);
+  if (view === 'week') {
+    // Monday-first, like every other week in this app.
+    from.setDate(from.getDate() - ((from.getDay() + 6) % 7));
+    const to = new Date(from);
+    to.setDate(to.getDate() + 7);
+    return { from, to };
+  }
+  if (view === 'month') {
+    from.setDate(1);
+    const to = new Date(from);
+    to.setMonth(to.getMonth() + 1);
+    return { from, to };
+  }
 
-  return { from, to };
+  const start = dayInFocus(now);
+  const to = new Date(start);
+  to.setDate(to.getDate() + 1);
+  return { from: start, to };
 }
 
 export function eventsWithin(raw, window) {
@@ -302,12 +342,18 @@ export function spanLoad(tasks, rawEvents, now = new Date(), view = 'day') {
     };
   }
 
-  const events = tidyEvents(rawEvents, at);
-  const window = dayWindow(events, at);
+  // The day being reported on, which after nine in the evening is tomorrow.
+  // Office hours and the events both have to come from that day; `at` stays
+  // the clock, because what is left of a day is still measured from now.
+  const focus = dayInFocus(at);
+  const events = tidyEvents(rawEvents, focus);
+  const window = dayWindow(events, focus);
   const gaps = freeGaps(events, window, at);
 
   return {
     span,
+    focus,
+    tomorrow: showingTomorrow(at),
     events,
     window,
     gaps,
@@ -443,9 +489,14 @@ export function barDrawable(load) {
 }
 
 // The one fact the drawing cannot carry: how much of the day it adds up to.
+//
+// And which day. After nine in the evening the strip is tomorrow's, and a
+// figure under tonight's date that silently means tomorrow is worse than no
+// figure at all.
 export function barCaption(load) {
   if (!barDrawable(load)) return null;
-  return `${spanMinutes(load.committed)} booked`;
+  const booked = `${spanMinutes(load.committed)} booked`;
+  return load && load.tomorrow ? `Tomorrow  ·  ${booked}` : booked;
 }
 
 // The same day in a sentence — the fallback, and the label a screen reader
@@ -475,5 +526,7 @@ export function loadSentence(load, now = new Date()) {
 
   const where = said.length ? said.join(', ') : 'Nothing free';
   const booked = load.committed > 0 ? `${spanMinutes(load.committed)} booked` : null;
-  return booked ? `${where}  ·  ${booked}` : where;
+  const line = booked ? `${where}  ·  ${booked}` : where;
+  // Said first, because every clock time after it belongs to a different day.
+  return load.tomorrow ? `Tomorrow — ${line.charAt(0).toLowerCase()}${line.slice(1)}` : line;
 }

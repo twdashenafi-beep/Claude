@@ -250,5 +250,51 @@ const near = (a, b, slack = 0.51) => Math.abs(a - b) <= slack;
      /3h booked$/.test(loadSentence(load, on(9, 45))), loadSentence(load, on(9, 45)));
 }
 
+// ── The evening, when the strip becomes tomorrow's ──────────────────────────
+//
+// From nine the day's page is about tomorrow, because that is already when a
+// task due tomorrow appears on it. The strip follows, and then every number
+// under tonight's date belongs to another day — so it has to say so. "3h
+// booked" meaning tomorrow, unlabelled, is worse than no figure at all.
+{
+  const tomorrow = (d, hh, mm = 0) => new Date(2026, 9, d, hh, mm);
+  const diary = [
+    { id: 'a', title: 'Standup', start: tomorrow(5, 9), end: tomorrow(5, 9, 30), allDay: false },
+    { id: 'b', title: 'Board', start: tomorrow(5, 11), end: tomorrow(5, 12, 30), allDay: false },
+  ];
+
+  const evening = new Date(2026, 9, 4, 21, 30);
+  const load = spanLoad([], diary, evening, 'day');
+
+  ok('after nine the strip is drawn for tomorrow', load.tomorrow === true);
+  ok('and it holds tomorrow\u2019s meetings', load.events.length === 2,
+     load.events.map(e => e.title).join(', '));
+  ok('which is two hours of it', load.committed === 120, String(load.committed));
+  ok('and the caption says which day', /^Tomorrow/.test(barCaption(load)), barCaption(load));
+  ok('as does the sentence, before any clock time',
+     /^Tomorrow — /.test(loadSentence(load, evening)), loadSentence(load, evening));
+
+  // The whole of tomorrow is still ahead, so nothing is behind you yet — the
+  // free time is given both ends rather than said as "until".
+  ok('and tomorrow\u2019s free time is not described as already running',
+     !/free until/i.test(loadSentence(load, evening)), loadSentence(load, evening));
+
+  // An hour earlier it is still tonight, and tomorrow's meetings are not it.
+  const earlier = new Date(2026, 9, 4, 19, 30);
+  const tonight = spanLoad([], diary, earlier, 'day');
+  ok('before nine it is still today', tonight.tomorrow === false);
+  ok('and tomorrow\u2019s meetings are not on it', tonight.events.length === 0,
+     tonight.events.map(e => e.title).join(', '));
+  ok('so nothing is captioned Tomorrow', barCaption(tonight) === null, barCaption(tonight));
+
+  // Today's own meetings, seen in the evening, must not leak into tomorrow.
+  const todayOnly = [
+    { id: 'c', title: 'Late call', start: tomorrow(4, 16), end: tomorrow(4, 17), allDay: false },
+  ];
+  const after = spanLoad([], todayOnly, evening, 'day');
+  ok('a meeting earlier today is not tomorrow\u2019s', after.events.length === 0,
+     after.events.map(e => e.title).join(', '));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
