@@ -22,11 +22,11 @@ import { STORAGE_KEY } from '../context/TaskContext';
 import { decryptTask } from '../services/encryption';
 import { isTask } from '../services/projects';
 import {
-  summarise, deviceLines, bytesOf, dictationLine, calendarLine, buildLine,
+  summarise, deviceLines, bytesOf, dictationLine, calendarLine, buildLine, syncLine, listeningLine,
 } from '../services/deviceReport';
 import { buildInfo } from '../services/build';
 import { openingLine } from '../services/opening';
-import { speechSource } from '../services/speech';
+import { speechSource, speechPermission } from '../services/speech';
 import { calendarReading } from '../services/calendarFeed';
 import { canRemember, rememberedFor, remember, forget } from '../services/remember';
 
@@ -57,7 +57,8 @@ const CALENDAR_HINT = 'Import an .ics from your calendar, so the day knows what 
 
 export default function AccountSheet({
   visible, email, dataKey, tasks = [], archived = [], projects = [],
-  tombstones = [], onImport, onCalendar, onClose, onLock, onDeleted,
+  tombstones = [], syncState = 'off', syncFault = '',
+  onImport, onCalendar, onClose, onLock, onDeleted,
 }) {
   const [view, setView] = useState('menu'); // menu | password | code | delete
   const [password, setPassword] = useState('');
@@ -194,12 +195,18 @@ export default function AccountSheet({
       // rather than on the unlock screen, because it is a question about this
       // device rather than something to read while waiting.
       const opened = openingLine();
-      const dictation = dictationLine(speechSource());
+      // Two questions, not one: is there an engine, and has it been allowed to
+      // listen. A report that answers only the first says "Dictation comes
+      // from this device" on a phone whose microphone button does nothing.
+      const dictation = [dictationLine(speechSource()), listeningLine(await speechPermission())]
+        .filter(Boolean).join(' ');
       const diary = calendarLine(calendarReading());
+      const sync = syncLine(syncState, syncFault);
       setHeld([
         ...deviceLines(summary),
         ...(dictation ? [dictation] : []),
         ...(diary ? [diary] : []),
+        ...(sync ? [sync] : []),
         ...(opened ? [opened] : []),
       ].join(' · '));
     } catch (e) {

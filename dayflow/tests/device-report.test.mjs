@@ -9,7 +9,7 @@
 
 import {
   bytesOf, sizeWords, notesIn, summarise, deviceLines, dictationLine, calendarLine,
-  buildLine,
+  buildLine, syncLine, listeningLine, speechTrouble,
 } from '../src/services/deviceReport.js';
 
 let pass = 0, fail = 0;
@@ -190,6 +190,91 @@ ok('and whitespace is nothing too', calendarLine('   ') === '');
   ok('and each says which it is before it says any number',
      /^Web app/.test(buildLine({ platform: 'web', stamp: 'x' }))
        && /^Installed app/.test(buildLine({ platform: 'ios', version: 'x' })));
+}
+
+// ── Why the last sync failed ────────────────────────────────────────────────
+//
+// The page says "sync failed — will retry", which is right for a page: it is
+// context, not an incident. But those four words cover a row-level security
+// rule, an expired session, a table that is not there and a train tunnel, and
+// the reason went to console.warn — which on a phone is nowhere at all.
+{
+  const said = syncLine('error', '42501 new row violates row-level security policy');
+  ok('a failure gives the reason the server gave',
+     said === 'The last sync failed: 42501 new row violates row-level security policy', said);
+
+  // A failure with nothing attached still says a failure happened. Going quiet
+  // would put it back where it was.
+  ok('and a failure with no reason says that, rather than nothing',
+     syncLine('error', '') === 'The last sync failed, and said no reason why',
+     syncLine('error', ''));
+  ok('as does one with only whitespace',
+     syncLine('error', '   ') === 'The last sync failed, and said no reason why');
+
+  // Every other state is silent. A report that says "the last sync failed" on
+  // a device syncing happily is a report nobody trusts twice.
+  for (const state of ['ok', 'off', 'idle', 'syncing']) {
+    ok(`a device that is ${state} says nothing about failures`,
+       syncLine(state, 'stale reason from before') === '', syncLine(state, 'x'));
+  }
+}
+
+// ── An engine, and permission to use it ─────────────────────────────────────
+//
+// Two questions that were being answered as one. "Dictation comes from this
+// device" says there is an engine in this build; it says nothing about
+// whether iOS has been asked, or asked and refused. On a phone with a
+// microphone button that does nothing, the report said the first and was
+// read as the second — confidently answering the wrong question, which is
+// worse than saying nothing.
+{
+  ok('a device that may listen says so',
+     /allowed to listen/.test(listeningLine('granted')), listeningLine('granted'));
+
+  // The two refusals are not the same and are not fixed in the same place:
+  // one is answered by tapping the button, the other only in Settings.
+  const refused = listeningLine('refused');
+  ok('a device that was refused says where that is undone',
+     /Settings/.test(refused), refused);
+  ok('and one that was never asked says that instead',
+     /not been asked/.test(listeningLine('unasked')), listeningLine('unasked'));
+  ok('the two refusals are told apart', refused !== listeningLine('unasked'));
+
+  // Nothing to ask: the engine's absence is already reported by the line
+  // beside this one, and saying it twice in two voices helps nobody.
+  ok('a device with nothing to ask says nothing', listeningLine('') === '');
+  ok('and neither does an answer that never came', listeningLine(undefined) === '');
+  ok('nor one this does not recognise', listeningLine('something else') === '');
+}
+
+// ── When dictation stops badly ──────────────────────────────────────────────
+//
+// Five codes had sentences and every other code had nothing, so a microphone
+// that failed for any other reason stopped without a word and the button
+// looked broken. That is the fault that has cost this project more time than
+// any other: something that does not work and does not say so.
+{
+  ok('a blocked microphone says where to unblock it',
+     /Settings/.test(speechTrouble('not-allowed')), speechTrouble('not-allowed'));
+  ok('and a blocked recogniser is told apart from it',
+     speechTrouble('service-not-allowed') !== speechTrouble('not-allowed'),
+     speechTrouble('service-not-allowed'));
+  ok('no microphone at all says so', /No microphone/.test(speechTrouble('audio-capture')));
+  ok('and a dead connection says so', /connection/.test(speechTrouble('network')));
+
+  // The whole point of the change: a code nobody anticipated.
+  const odd = speechTrouble('kAFAssistantErrorDomain-1101');
+  ok('a code this app has never heard of is still said out loud', odd !== '', odd);
+  ok('and the code itself is quoted, so it can be repeated to somebody',
+     odd.includes('kAFAssistantErrorDomain-1101'), odd);
+
+  // Two that must stay quiet. 'aborted' is the component going away and
+  // 'no-speech' is a quiet room; neither is news, and a message for either
+  // would mean the button nags every time it is let go.
+  ok('being taken off the page says nothing', speechTrouble('aborted') === '');
+  ok('and a quiet room says nothing', speechTrouble('no-speech') === '');
+  ok('nor does no code at all', speechTrouble('') === '' && speechTrouble(null) === '');
+  ok('nor whitespace pretending to be one', speechTrouble('   ') === '');
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

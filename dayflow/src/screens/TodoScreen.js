@@ -263,7 +263,7 @@ function Column({
 
 export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
   const {
-    tasks, addTask, toggleTask, deleteTask, restoreTask, updateTask, reorderTasks, syncState,
+    tasks, addTask, toggleTask, deleteTask, restoreTask, updateTask, reorderTasks, syncState, syncFault,
     storageError, vaultError, slowOpening, dismissSlowOpening,
     projects, addProject, renameProject, deleteProject, moveTaskToProject, reorderProjects,
     archived, archiveTask, archiveTasks, unarchiveTask, deleteTasks, restoreTasks,
@@ -1092,6 +1092,8 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
         archived={archived}
         projects={projects}
         tombstones={tombstones}
+        syncState={syncState}
+        syncFault={syncFault}
         onImport={importTasks}
         onClose={() => setShowAccount(false)}
         onLock={onLock}

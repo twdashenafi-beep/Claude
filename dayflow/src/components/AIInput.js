@@ -4,6 +4,7 @@ import { speechEngine, withSpeechPermission } from '../services/speech';
 import { parseNaturalLanguage } from '../services/nlParser';
 import { whenPreview } from '../services/due';
 import { clashNote } from '../services/agenda';
+import { speechTrouble } from '../services/deviceReport';
 import { deviceZone } from '../services/zones';
 import { COLORS, SANS, SERIF, typeSize } from '../utils/theme';
 
@@ -67,14 +68,6 @@ function listeningLanguage() {
 
 // What went wrong, in words rather than a code. Silence after a tap is the one
 // case that needs no explaining.
-const SPEECH_ERROR = {
-  'not-allowed': 'Microphone blocked — allow it in your browser settings',
-  'service-not-allowed': 'Microphone blocked — allow it in your browser settings',
-  'audio-capture': 'No microphone found',
-  network: 'Dictation needs a connection',
-  'language-not-supported': 'Dictation is not available for this language',
-};
-
 // Transcripts arrive without reliable spacing, and across a restart there is
 // none at all, so "call the" and "bank" become "call thebank".
 function joinSpeech(a, b) {
@@ -351,7 +344,10 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo', diary
       // second is this component being taken off the page. Neither is worth a
       // message, and 'no-speech' should not stop a hold that is still held.
       if (code === 'no-speech' && wants.current) return;
-      if (code && code !== 'aborted' && SPEECH_ERROR[code]) setSpeechError(SPEECH_ERROR[code]);
+      // Every code that is not ordinary gets said, including the ones this
+      // app has never heard of. See speechTrouble.
+      const trouble = speechTrouble(code);
+      if (trouble) setSpeechError(trouble);
       wants.current = false;
       clearTimeout(silenceTimer.current);
       setListening(false);
@@ -436,7 +432,7 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo', diary
     // has to be asked first, and says nothing useful if it is not.
     withSpeechPermission(
       () => startListening(),
-      () => setSpeechError(SPEECH_ERROR['not-allowed'])
+      () => setSpeechError(speechTrouble('not-allowed'))
     );
   };
 

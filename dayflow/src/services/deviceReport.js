@@ -169,3 +169,62 @@ export function buildLine(info) {
   // app that cannot read its own is a fact worth seeing rather than hiding.
   return 'Installed app · build unknown';
 }
+
+// Why the last sync failed, where somebody can read it.
+//
+// The page says "sync failed — will retry", which is the right thing for a
+// page to say: it is context, not an incident. But the reason went to
+// console.warn, which on a phone is nowhere — and those four words cover a
+// row-level security rule, an expired session, a table that is not there and a
+// train tunnel, all of which are fixed somewhere different.
+export function syncLine(state, fault) {
+  if (state !== 'error') return '';
+  const said = String(fault || '').trim();
+  return said ? `The last sync failed: ${said}` : 'The last sync failed, and said no reason why';
+}
+
+// Whether the microphone was ever allowed, which is not the same question as
+// whether there is an engine here.
+//
+// "Dictation comes from this device" was being read as "the microphone works",
+// and on a phone where permission had been refused it was both true and
+// useless. The two answers sit side by side now, because they are fixed in
+// different places: one by a build, the other in iOS Settings.
+const LISTENING = {
+  granted: 'and this device has been allowed to listen',
+  refused: 'but this device is not allowed to listen — allow DayFlow the microphone and speech recognition in Settings',
+  unasked: 'and it has not been asked for the microphone yet',
+};
+
+export function listeningLine(permission) {
+  return LISTENING[permission] || '';
+}
+
+// What to say when dictation stops badly.
+//
+// The five codes below had sentences and every other code had nothing, so a
+// microphone that failed for any other reason stopped silently and the button
+// looked broken. That is the shape of fault that has cost this project more
+// time than any other: a thing that does not work and does not say so.
+//
+// Two codes stay quiet on purpose. 'aborted' is this component being taken off
+// the page, and 'no-speech' is a quiet room — neither is news.
+//
+// Anything else is named, with the code quoted as the phone gave it. An
+// unfamiliar code in quotation marks is not elegant, but it is something a
+// person can repeat to somebody who can act on it, and silence is not.
+const SPEECH_TROUBLE = {
+  'not-allowed': 'Microphone blocked — allow it in Settings',
+  'service-not-allowed': 'Speech recognition is blocked — allow it in Settings',
+  'audio-capture': 'No microphone found',
+  network: 'Dictation needs a connection',
+  'language-not-supported': 'Dictation is not available for this language',
+};
+
+const QUIET_CODES = new Set(['aborted', 'no-speech']);
+
+export function speechTrouble(code) {
+  const said = String(code || '').trim();
+  if (!said || QUIET_CODES.has(said)) return '';
+  return SPEECH_TROUBLE[said] || `Dictation stopped — the phone said “${said}”`;
+}
