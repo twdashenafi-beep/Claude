@@ -83,6 +83,34 @@ jobs:
         working-directory: dayflow
         run: npm ci
 
+      - name: Install EAS
+        run: npm install -g eas-cli
+
+      # Which account the token is for, and whether that account can see this
+      # project.
+      #
+      # The first run of this workflow spent five minutes installing and
+      # testing and then failed with "Entity Not Authorized" — a token made
+      # under an account with no access to the project id in app.json. The
+      # account name was the entire diagnosis and appeared nowhere in the log.
+      #
+      # So it is asked first, and out loud. build:list reads the same project
+      # entity the build does, so a token that cannot do this cannot build,
+      # and finding out costs ten seconds instead of five minutes.
+      - name: Check the token can reach this project
+        working-directory: dayflow
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          set -o pipefail
+          echo "Signed in as: $(eas whoami 2>&1 || echo '(eas whoami failed)')"
+          if ! eas build:list --platform ios --limit 1 --non-interactive 2>&1 | tee "$RUNNER_TEMP/eas.log"; then
+            echo "::error::This EXPO_TOKEN cannot read the EAS project in app.json."
+            echo "::error::Run 'eas whoami' on the machine where builds work, and make the"
+            echo "::error::token under that account at expo.dev - account settings - access tokens."
+            exit 1
+          fi
+
       # The gate, not a formality.
       #
       # native-readiness is in here, and it is the suite that catches the
@@ -94,9 +122,6 @@ jobs:
       - name: Run the checks that a build cannot
         working-directory: dayflow
         run: npm test
-
-      - name: Install EAS
-        run: npm install -g eas-cli
 
       # --wait so the step's success means a finished build rather than a
       # queued one, which is what the submit below depends on.
