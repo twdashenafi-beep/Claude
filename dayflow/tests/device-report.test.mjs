@@ -9,7 +9,7 @@
 
 import {
   bytesOf, sizeWords, notesIn, summarise, deviceLines, dictationLine, calendarLine,
-  buildLine, syncLine, listeningLine,
+  buildLine, syncLine, listeningLine, speechTrouble,
 } from '../src/services/deviceReport.js';
 
 let pass = 0, fail = 0;
@@ -245,6 +245,36 @@ ok('and whitespace is nothing too', calendarLine('   ') === '');
   ok('a device with nothing to ask says nothing', listeningLine('') === '');
   ok('and neither does an answer that never came', listeningLine(undefined) === '');
   ok('nor one this does not recognise', listeningLine('something else') === '');
+}
+
+// ── When dictation stops badly ──────────────────────────────────────────────
+//
+// Five codes had sentences and every other code had nothing, so a microphone
+// that failed for any other reason stopped without a word and the button
+// looked broken. That is the fault that has cost this project more time than
+// any other: something that does not work and does not say so.
+{
+  ok('a blocked microphone says where to unblock it',
+     /Settings/.test(speechTrouble('not-allowed')), speechTrouble('not-allowed'));
+  ok('and a blocked recogniser is told apart from it',
+     speechTrouble('service-not-allowed') !== speechTrouble('not-allowed'),
+     speechTrouble('service-not-allowed'));
+  ok('no microphone at all says so', /No microphone/.test(speechTrouble('audio-capture')));
+  ok('and a dead connection says so', /connection/.test(speechTrouble('network')));
+
+  // The whole point of the change: a code nobody anticipated.
+  const odd = speechTrouble('kAFAssistantErrorDomain-1101');
+  ok('a code this app has never heard of is still said out loud', odd !== '', odd);
+  ok('and the code itself is quoted, so it can be repeated to somebody',
+     odd.includes('kAFAssistantErrorDomain-1101'), odd);
+
+  // Two that must stay quiet. 'aborted' is the component going away and
+  // 'no-speech' is a quiet room; neither is news, and a message for either
+  // would mean the button nags every time it is let go.
+  ok('being taken off the page says nothing', speechTrouble('aborted') === '');
+  ok('and a quiet room says nothing', speechTrouble('no-speech') === '');
+  ok('nor does no code at all', speechTrouble('') === '' && speechTrouble(null) === '');
+  ok('nor whitespace pretending to be one', speechTrouble('   ') === '');
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
