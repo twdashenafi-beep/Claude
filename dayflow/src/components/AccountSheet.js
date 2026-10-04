@@ -91,6 +91,9 @@ export default function AccountSheet({
   const [pending, setPending] = useState(null);
   // The calendar link being pasted.
   const [link, setLink] = useState('');
+  // A backup pasted in rather than opened. The only route that works on every
+  // platform, because it asks nothing of the operating system.
+  const [pasted, setPasted] = useState('');
 
   const reset = () => {
     setView('menu'); setPassword(''); setConfirm(''); setTyped('');
@@ -255,7 +258,18 @@ export default function AccountSheet({
       return;
     }
 
-    const read = readBackup(file.text);
+    considerCopy(file.text, file.name);
+  };
+
+  // What to do with the text of a backup, however it arrived.
+  //
+  // Opened from a picker on a desktop, or pasted in — and pasted in is not the
+  // poor relation. It is the only route that asks nothing of the operating
+  // system, so it is the one that works on a phone, in a home-screen web app,
+  // and anywhere a file dialog is refused or simply absent. A backup is plain
+  // JSON and always was; nothing about reading one needs a file at all.
+  const considerCopy = (text, name) => {
+    const read = readBackup(text);
     if (!read.ok) {
       setPending(null);
       setView('restore');
@@ -268,9 +282,19 @@ export default function AccountSheet({
       tasks: [...tasks, ...archived, ...projects],
       tombstones,
     });
-    setPending({ plan, name: file.name, made: read.backup.exportedAt, account: read.backup.account });
+    setPending({ plan, name, made: read.backup.exportedAt, account: read.backup.account });
     setError('');
     setView('restore');
+  };
+
+  const readPasted = () => {
+    setError(''); setDone('');
+    const text = pasted.trim();
+    if (!text) {
+      setError('Paste the contents of the file you saved, then try again.');
+      return;
+    }
+    considerCopy(text, 'pasted text');
   };
 
   const applyCopy = () => {
@@ -463,10 +487,19 @@ export default function AccountSheet({
               />
               {/* The other half of it. A copy you cannot read back is a copy of
                   something you can no longer use. */}
+              {/* Opens the restore page rather than a file dialog.
+                  It used to go straight to the picker, which made the file
+                  the only way in — and on a phone, where nothing can hand
+                  this app a file, that made the row a dead end. The page
+                  offers both routes and explains them, which is what the one
+                  button somebody presses after losing everything should do. */}
               <Row
                 label="Restore from a copy"
                 detail="Adds what is missing. Removes nothing"
-                onPress={chooseCopy}
+                onPress={() => {
+                  setError(''); setDone(''); setPending(null); setPasted('');
+                  setView('restore');
+                }}
               />
               {/* What the day already contains. Everything else in this app
                   treats a day as an empty container to put tasks into; a diary
@@ -616,19 +649,53 @@ export default function AccountSheet({
                 </>
               ) : (
                 <Text style={s.blurb}>
-                  {error || 'Choose the file you saved with Export a copy.'}
+                  {error || (Platform.OS === 'web'
+                    ? 'Choose the file you saved with Export a copy, or paste what is in it.'
+                    : 'Open the file you saved with Export a copy, copy everything in it, '
+                      + 'and paste it below. A phone cannot hand this app a file yet.')}
                 </Text>
               )}
               {pending && error ? <Text style={s.error}>{error}</Text> : null}
+
+              {/* Opening a file is the nicer route and exists only on a
+                  desktop, so it is offered there and not dangled elsewhere. */}
+              {Platform.OS === 'web' ? (
+                <TouchableOpacity
+                  style={s.plainButton}
+                  onPress={chooseCopy}
+                  accessibilityRole="button"
+                  accessibilityLabel={pending ? 'Choose a different file' : 'Choose a file'}
+                >
+                  <Text style={s.plainButtonText}>
+                    {pending ? 'Choose a different file' : 'Choose a file'}
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
+
+              {/* The route that asks nothing of the operating system, and so
+                  is the one that works everywhere. A backup is plain JSON. */}
+              <Text style={s.confirmLabel}>
+                {Platform.OS === 'web' ? 'Or paste what is in the file' : 'Paste what is in the file'}
+              </Text>
+              <TextInput
+                accessibilityLabel="Paste the contents of your backup"
+                style={[s.input, s.paste]}
+                placeholder={'{"app":"DayFlow", …'}
+                placeholderTextColor={COLORS.inkFaint}
+                multiline
+                autoCapitalize="none"
+                autoCorrect={false}
+                spellCheck={false}
+                value={pasted}
+                onChangeText={setPasted}
+              />
               <TouchableOpacity
                 style={s.plainButton}
-                onPress={chooseCopy}
+                onPress={readPasted}
                 accessibilityRole="button"
-                accessibilityLabel="Choose a different file"
+                accessibilityLabel="Read the pasted copy"
               >
-                <Text style={s.plainButtonText}>
-                  {pending ? 'Choose a different file' : 'Choose a file'}
-                </Text>
+                <Text style={s.plainButtonText}>Read what I pasted</Text>
               </TouchableOpacity>
             </>
           ) : null}
@@ -732,6 +799,25 @@ const s = StyleSheet.create({
   gap: { height: 26 },
   // The same quiet treatment as the stamp on the first-run sync screen, so the
   // two read as one fact said in two places rather than two different claims.
+  // Tall enough to show that something was pasted, short enough not to take
+  // the sheet over. A backup is thousands of characters and nobody reads it
+  // here; what matters is seeing that it arrived.
+  //
+  // Framed rather than underlined like the one-line fields. Under a single
+  // rule a mostly-empty box is indistinguishable from stray text, and this is
+  // a box somebody has to recognise as somewhere to put several thousand
+  // characters.
+  paste: {
+    height: 120,
+    textAlignVertical: 'top',
+    fontSize: typeSize(12),
+    borderWidth: 1,
+    borderColor: COLORS.rule,
+    borderRadius: 3,
+    paddingHorizontal: 10,
+    paddingTop: 10,
+    marginTop: 6,
+  },
   build: {
     fontFamily: SANS, fontSize: typeSize(10.5), letterSpacing: 0.8,
     color: COLORS.inkFaint, marginTop: 28, marginBottom: 8, textAlign: 'right',

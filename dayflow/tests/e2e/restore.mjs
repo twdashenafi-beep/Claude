@@ -209,8 +209,11 @@ await openAccount();
 ok('the account sheet offers to restore', await shown('Restore from a copy'),
    (await body()).slice(0, 400));
 
-const chooser = page.waitForEvent('filechooser', { timeout: 15000 });
+// The row opens the restore page; the page offers the file and the paste box.
 await page.getByText('Restore from a copy', { exact: true }).click();
+await page.waitForTimeout(500);
+const chooser = page.waitForEvent('filechooser', { timeout: 15000 });
+await page.getByLabel('Choose a file').click();
 const picker = await chooser;
 await picker.setFiles(copy);
 await appears(/to add|Nothing in that copy/);
@@ -244,10 +247,59 @@ ok('and nothing is doubled', (await count('Pay the window cleaner')) === 1,
 ok('nor is the one that came back', (await count('Book the dentist')) === 1,
    String(await count('Book the dentist')));
 
+// ── A copy pasted in rather than opened ─────────────────────────────────────
+//
+// The route that asks nothing of the operating system, and therefore the only
+// one that exists on a phone — where nothing can hand this app a file at all.
+// A backup is plain JSON and always was, so there was never a reason to need
+// a file for it.
+//
+// Checked here, in a browser, because it has to work in both places: a
+// desktop keeps the picker and gains this, and a phone has only this.
+{
+  await openAccount();
+  await page.getByText('Restore from a copy', { exact: true }).click();
+  await page.waitForTimeout(500);
+
+  const box = page.getByLabel('Paste the contents of your backup');
+  ok('a copy can be pasted in as well as opened', (await box.count()) === 1,
+     String(await box.count()));
+
+  // Nothing pasted: said, rather than nothing happening.
+  await page.getByLabel('Read the pasted copy').click();
+  await page.waitForTimeout(400);
+  ok('an empty box says what to do', await shown(/Paste the contents/), (await body()).slice(0, 400));
+
+  // Something that is not a backup at all.
+  await box.fill('just some words');
+  await page.getByLabel('Read the pasted copy').click();
+  await page.waitForTimeout(400);
+  ok('and text that is not a copy is refused by name',
+     await shown(/not even JSON|not a DayFlow copy/), (await body()).slice(0, 400));
+
+  // The real thing, curled the way a notes app would curl it on a phone.
+  const text = fs.readFileSync(copy, 'utf8').replace(/"/g, '\u201C');
+  await box.fill(text);
+  await page.getByLabel('Read the pasted copy').click();
+  await appears(/to add|Nothing in that copy/);
+  await page.waitForTimeout(300);
+  ok('a real copy pasted in is read, even with its quotes curled',
+     await shown(/to add|Nothing in that copy/), (await body()).slice(0, 500));
+  // Everything in it is already here from the restore above, so the honest
+  // answer is that there is nothing to do — which is the plan working, not
+  // failing.
+  ok('and it is still judged against what is already here',
+     await shown(/Nothing in that copy|to add/), (await body()).slice(0, 500));
+
+  await closeAccount();
+}
+
 // ── The same copy a second time ──
 await openAccount();
-const again = page.waitForEvent('filechooser', { timeout: 15000 });
 await page.getByText('Restore from a copy', { exact: true }).click();
+await page.waitForTimeout(500);
+const again = page.waitForEvent('filechooser', { timeout: 15000 });
+await page.getByLabel('Choose a file').click();
 (await again).setFiles(copy);
 await appears(/Nothing in that copy|to add/);
 await page.waitForTimeout(300);
@@ -259,8 +311,10 @@ ok('and the page is unchanged by asking', (await count('Book the dentist')) === 
 
 // ── A file that is not a copy ──
 await openAccount();
-const wrong = page.waitForEvent('filechooser', { timeout: 15000 });
 await page.getByText('Restore from a copy', { exact: true }).click();
+await page.waitForTimeout(500);
+const wrong = page.waitForEvent('filechooser', { timeout: 15000 });
+await page.getByLabel('Choose a file').click();
 (await wrong).setFiles({ name: 'notes.json', mimeType: 'application/json', buffer: Buffer.from('{"hello":"world"}') });
 await appears(/not a DayFlow copy/i);
 await page.waitForTimeout(300);
