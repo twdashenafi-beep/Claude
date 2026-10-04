@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { parseConfig, verifyConfig } from '../services/syncConfig';
 import { configureSync } from '../services/supabase';
-import { COLORS, SERIF, SANS, SHEET_MAX_WIDTH } from '../utils/theme';
+import { COLORS, SERIF, SANS, SHEET_MAX_WIDTH, typeSize } from '../utils/theme';
 
 const BUILD_ID = process.env.EXPO_PUBLIC_BUILD_ID || 'dev';
 
@@ -152,50 +152,50 @@ const s = StyleSheet.create({
     shadowOpacity: 0.14, shadowRadius: 18, elevation: 3,
   },
   wordmark: {
-    fontFamily: SERIF, fontSize: 12.5, letterSpacing: 3,
+    fontFamily: SERIF, fontSize: typeSize(12.5), letterSpacing: 3,
     textTransform: 'uppercase', color: COLORS.inkSoft,
   },
-  title: { fontFamily: SERIF, fontSize: 25, color: COLORS.ink, marginTop: 10 },
+  title: { fontFamily: SERIF, fontSize: typeSize(25), color: COLORS.ink, marginTop: 10 },
   rule: { height: 1, backgroundColor: COLORS.pencil, marginTop: 12 },
   blurb: {
-    fontFamily: SERIF, fontSize: 13.5, fontStyle: 'italic', lineHeight: 20,
+    fontFamily: SERIF, fontSize: typeSize(13.5), fontStyle: 'italic', lineHeight: typeSize(20),
     color: COLORS.inkSoft, marginTop: 16, marginBottom: 16,
   },
-  step: { fontFamily: SANS, fontSize: 13.5, color: COLORS.ink, lineHeight: 22 },
+  step: { fontFamily: SANS, fontSize: typeSize(13.5), color: COLORS.ink, lineHeight: typeSize(22) },
   label: {
-    fontFamily: SANS, fontSize: 11, letterSpacing: 1.4, textTransform: 'uppercase',
+    fontFamily: SANS, fontSize: typeSize(11), letterSpacing: 1.4, textTransform: 'uppercase',
     color: COLORS.inkSoft, marginTop: 22, marginBottom: 2,
   },
   input: {
-    fontFamily: SANS, fontSize: 15, color: COLORS.ink,
+    fontFamily: SANS, fontSize: typeSize(15), color: COLORS.ink,
     borderBottomWidth: 1, borderBottomColor: COLORS.rule,
     paddingVertical: 10, outlineStyle: 'none',
   },
   keyInput: { minHeight: 62 },
   hint: {
-    fontFamily: SANS, fontSize: 12, lineHeight: 17,
+    fontFamily: SANS, fontSize: typeSize(12), lineHeight: typeSize(17),
     color: COLORS.inkFaint, marginTop: 7,
   },
-  fix: { fontFamily: SANS, fontSize: 12.5, color: COLORS.inkSoft, marginTop: 12 },
-  error: { fontFamily: SANS, fontSize: 13, lineHeight: 19, color: COLORS.accent, marginTop: 14 },
+  fix: { fontFamily: SANS, fontSize: typeSize(12.5), color: COLORS.inkSoft, marginTop: 12 },
+  error: { fontFamily: SANS, fontSize: typeSize(13), lineHeight: typeSize(19), color: COLORS.accent, marginTop: 14 },
   button: {
     backgroundColor: COLORS.ink, paddingVertical: 14, alignItems: 'center', marginTop: 24,
   },
   buttonBusy: { opacity: 0.6 },
   buttonText: {
-    fontFamily: SANS, fontSize: 14, fontWeight: '600', color: COLORS.sheet,
+    fontFamily: SANS, fontSize: typeSize(14), fontWeight: '600', color: COLORS.sheet,
     letterSpacing: 1.2, textTransform: 'uppercase',
   },
   switch: {
-    fontFamily: SANS, fontSize: 13, color: COLORS.inkSoft,
+    fontFamily: SANS, fontSize: typeSize(13), color: COLORS.inkSoft,
     textAlign: 'center', marginTop: 18,
   },
   footnote: {
-    fontFamily: SANS, fontSize: 11.5, lineHeight: 17,
+    fontFamily: SANS, fontSize: typeSize(11.5), lineHeight: typeSize(17),
     color: COLORS.inkFaint, marginTop: 22,
   },
   build: {
-    fontFamily: SANS, fontSize: 10.5, letterSpacing: 0.8,
+    fontFamily: SANS, fontSize: typeSize(10.5), letterSpacing: 0.8,
     color: COLORS.inkFaint, marginTop: 14, textAlign: 'right',
   },
 });

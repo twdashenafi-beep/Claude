@@ -4,6 +4,8 @@ import React, {
 import Store from '../services/store';
 import { scheduleTaskNotifications, cancelTaskNotifications } from '../services/notifications';
 import { createTaskEncryptor, decryptTask } from '../services/encryption';
+import { noteStage, nowMs, openingLine, openingRecord, wasSlow } from '../services/opening';
+import Opening from '../components/Opening';
 import { newId } from '../utils/id';
 import { pullTasks, pushTasks, mergeTasks, watchTasks } from '../services/sync';
 import { orderForNewTask } from '../services/ordering';
@@ -38,6 +40,31 @@ const SYNC_DEBOUNCE_MS = 800;
 // things in a row is one push, short enough to feel immediate on the device
 // watching.
 const PUSH_DEBOUNCE_MS = 1200;
+
+// A stored row this big is carrying a recording. A row that is only words is
+// under two kilobytes; one with a minute of audio in it is hundreds.
+//
+// Used for nothing but reporting: the decrypt does the same work either way.
+// But sixteen of these are two thirds of everything stored on this device and
+// none of them is on the screen you are waiting for, so whether they own the
+// wait is the one number worth having.
+const A_RECORDING = 20000;
+
+// How long the thread may be held before it has to let the screen draw.
+// Decrypting runs on the same thread as drawing, so without this the app is
+// simply frozen for as long as the vault takes.
+const SLICE_MS = 60;
+
+// How often the count on screen is refreshed.
+//
+// Not the same question as how often to breathe. Yielding often is what keeps
+// the screen alive; re-rendering as often is just work, and a figure that
+// changes sixteen times a second is not more honest than one that changes five
+// times — it is the same truth, read by nobody, at four times the cost.
+
+const TELL_MS = 200;
+
+const breathe = () => new Promise(resolve => setTimeout(resolve, 0));
 
 // Every mutation stamps updatedAt. Merging across devices has nothing else to
 // go on — the server cannot read the task — so the timestamp is what decides
@@ -74,16 +101,40 @@ export function TaskProvider({ children, encryptionKey, synced }) {
   const tasksRef = useRef([]);
 
   // ── Local vault ───────────────────────────────────────────────────────────
+  //
+  // Decrypted a slice at a time rather than in one go. AES runs on the same
+  // thread that draws, so a vault with recordings in it held that thread for
+  // several seconds — and what was on screen while it did was an empty day,
+  // which looks exactly like having lost everything. Breathing between slices
+  // costs a few milliseconds and lets the screen say what is happening.
+  //
+  // How long each part took is kept, because "about ten seconds" is not a
+  // number anybody can fix. See services/opening.js.
+  const [opening, setOpening] = useState(null);
+  // What the wait came to, when it came to enough to be worth saying.
+  const [slowOpening, setSlowOpening] = useState('');
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      // Not begun here. The clock starts on the unlock screen, so what is
+      // reported is the whole wait — deriving the key, or asking for a face,
+      // and then this.
       try {
+        const readAt = nowMs();
         const stored = await Store.getItem(STORAGE_KEY);
+        noteStage('reading', nowMs() - readAt);
         if (stored) {
           const vault = JSON.parse(stored);
           const rows = Array.isArray(vault) ? vault : vault.rows || [];
           tombstones.current = (Array.isArray(vault) ? [] : vault.tombstones) || [];
           const decrypted = [];
+          const plain = { count: 0, ms: 0 };
+          const heavy = { count: 0, ms: 0 };
+          let breathedAt = nowMs();
+          let toldAt = 0;
+          let done = 0;
+          const loopFrom = nowMs();
           for (const row of rows) {
             // Per row, not per vault. A single malformed entry threw on the
             // first property read and the catch below abandoned the whole load
@@ -91,10 +142,38 @@ export function TaskProvider({ children, encryptionKey, synced }) {
             // then overwrote the file it came from.
             try {
               if (!row || typeof row !== 'object') continue;
+              const startedAt = nowMs();
               const task = decryptTask(row.ciphertext, encryptionKey);
+              const bucket = String(row.ciphertext || '').length >= A_RECORDING ? heavy : plain;
+              bucket.count += 1;
+              bucket.ms += nowMs() - startedAt;
               if (task) decrypted.push({ ...task, id: row.id, updatedAt: row.updatedAt });
             } catch { /* skip the row, keep the rest */ }
+            done += 1;
+            if (nowMs() - breathedAt >= SLICE_MS) {
+              if (nowMs() - toldAt >= TELL_MS) {
+                setOpening({ done, total: rows.length });
+                toldAt = nowMs();
+              }
+              await breathe();
+              if (cancelled) return;
+              breathedAt = nowMs();
+            }
           }
+          noteStage(`${plain.count} ${plain.count === 1 ? 'task' : 'tasks'}`, plain.ms);
+          if (heavy.count) {
+            noteStage(
+              `${heavy.count} with ${heavy.count === 1 ? 'a recording' : 'recordings'}`,
+              heavy.ms
+            );
+          }
+          // Everything the loop cost that was not decrypting: the yields, and
+          // the renders they exist to allow. Reported rather than buried,
+          // because it is the price of the screen that says what is happening,
+          // and whoever pays it should be able to see what it came to. Last,
+          // because it is the only line here that is the app's own doing.
+          const drawing = nowMs() - loopFrom - plain.ms - heavy.ms;
+          if (drawing > 0) noteStage('letting the screen draw', drawing);
           if (!cancelled) { tasksRef.current = decrypted; setTasks(decrypted); }
         }
       } catch (e) {
@@ -116,7 +195,12 @@ export function TaskProvider({ children, encryptionKey, synced }) {
           );
         }
       }
-      if (!cancelled) setLoaded(true);
+      if (!cancelled) {
+        setOpening(null);
+        setLoaded(true);
+        // Said on the page rather than filed somewhere it has to be found.
+        if (wasSlow(openingRecord())) setSlowOpening(openingLine());
+      }
     })();
     return () => { cancelled = true; };
   }, [encryptionKey]);
@@ -591,6 +675,7 @@ export function TaskProvider({ children, encryptionKey, synced }) {
       value={{
         tasks: visibleTasks, addTask, toggleTask, deleteTask, restoreTask, updateTask,
         reorderTasks, syncState, syncNow, storageError, vaultError,
+        slowOpening, dismissSlowOpening: () => setSlowOpening(''),
         // The same function under a second name. Tasks and projects are one
         // record list underneath, and both carry an order, so moving either is
         // the same write — but a caller passing project changes to something
@@ -602,7 +687,10 @@ export function TaskProvider({ children, encryptionKey, synced }) {
         tombstones: tombstones.current,
       }}
     >
-      {children}
+      {/* Only while the wait is long enough to have noticed: a vault that
+          decrypts inside one slice never sets this, so a small list opens
+          straight into the day with nothing flashing in front of it. */}
+      {opening ? <Opening done={opening.done} total={opening.total} /> : children}
     </TaskContext.Provider>
   );
 }

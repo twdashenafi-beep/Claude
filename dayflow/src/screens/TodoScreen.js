@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView, useWindowDimensions,
+  AppState,
 } from 'react-native';
 import { useTasks } from '../context/TaskContext';
 import { sortForDisplay, targetIndex, shiftFor, moveWithin } from '../services/ordering';
@@ -9,7 +10,7 @@ import { recordChase } from '../services/chase';
 import { isReckoningDay } from '../services/reckoning';
 import { eventsFor } from '../services/calendarFeed';
 import { scopeNow, horizonStamp } from '../services/scope';
-import { spanLoad, loadLine, gapsLine } from '../services/agenda';
+import { spanLoad } from '../services/agenda';
 import { EVERYTHING, projectOf, projectName } from '../services/projects';
 import { moveTick } from '../services/haptics';
 import { ARCHIVE, deletionOf } from '../services/archive';
@@ -21,6 +22,7 @@ import ProjectBar from '../components/ProjectBar';
 import ArchiveSheet from '../components/ArchiveSheet';
 import SearchSheet from '../components/SearchSheet';
 import ViewToggle from '../components/ViewToggle';
+import DayBar from '../components/DayBar';
 import AddTaskModal from '../components/AddTaskModal';
 import TaskDetail from '../components/TaskDetail';
 import AIInput from '../components/AIInput';
@@ -29,7 +31,7 @@ import WeekReckoning from '../components/WeekReckoning';
 import ConfettiOverlay from '../components/ConfettiOverlay';
 import AccountSheet from '../components/AccountSheet';
 import { VIEW_MODES } from '../utils/constants';
-import { COLORS, SERIF, SANS, SHEET_MAX_WIDTH } from '../utils/theme';
+import { COLORS, SERIF, SANS, mainSheetWidth, typeSize } from '../utils/theme';
 import { format, startOfWeek } from 'date-fns';
 
 const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
@@ -262,7 +264,7 @@ function Column({
 export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
   const {
     tasks, addTask, toggleTask, deleteTask, restoreTask, updateTask, reorderTasks, syncState,
-    storageError, vaultError,
+    storageError, vaultError, slowOpening, dismissSlowOpening,
     projects, addProject, renameProject, deleteProject, moveTaskToProject, reorderProjects,
     archived, archiveTask, archiveTasks, unarchiveTask, deleteTasks, restoreTasks,
     importTasks, tombstones,
@@ -283,10 +285,16 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
 
   // What the day already contains.
   //
-  // Read once when the vault opens and then left alone. A diary is not a live
-  // feed — nobody's Tuesday changes while they are looking at it often enough
-  // to be worth polling for — and re-reading it on every render would ask the
-  // phone for calendar permission in a loop.
+  // Read when the vault opens, and again when the app comes back to the front.
+  // Not polled: a diary is not a live feed, and re-reading it on every render
+  // would ask the phone for calendar permission in a loop.
+  //
+  // Coming back is the right moment because it is the only one where a stale
+  // diary is visible. A calendar subscribed through the phone — a Proton link,
+  // say — is refreshed by iOS on its own schedule, so an event added elsewhere
+  // arrives in the phone's calendar while DayFlow is in the background and was
+  // then missed until the next unlock. Nothing about that is obvious from the
+  // outside: the day simply says the wrong thing.
   const [diary, setDiary] = useState(null);
   // Bumped when a calendar is imported or forgotten, so the day's line changes
   // as soon as you close the sheet rather than on the next launch.
@@ -299,6 +307,18 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
       .catch(() => {});
     return () => { dropped = true; };
   }, [dataKey, diaryAt]);
+
+  // Coming back to the app is when somebody looks at the day again, and a phone
+  // keeps an app alive in the background for days. Without this a meeting added
+  // in Proton this morning waited for the next cold start; now it waits for the
+  // next time DayFlow is brought forward. A linked calendar is only fetched when
+  // its copy is half an hour old, so this costs nothing most of the time.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', state => {
+      if (state === 'active') setDiaryAt(n => n + 1);
+    });
+    return () => sub.remove();
+  }, []);
   const [banner, setBanner] = useState(null);
 
   // Which project's sheet is on screen. Empty is the main list, and the bar
@@ -599,14 +619,18 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
   // Week, this month on Month. The whole three weeks is loaded so that a time
   // given to a task next Thursday can be checked against Thursday, and showing
   // all of it wherever you happened to be was the bug this fixes.
-  const load = useMemo(
-    () => (diary ? spanLoad(inView, diary.events, new Date(), viewMode) : null),
-    [diary, inView, viewMode, today],
-  );
-  const dayLine = useMemo(() => {
-    if (!load || searching || project === ARCHIVE) return null;
-    return [loadLine(load), gapsLine(load)].filter(Boolean).join('  ·  ') || null;
-  }, [load, searching, project]);
+  const load = useMemo(() => {
+    if (!diary) return null;
+    // One reading of the clock for both the figures and the tick that says
+    // where you are standing, so the drawing cannot disagree with its own
+    // caption by the few milliseconds between two calls to Date.now().
+    const at = new Date();
+    return { ...spanLoad(inView, diary.events, at, viewMode), at };
+  }, [diary, inView, viewMode, today]);
+  // The day's shape, or the day in a sentence when there is no shape to draw.
+  // The arithmetic for both is in agenda.js; this only decides whether the
+  // page is one the diary has anything to say about.
+  const showDiary = !!load && !searching && project !== ARCHIVE;
 
   // Search reaches past the current page by design, so it is handed the
   // archive as well as what is on screen — the whole point is not having to
@@ -697,7 +721,7 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={[s.sheet, { paddingHorizontal: gutter }]}>
+        <View style={[s.sheet, { maxWidth: mainSheetWidth(width), paddingHorizontal: gutter }]}>
           {/* Masthead */}
           <View style={s.mastheadRow}>
             {/* Four actions and a wordmark do not fit across a phone: Account
@@ -789,11 +813,28 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
           {/* The hours that are already spoken for. A line rather than a
               panel: it is context for the list underneath, not a thing to
               look at on its own. */}
-          {dayLine ? <Text style={s.diary} dataSet={{ diaryline: 'true' }}>{dayLine}</Text> : null}
+          {showDiary ? <DayBar load={load} now={load.at} /> : null}
 
           {/* A device that has stopped saving says so, in the one place that is
               always on screen. Not the undo bar at the bottom: that clears
               itself after a few seconds, and this is true until it is not. */}
+          {/* Only when opening took long enough that somebody noticed. It is a
+              real fault reported where it happened, and it goes away when
+              tapped — the alternative was asking somebody to go and read it
+              out of a settings screen, which does not survive contact with
+              anybody having a day. */}
+          {slowOpening ? (
+            <TouchableOpacity
+              style={s.storageBar}
+              onPress={dismissSlowOpening}
+              accessibilityRole="button"
+              accessibilityLabel={`${slowOpening}. Tap to dismiss.`}
+            >
+              <Text style={s.storageText}>{slowOpening}</Text>
+              <Text style={s.storageHint}>Tap to dismiss</Text>
+            </TouchableOpacity>
+          ) : null}
+
           {vaultError ? (
             <View style={s.storageBar} accessibilityRole="alert">
               <Text style={s.storageText}>{vaultError}</Text>
@@ -1066,9 +1107,9 @@ const s = StyleSheet.create({
     marginTop: 12, padding: 12,
     borderWidth: 1, borderColor: COLORS.accent, borderRadius: 4,
   },
-  storageText: { fontFamily: SANS, fontSize: 13, fontWeight: '600', color: COLORS.accent },
+  storageText: { fontFamily: SANS, fontSize: typeSize(13), fontWeight: '600', color: COLORS.accent },
   storageHint: {
-    fontFamily: SERIF, fontSize: 12.5, fontStyle: 'italic',
+    fontFamily: SERIF, fontSize: typeSize(12.5), fontStyle: 'italic',
     color: COLORS.inkSoft, marginTop: 4,
   },
   // The tappable half of the strip: everything but the dismiss.
@@ -1079,9 +1120,9 @@ const s = StyleSheet.create({
     gap: 16, paddingHorizontal: 20, paddingVertical: 13,
     backgroundColor: COLORS.accent,
   },
-  alertText: { flex: 1, fontFamily: SERIF, fontSize: 13.5, color: COLORS.sheet },
+  alertText: { flex: 1, fontFamily: SERIF, fontSize: typeSize(13.5), color: COLORS.sheet },
   alertAction: {
-    fontFamily: SANS, fontSize: 12, fontWeight: '700', letterSpacing: 1.2,
+    fontFamily: SANS, fontSize: typeSize(12), fontWeight: '700', letterSpacing: 1.2,
     color: COLORS.sheet,
   },
   undoBar: {
@@ -1090,9 +1131,9 @@ const s = StyleSheet.create({
     gap: 16, paddingHorizontal: 20, paddingVertical: 13,
     backgroundColor: COLORS.ink,
   },
-  undoText: { flex: 1, fontFamily: SERIF, fontSize: 13.5, color: COLORS.sheet },
+  undoText: { flex: 1, fontFamily: SERIF, fontSize: typeSize(13.5), color: COLORS.sheet },
   undoAction: {
-    fontFamily: SANS, fontSize: 12, fontWeight: '700', letterSpacing: 1.2,
+    fontFamily: SANS, fontSize: typeSize(12), fontWeight: '700', letterSpacing: 1.2,
     color: COLORS.sheet,
   },
   desk: { flex: 1, backgroundColor: COLORS.desk },
@@ -1100,7 +1141,6 @@ const s = StyleSheet.create({
 
   sheet: {
     width: '100%',
-    maxWidth: SHEET_MAX_WIDTH,
     flexGrow: 1,
     backgroundColor: COLORS.sheet,
     borderLeftWidth: StyleSheet.hairlineWidth,
@@ -1132,20 +1172,19 @@ const s = StyleSheet.create({
   // Same, and worth more: this one is eleven pixels wide.
   plusHit: { paddingVertical: 8, paddingHorizontal: 12, marginVertical: -8, marginHorizontal: -12 },
   lock: {
-    fontFamily: SANS, fontSize: 11.5, letterSpacing: 0.6,
+    fontFamily: SANS, fontSize: typeSize(11.5), letterSpacing: 0.6,
     textTransform: 'uppercase', color: COLORS.inkSoft, fontWeight: '600',
   },
   wordmark: {
-    fontFamily: SERIF, fontSize: 12.5, letterSpacing: 3,
+    fontFamily: SERIF, fontSize: typeSize(12.5), letterSpacing: 3,
     textTransform: 'uppercase', color: COLORS.inkSoft,
   },
   briefing: {
-    fontFamily: SANS, fontSize: 11.5, letterSpacing: 0.6,
+    fontFamily: SANS, fontSize: typeSize(11.5), letterSpacing: 0.6,
     textTransform: 'uppercase', color: COLORS.accent, fontWeight: '600',
   },
-  date: { fontFamily: SERIF, fontSize: 25, color: COLORS.ink, marginTop: 10, letterSpacing: -0.3 },
-  tally: { fontFamily: SANS, fontSize: 12, color: COLORS.inkFaint, marginTop: 4 },
-  diary: { fontFamily: SANS, fontSize: 12, color: COLORS.inkSoft, marginTop: 3 },
+  date: { fontFamily: SERIF, fontSize: typeSize(25), color: COLORS.ink, marginTop: 10, letterSpacing: -0.3 },
+  tally: { fontFamily: SANS, fontSize: typeSize(12), color: COLORS.inkFaint, marginTop: 4 },
 
   // Headings sit above the rule, one per column.
   headings: { flexDirection: 'row', alignItems: 'flex-end' },
@@ -1156,10 +1195,10 @@ const s = StyleSheet.create({
     justifyContent: 'space-between', paddingBottom: 7,
   },
   headText: {
-    fontFamily: SERIF, fontSize: 17, letterSpacing: 2.4,
+    fontFamily: SERIF, fontSize: typeSize(17), letterSpacing: 2.4,
     textTransform: 'uppercase', color: COLORS.ink,
   },
-  addGlyph: { fontFamily: SANS, fontSize: 19, color: COLORS.inkFaint, lineHeight: 22 },
+  addGlyph: { fontFamily: SANS, fontSize: typeSize(19), color: COLORS.inkFaint, lineHeight: typeSize(22) },
 
   headRule: { height: 1, backgroundColor: COLORS.pencil },
 
@@ -1170,18 +1209,18 @@ const s = StyleSheet.create({
   column: { paddingTop: 6 },
 
   empty: {
-    fontFamily: SERIF, fontSize: 13.5, fontStyle: 'italic',
+    fontFamily: SERIF, fontSize: typeSize(13.5), fontStyle: 'italic',
     color: COLORS.inkFaint, paddingVertical: 14,
   },
 
   columnFoot: { paddingTop: 10, gap: 6 },
   footActions: { flexDirection: 'row', gap: 16, flexWrap: 'wrap' },
-  footLink: { fontFamily: SANS, fontSize: 12, color: COLORS.inkSoft },
+  footLink: { fontFamily: SANS, fontSize: typeSize(12), color: COLORS.inkSoft },
 
   totalBlock: { paddingTop: 14 },
   totalRule: { height: 1, backgroundColor: COLORS.rule, marginBottom: 6 },
   totalText: {
-    fontFamily: SERIF, fontSize: 12.5, fontStyle: 'italic', color: COLORS.inkSoft,
+    fontFamily: SERIF, fontSize: typeSize(12.5), fontStyle: 'italic', color: COLORS.inkSoft,
     textAlign: 'right',
   },
 });

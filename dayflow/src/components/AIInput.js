@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Animated, Platform } from 'react-native';
-import { speechEngine } from '../services/speech';
+import { speechEngine, withSpeechPermission } from '../services/speech';
 import { parseNaturalLanguage } from '../services/nlParser';
 import { whenPreview } from '../services/due';
 import { clashNote } from '../services/agenda';
 import { deviceZone } from '../services/zones';
-import { COLORS, SANS, SERIF } from '../utils/theme';
+import { COLORS, SANS, SERIF, typeSize } from '../utils/theme';
 
 // How long a pause means the sentence is over, when the button was tapped
 // rather than held. Long enough to think of the next word, short enough that
@@ -24,6 +24,24 @@ const HOLD_MS = 350;
 // is on restarts that produce nothing: without it, a microphone that cannot
 // hear at all would restart forever.
 const MAX_EMPTY_RESTARTS = 3;
+
+// And a ceiling on restarts of any kind.
+//
+// The cap above counts only restarts that heard nothing, and it resets the
+// moment anything is said — which is fine for a browser that gives up
+// occasionally and fatal for a phone that ends the session after every phrase.
+// There, something had always just been said, so the counter was always zero
+// and the loop had no end: each cycle another recogniser, each recogniser
+// another task.
+const MAX_RESTARTS = 8;
+
+// How long a start is given before it is treated as never having happened.
+//
+// On a phone start() is asynchronous — it asks for permission and only then
+// reaches the recogniser — so a failure on that path arrives as neither a throw
+// nor an error event. Nothing happens at all, and the button simply looks
+// broken. Generous, because a cold start on a phone is not instant.
+const START_GRACE_MS = 5000;
 
 // "Owe me" on its own is not a sentence anybody has finished saying. It is an
 // instruction with its task still to come, and naming the column first is
@@ -72,6 +90,13 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo', diary
   const [preview, setPreview] = useState(null);
   const [processing, setProcessing] = useState(false);
   const [listening, setListening] = useState(false);
+  // A column was named and the task has not arrived yet. "Owe me", then a
+  // think. The app already waits through that pause rather than ending the
+  // sentence — but it said "pause when you have finished", which is the wrong
+  // instruction at the one moment it matters: nothing has been started, let
+  // alone finished, and the silence it is forgiving looks identical to the
+  // silence that ends a sentence.
+  const [awaitingTask, setAwaitingTask] = useState(false);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const recognitionRef = useRef(null);
   const silenceTimer = useRef(null);
@@ -173,12 +198,30 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo', diary
   const spoken = useRef('');          // final transcript so far, across restarts
   const base = useRef('');            // whatever was typed before dictation began
   const emptyRestarts = useRef(0);
+  // Restarts of any kind, which is the number that actually has to be bounded.
+  const restarts = useRef(0);
+  // What earlier sessions of this same dictation left behind, and what the
+  // current one has heard. Kept apart because only the second is rebuilt from
+  // scratch on every result — see onresult.
+  const carried = useRef('');
+  const thisRun = useRef('');
+  // One dictation, one task. Both halves are needed: the run this recogniser
+  // belongs to, so an abandoned one cannot speak for the current one, and
+  // whether that run has already had its say.
+  const runId = useRef(0);
+  const submitted = useRef(false);
   const pressAt = useRef(0);
   // How many extra pauses a command with no task after it has been given.
   const commandWaits = useRef(0);
-  // The recording running alongside dictation, when the device allows one.
-  const capture = useRef(null);
 
+  // Only ever called on a recogniser that is still live, because the reference
+  // is dropped the moment one ends. That distinction is not cosmetic: on a
+  // phone the engine is a single shared module and abort() is its global stop,
+  // so aborting a recogniser that has already finished reaches past it and
+  // stops whatever the module is doing next. Which is what happened — the
+  // first dictation after opening the app worked, because there was nothing
+  // stale to tear down, and every one after it was aborted by the corpse of
+  // the one before.
   const teardown = r => {
     if (!r) return;
     r.onstart = null; r.onresult = null; r.onerror = null; r.onend = null;
@@ -205,10 +248,21 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo', diary
       // line half typed is not thrown away by reaching for the microphone.
       base.current = text.trim();
       spoken.current = '';
+      carried.current = '';
+      thisRun.current = '';
       emptyRestarts.current = 0;
+      restarts.current = 0;
+      submitted.current = false;
+      runId.current += 1;
       commandWaits.current = 0;
+      setAwaitingTask(false);
       setSpeechError('');
     }
+
+    // Which dictation this recogniser belongs to. A restart keeps the number;
+    // a fresh press does not, which is what lets an abandoned recogniser be
+    // recognised as abandoned when it finally ends.
+    const myRun = runId.current;
 
     const r = new Engine();
     r.continuous = true;
@@ -246,18 +300,46 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo', diary
     const show = interim => {
       const display = joinSpeech(joinSpeech(base.current, spoken.current), interim);
       setText(display);
-      setPreview(display.trim().length > 2 ? parseNaturalLanguage(display) : null);
+      const read = display.trim().length > 2 ? parseNaturalLanguage(display) : null;
+      setPreview(read);
+      // Said where it goes, not yet what it is. Read from the parser rather
+      // than matched against a list of command words here, so the two cannot
+      // drift: whatever it treats as routing is what this waits on.
+      setAwaitingTask(!!read && read.commanded && read.title.trim() === '');
     };
 
-    r.onstart = () => { setListening(true); armSilence(); };
+    let started = false;
+    r.onstart = () => { started = true; setListening(true); armSilence(); };
 
+    // Rebuilt from the whole event rather than added to, which is the only
+    // reading that is right on both engines.
+    //
+    // A browser sends the results it has, with resultIndex pointing at the
+    // first that changed, so appending from that index works. A phone sends,
+    // every single time, one result at index zero holding the entire
+    // transcript so far:
+    //
+    //     resultIndex: 0,
+    //     results: [ new Result(isFinal, alternatives) ]
+    //
+    // Appending that means appending the whole sentence again at every event,
+    // and on iOS 18 nearly every event is flagged final — so "Call Bob at 8 PM"
+    // arrived as "Call Bob Call Bob at 8 PM Call Bob at 8 PM".
+    //
+    // Reading every result from the start costs nothing and is correct for
+    // both: a browser's list is the whole session, a phone's is the whole
+    // transcript. What a restart left behind is kept separately, because that
+    // is the one thing no event can tell us.
     r.onresult = e => {
+      let finals = '';
       let interim = '';
-      for (let i = e.resultIndex; i < e.results.length; i++) {
+      for (let i = 0; i < e.results.length; i += 1) {
         const said = e.results[i][0].transcript;
-        if (e.results[i].isFinal) spoken.current = joinSpeech(spoken.current, said);
+        if (e.results[i].isFinal) finals = joinSpeech(finals, said);
         else interim = joinSpeech(interim, said);
       }
+      thisRun.current = finals;
+      spoken.current = joinSpeech(carried.current, thisRun.current);
       emptyRestarts.current = 0;
       show(interim);
       armSilence();
@@ -273,15 +355,30 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo', diary
       wants.current = false;
       clearTimeout(silenceTimer.current);
       setListening(false);
+      setAwaitingTask(false);
       // A browser normally follows an error with an end of its own, which
       // releases the microphone. Not every one does, and a microphone left open
       // after a failure is the worst of both — no dictation, and the recording
       // indicator still lit. So end it here rather than assume.
       try { r.abort(); } catch { /* already finished */ }
+      if (recognitionRef.current === r) recognitionRef.current = null;
     };
 
     r.onend = () => {
       clearTimeout(silenceTimer.current);
+      // Spent. Held on to, it becomes the thing that stops the next one.
+      if (recognitionRef.current === r) recognitionRef.current = null;
+
+      // A recogniser from a dictation that is already over. It has nothing to
+      // say about this one, and letting it speak is how one sentence became
+      // four tasks.
+      if (myRun !== runId.current) return;
+
+      // Whatever this session heard is now settled. Moved across before any
+      // restart, because the next session's results replace thisRun entirely.
+      carried.current = joinSpeech(carried.current, thisRun.current);
+      thisRun.current = '';
+      spoken.current = carried.current;
 
       // Ended on its own while still wanted. Safari does this constantly, and
       // treating it as the end of the sentence is what made dictation feel like
@@ -289,7 +386,8 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo', diary
       if (wants.current) {
         if (spoken.current) emptyRestarts.current = 0;
         else emptyRestarts.current += 1;
-        if (emptyRestarts.current <= MAX_EMPTY_RESTARTS) {
+        restarts.current += 1;
+        if (emptyRestarts.current <= MAX_EMPTY_RESTARTS && restarts.current <= MAX_RESTARTS) {
           setTimeout(() => { if (wants.current) startListening(true); }, 120);
           return;
         }
@@ -297,11 +395,32 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo', diary
       }
 
       setListening(false);
+      setAwaitingTask(false);
+      // Once. A dictation that ends twice is still one thing somebody said.
+      if (submitted.current) return;
+      submitted.current = true;
       const said = joinSpeech(base.current, spoken.current);
       setTimeout(() => { if (said.trim()) submitRef.current(said); }, 120);
     };
 
-    try { r.start(); } catch { /* already running */ }
+    try {
+      r.start();
+    } catch {
+      // Only a browser throws here, and only for a double start.
+    }
+
+    // Nothing at all is the failure that has no symptom. Said out loud rather
+    // than left as a button that does nothing, because a silent dead
+    // microphone is how the last one went unnoticed for a whole build.
+    setTimeout(() => {
+      if (started || !wants.current || recognitionRef.current !== r) return;
+      wants.current = false;
+      clearTimeout(silenceTimer.current);
+      setListening(false);
+      setAwaitingTask(false);
+      recognitionRef.current = null;
+      setSpeechError('Dictation did not start — tap the microphone again');
+    }, START_GRACE_MS);
   }, [text, stopListening]);
 
   // Press and hold to talk; a quick tap latches it on instead.
@@ -313,7 +432,12 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo', diary
     if (listening) { stopListening(); return; }
     pressAt.current = Date.now();
     latched.current = false;
-    startListening();
+    // A browser is asked for the microphone by being asked to listen; a phone
+    // has to be asked first, and says nothing useful if it is not.
+    withSpeechPermission(
+      () => startListening(),
+      () => setSpeechError(SPEECH_ERROR['not-allowed'])
+    );
   };
 
   const onMicPressOut = () => {
@@ -348,11 +472,12 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo', diary
             <Text style={st.sendIcon}>↑</Text>
           </TouchableOpacity>
         )}
-        {/* Only where there is something behind it. Speech recognition is a
-            browser API; on iOS and Android there is no such thing in the
-            bundle, and the button used to render there and do nothing at all
-            when tapped. Nothing is lost by hiding it — both keyboards carry a
-            dictation key of their own, which types into this same field. */}
+        {/* Only where there is something behind it — a button that renders and
+            does nothing when tapped is worse than none. In a browser that is
+            the browser's own engine; on a phone it is Apple's, reached through
+            a native module, and a build without that module has no button and
+            no error. Which of those is the case is said in Account → This
+            device, because on screen the two are the same absence. */}
         {speechEngine() ? (
           <TouchableOpacity
             style={[st.mic, listening && st.micActive]}
@@ -377,7 +502,11 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo', diary
         <View style={st.listenRow} dataSet={{ notice: 'true' }}>
           <Animated.View style={[st.dot, { transform: [{ scale: pulseAnim }] }]} />
           <Text style={st.listenText}>
-            {latched.current ? 'Listening — pause when you have finished' : 'Listening — let go to add it'}
+            {awaitingTask
+              ? 'Listening — now say the task'
+              : latched.current
+                ? 'Listening — pause when you have finished'
+                : 'Listening — let go to add it'}
           </Text>
         </View>
       )}
@@ -449,29 +578,29 @@ const st = StyleSheet.create({
     paddingBottom: 7,
   },
   barActive: { borderBottomColor: COLORS.accent },
-  pen: { fontSize: 14, color: COLORS.inkFaint },
+  pen: { fontSize: typeSize(14), color: COLORS.inkFaint },
   input: {
-    flex: 1, fontFamily: SANS, fontSize: 15.5, color: COLORS.ink,
+    flex: 1, fontFamily: SANS, fontSize: typeSize(15.5), color: COLORS.ink,
     paddingVertical: 4, outlineStyle: 'none',
   },
   send: {
     width: 24, height: 24, borderRadius: 12, backgroundColor: COLORS.ink,
     justifyContent: 'center', alignItems: 'center',
   },
-  sendIcon: { fontSize: 13, color: COLORS.sheet, fontWeight: '700', marginTop: -1 },
+  sendIcon: { fontSize: typeSize(13), color: COLORS.sheet, fontWeight: '700', marginTop: -1 },
   mic: {
     width: 44, height: 44, borderRadius: 22,
     justifyContent: 'center', alignItems: 'center',
     marginRight: -10,
   },
   micActive: { backgroundColor: COLORS.accent },
-  micIcon: { fontSize: 16, lineHeight: 20 },
+  micIcon: { fontSize: typeSize(16), lineHeight: typeSize(20) },
   listenRow: { flexDirection: 'row', alignItems: 'center', paddingTop: 6, gap: 6 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.accent },
-  listenText: { fontFamily: SANS, fontSize: 11.5, color: COLORS.accent },
+  listenText: { fontFamily: SANS, fontSize: typeSize(11.5), color: COLORS.accent },
   previewRow: { flexDirection: 'row', alignItems: 'center', paddingTop: 6, gap: 10 },
-  previewText: { fontFamily: SERIF, fontSize: 12.5, fontStyle: 'italic', color: COLORS.inkFaint, flex: 1 },
-  tag: { fontFamily: SANS, fontSize: 10.5, letterSpacing: 0.6, color: COLORS.inkSoft, textTransform: 'uppercase' },
+  previewText: { fontFamily: SERIF, fontSize: typeSize(12.5), fontStyle: 'italic', color: COLORS.inkFaint, flex: 1 },
+  tag: { fontFamily: SANS, fontSize: typeSize(10.5), letterSpacing: 0.6, color: COLORS.inkSoft, textTransform: 'uppercase' },
   clash: { color: COLORS.accent, fontStyle: 'italic' },
-  creating: { fontFamily: SANS, fontSize: 11.5, color: COLORS.inkFaint, paddingTop: 6 },
+  creating: { fontFamily: SANS, fontSize: typeSize(11.5), color: COLORS.inkFaint, paddingTop: 6 },
 });

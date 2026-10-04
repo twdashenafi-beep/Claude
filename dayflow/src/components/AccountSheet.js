@@ -4,7 +4,7 @@ import {
   ActivityIndicator, Platform,
 } from 'react-native';
 import { changePassword, newRecoveryCode, deleteAccount } from '../services/account';
-import { COLORS, SERIF, SANS } from '../utils/theme';
+import { COLORS, SERIF, SANS, typeSize } from '../utils/theme';
 
 // Account settings: change the password, issue a new recovery code, delete the
 // account. Deletion has to be reachable in-app — App Store Guideline 5.1.1(v)
@@ -16,12 +16,15 @@ import { inspectRows } from '../services/leak';
 import { buildBackup, backupText, backupFilename, describe } from '../services/backup';
 import { readBackup, planRestore, recordsOf, describePlan } from '../services/restore';
 import { saveTextFile, pickTextFile } from '../services/saveFile';
-import { saveFeed, readFeed, clearFeed, feedAge, FEED_KEY } from '../services/calendarFeed';
+import { saveFeed, saveFeedLink, readFeed, clearFeed, feedAge, FEED_KEY } from '../services/calendarFeed';
 import Store from '../services/store';
 import { STORAGE_KEY } from '../context/TaskContext';
 import { decryptTask } from '../services/encryption';
 import { isTask } from '../services/projects';
-import { summarise, deviceLines, bytesOf } from '../services/deviceReport';
+import { summarise, deviceLines, bytesOf, dictationLine, calendarLine } from '../services/deviceReport';
+import { openingLine } from '../services/opening';
+import { speechSource } from '../services/speech';
+import { calendarReading } from '../services/calendarFeed';
 import { canRemember, rememberedFor, remember, forget } from '../services/remember';
 
 // What to say after trying to play it. The first case is the interesting one:
@@ -83,10 +86,12 @@ export default function AccountSheet({
   // A copy that has been read and understood but not yet applied, and what
   // applying it would do.
   const [pending, setPending] = useState(null);
+  // The calendar link being pasted.
+  const [link, setLink] = useState('');
 
   const reset = () => {
     setView('menu'); setPassword(''); setConfirm(''); setTyped('');
-    setCode(''); setError(''); setDone(''); setPending(null);
+    setCode(''); setError(''); setDone(''); setPending(null); setLink('');
   };
 
   // Ask the server what it has, and read it back the way an intruder would.
@@ -179,7 +184,18 @@ export default function AccountSheet({
         calendarBytes: bytesOf(feedRaw),
       });
       setUnsaved(!summary.agrees);
-      setHeld(deviceLines(summary).join(' · '));
+      // What the last unlock cost, and which part of it cost that. Said here
+      // rather than on the unlock screen, because it is a question about this
+      // device rather than something to read while waiting.
+      const opened = openingLine();
+      const dictation = dictationLine(speechSource());
+      const diary = calendarLine(calendarReading());
+      setHeld([
+        ...deviceLines(summary),
+        ...(dictation ? [dictation] : []),
+        ...(diary ? [diary] : []),
+        ...(opened ? [opened] : []),
+      ].join(' · '));
     } catch (e) {
       setHeld(`Could not read what is stored: ${String((e && e.message) || e)}`);
     }
@@ -218,8 +234,17 @@ export default function AccountSheet({
   const chooseCopy = async () => {
     setError(''); setDone('');
     const file = await pickTextFile();
-    // Cancelled, or a browser that cannot do this. Neither is worth a message.
+    // Cancelled. Worth no message, because the person did it on purpose.
     if (!file) return;
+    // Not cancelled: the picker could not open at all. Worth saying, because
+    // this is the button somebody presses after losing everything, and it
+    // spent this long doing nothing in silence on a phone.
+    if (file.failed) {
+      setPending(null);
+      setView('restore');
+      setError(`Could not open a file: ${file.failed}`);
+      return;
+    }
     if (file.tooBig) {
       setPending(null);
       setView('restore');
@@ -276,6 +301,10 @@ export default function AccountSheet({
     setCalendar('');
     const file = await pickTextFile();
     if (!file) return;
+    if (file.failed) {
+      setCalendar(`Could not open a file: ${file.failed}`);
+      return;
+    }
     if (file.tooBig) {
       setCalendar('That file is too large to read');
       return;
@@ -298,6 +327,27 @@ export default function AccountSheet({
       setCalendar(`${held}${saved.name ? ` from ${saved.name}` : ''} · ${soon}`);
     } catch (e) {
       setCalendar(`Could not read it: ${String(e.message || e)}`);
+    }
+  };
+
+  // A subscription link: Proton's "Share via link", or the secret address any
+  // calendar service hands out. Read by the device itself, so it stays current
+  // without a file being exported again — and on a phone, where there is no
+  // file to pick, it is the only way a Proton diary gets here at all.
+  const readLink = async () => {
+    setError(''); setDone(''); setBusy(true);
+    try {
+      const saved = await saveFeedLink(link, dataKey);
+      if (!saved) throw new Error('That link does not lead to a calendar');
+      setFeed(saved);
+      setLink('');
+      if (onCalendar) onCalendar();
+      const soon = saved.ahead === 0 ? 'none in the next three weeks' : `${saved.ahead} in the next three weeks`;
+      setDone(`Connected${saved.name ? ` to ${saved.name}` : ''} · ${soon}. It is read again whenever DayFlow opens.`);
+    } catch (e) {
+      setError(String((e && e.message) || e));
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -386,6 +436,7 @@ export default function AccountSheet({
               : view === 'password' ? 'Change password'
               : view === 'code' ? 'Recovery code'
               : view === 'restore' ? 'Restore from a copy'
+              : view === 'calendar' ? 'Calendar link'
               : 'Delete account'}
           </Text>
           <View style={{ width: 46 }} />
@@ -417,13 +468,24 @@ export default function AccountSheet({
               {/* What the day already contains. Everything else in this app
                   treats a day as an empty container to put tasks into; a diary
                   is what makes that container the size it really is. */}
+              {/* A phone has no file to pick, so the file row is the web's
+                  alone; the link works on both. */}
+              {Platform.OS === 'web' ? (
+                <Row
+                  label={feed ? 'Calendar' : 'Read a calendar'}
+                  detail={calendar
+                    || (feed
+                      ? `${feed.name || 'Imported'} · ${typeof feed.ahead === 'number' ? `${feed.ahead} ahead · ` : ''}${feedAge({ source: 'file', at: feed.at }) || ''}`
+                      : CALENDAR_HINT)}
+                  onPress={chooseCalendar}
+                />
+              ) : null}
               <Row
-                label={feed ? 'Calendar' : 'Read a calendar'}
-                detail={calendar
-                  || (feed
-                    ? `${feed.name || 'Imported'} · ${typeof feed.ahead === 'number' ? `${feed.ahead} ahead · ` : ''}${feedAge({ source: 'file', at: feed.at }) || ''}`
-                    : CALENDAR_HINT)}
-                onPress={chooseCalendar}
+                label="Calendar link"
+                detail={feed && feed.url
+                  ? `${feed.name || 'Linked'} · ${typeof feed.ahead === 'number' ? `${feed.ahead} ahead · ` : ''}${feedAge({ source: 'file', at: feed.at }) || ''}`
+                  : 'Proton, Google or any calendar — paste its subscription link'}
+                onPress={() => { setError(''); setDone(''); setView('calendar'); }}
               />
               {feed ? (
                 <Row label="Forget the calendar" detail="Nothing else changes" onPress={forgetCalendar} />
@@ -568,6 +630,45 @@ export default function AccountSheet({
             </>
           ) : null}
 
+          {view === 'calendar' ? (
+            <>
+              <Text style={s.blurb}>
+                Proton Calendar keeps its events encrypted, so it never shares them
+                with the iPhone's own calendar — which is the only one DayFlow could
+                read until now. Give DayFlow the calendar's private link instead
+                and it reads it directly, every time it opens.
+              </Text>
+              <Text style={s.blurb}>
+                In Proton Calendar on the web: Settings › Calendars › your calendar
+                › Share › Share with anyone › Create link, then copy the link. Pick
+                "Full view" to see what each meeting is called.
+              </Text>
+              <Text style={s.blurb}>
+                Anyone with the link can see that calendar, and it is stored here
+                encrypted like your tasks. Turning the link off in Proton stops it.
+              </Text>
+              <TextInput
+                accessibilityLabel="Calendar link"
+                style={s.input} placeholder="https://calendar.proton.me/api/calendar/v1/url/…"
+                placeholderTextColor={COLORS.inkFaint}
+                autoCapitalize="none" autoCorrect={false} keyboardType="url"
+                value={link} onChangeText={setLink}
+              />
+              {error ? <Text style={s.error}>{error}</Text> : null}
+              {done ? <Text style={s.done}>{done}</Text> : null}
+              <TouchableOpacity
+                style={[s.button, (busy || !link.trim()) && s.busy]}
+                onPress={readLink} disabled={busy || !link.trim()}
+                accessibilityRole="button" accessibilityLabel="Connect this calendar link"
+              >
+                {busy ? <ActivityIndicator color={COLORS.sheet} /> : <Text style={s.buttonText}>Connect</Text>}
+              </TouchableOpacity>
+              {feed ? (
+                <Row label="Forget the calendar" detail={feed.name || 'Nothing else changes'} onPress={forgetCalendar} />
+              ) : null}
+            </>
+          ) : null}
+
           {view === 'delete' ? (
             <>
               <Text style={s.blurb}>
@@ -611,11 +712,11 @@ const s = StyleSheet.create({
   },
   // Seventeen pixels of text, and the only way out of this sheet.
   headerHit: { paddingVertical: 11, paddingRight: 16, marginVertical: -11, marginRight: -16 },
-  headerAction: { fontFamily: SANS, fontSize: 15, color: COLORS.accent, width: 46 },
-  headerTitle: { fontFamily: SERIF, fontSize: 16, color: COLORS.ink },
+  headerAction: { fontFamily: SANS, fontSize: typeSize(15), color: COLORS.accent, width: 46 },
+  headerTitle: { fontFamily: SERIF, fontSize: typeSize(16), color: COLORS.ink },
   body: { padding: 20 },
 
-  email: { fontFamily: SERIF, fontSize: 17, color: COLORS.ink },
+  email: { fontFamily: SERIF, fontSize: typeSize(17), color: COLORS.ink },
   rule: { height: 1, backgroundColor: COLORS.pencil, marginTop: 12, marginBottom: 4 },
   gap: { height: 26 },
 
@@ -625,31 +726,31 @@ const s = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COLORS.rule,
   },
   rowText: { flex: 1 },
-  rowLabel: { fontFamily: SANS, fontSize: 15.5, color: COLORS.ink },
-  rowDetail: { fontFamily: SERIF, fontSize: 12.5, fontStyle: 'italic', color: COLORS.inkFaint, marginTop: 2 },
+  rowLabel: { fontFamily: SANS, fontSize: typeSize(15.5), color: COLORS.ink },
+  rowDetail: { fontFamily: SERIF, fontSize: typeSize(12.5), fontStyle: 'italic', color: COLORS.inkFaint, marginTop: 2 },
   danger: { color: COLORS.accent },
-  chevron: { fontSize: 20, color: COLORS.inkFaint, fontWeight: '300' },
+  chevron: { fontSize: typeSize(20), color: COLORS.inkFaint, fontWeight: '300' },
 
   blurb: {
-    fontFamily: SERIF, fontSize: 13.5, fontStyle: 'italic', lineHeight: 20,
+    fontFamily: SERIF, fontSize: typeSize(13.5), fontStyle: 'italic', lineHeight: typeSize(20),
     color: COLORS.inkSoft, marginBottom: 20,
   },
   input: {
-    fontFamily: SANS, fontSize: 15.5, color: COLORS.ink,
+    fontFamily: SANS, fontSize: typeSize(15.5), color: COLORS.ink,
     borderBottomWidth: 1, borderBottomColor: COLORS.rule,
     paddingVertical: 10, marginBottom: 14, outlineStyle: 'none',
   },
   confirmLabel: {
-    fontFamily: SANS, fontSize: 11, letterSpacing: 1.4, textTransform: 'uppercase',
+    fontFamily: SANS, fontSize: typeSize(11), letterSpacing: 1.4, textTransform: 'uppercase',
     color: COLORS.inkSoft, marginBottom: 6,
   },
-  error: { fontFamily: SANS, fontSize: 13, color: COLORS.accent, marginBottom: 10, lineHeight: 18 },
-  done: { fontFamily: SANS, fontSize: 13, color: COLORS.inkSoft, marginBottom: 10 },
+  error: { fontFamily: SANS, fontSize: typeSize(13), color: COLORS.accent, marginBottom: 10, lineHeight: typeSize(18) },
+  done: { fontFamily: SANS, fontSize: typeSize(13), color: COLORS.inkSoft, marginBottom: 10 },
 
   codeBox: { borderWidth: 1, borderColor: COLORS.pencil, paddingVertical: 16, paddingHorizontal: 10, marginBottom: 16 },
   code: {
     fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'ui-monospace, SFMono-Regular, Menlo, monospace' }),
-    fontSize: 15, letterSpacing: 1.4, textAlign: 'center', color: COLORS.ink, lineHeight: 24,
+    fontSize: typeSize(15), letterSpacing: 1.4, textAlign: 'center', color: COLORS.ink, lineHeight: typeSize(24),
   },
 
   button: { backgroundColor: COLORS.ink, paddingVertical: 14, alignItems: 'center', marginTop: 6 },
@@ -657,11 +758,11 @@ const s = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth, borderColor: COLORS.sheetEdge,
     borderRadius: 8, paddingVertical: 13, alignItems: 'center', marginTop: 10,
   },
-  plainButtonText: { fontFamily: SANS, fontSize: 15, color: COLORS.inkSoft },
+  plainButtonText: { fontFamily: SANS, fontSize: typeSize(15), color: COLORS.inkSoft },
   dangerButton: { backgroundColor: COLORS.accent },
   busy: { opacity: 0.45 },
   buttonText: {
-    fontFamily: SANS, fontSize: 14, fontWeight: '600', color: COLORS.sheet,
+    fontFamily: SANS, fontSize: typeSize(14), fontWeight: '600', color: COLORS.sheet,
     letterSpacing: 1.2, textTransform: 'uppercase',
   },
 });

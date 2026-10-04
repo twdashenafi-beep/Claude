@@ -50,6 +50,36 @@ export function notesIn(tasks) {
   return { count, bytes, references };
 }
 
+// Where dictation comes from on this device, in words.
+//
+// The four answers are not interchangeable and the difference between the last
+// two is the one that matters: a build that does not carry the module and a
+// build that carries a module offering nothing look the same from the outside —
+// no button — and are fixed in completely different ways.
+const DICTATION = {
+  browser: 'Dictation comes from this browser',
+  device: 'Dictation comes from this device',
+  'no-browser-engine': 'This browser has no dictation',
+  'not-in-this-build': 'Dictation is not in this build',
+  'no-engine-in-module': 'Dictation is in this build but offers no engine',
+};
+
+export function dictationLine(source) {
+  return DICTATION[source] || '';
+}
+
+// What happened when the phone's calendar was last read, whatever it was.
+//
+// Four causes produce the same empty line under the date — refused, no
+// calendars offered, the module's functions moved, or simply nothing in the
+// diary — and they are fixed in four different places, one of them in iPhone
+// Settings rather than in this app. Saying which is the difference between a
+// setting somebody can change and a bug nobody can see.
+export function calendarLine(reading) {
+  const said = typeof reading === 'string' ? reading.trim() : '';
+  return said ? `The calendar on this device: ${said}` : '';
+}
+
 // What the two sides hold, and whether they agree.
 //
 // `stored` is what came back out of storage; `memory` is the list the app is

@@ -8,7 +8,7 @@
 // Run with `npm test`.
 
 import {
-  bytesOf, sizeWords, notesIn, summarise, deviceLines,
+  bytesOf, sizeWords, notesIn, summarise, deviceLines, dictationLine, calendarLine,
 } from '../src/services/deviceReport.js';
 
 let pass = 0, fail = 0;
@@ -97,6 +97,49 @@ ok('the old single field is counted too',
 ok('an empty call still answers', Array.isArray(deviceLines(summarise())));
 ok('and so does no summary at all', deviceLines(null).length === 0);
 ok('a list that is not a list is empty', notesIn(null).count === 0);
+
+// ── Where the microphone comes from ──
+//
+// The button is absent in four different situations and they are not the same
+// problem. Two builds went by before anybody could tell which one was in front
+// of them, so each has to say something different.
+{
+  const said = ['browser', 'device', 'no-browser-engine', 'not-in-this-build', 'no-engine-in-module']
+    .map(dictationLine);
+  ok('every case says something', said.every(line => line.length > 0), JSON.stringify(said));
+  ok('and no two of them say the same thing', new Set(said).size === said.length, JSON.stringify(said));
+
+  ok('a build without the module says so',
+     /not in this build/.test(dictationLine('not-in-this-build')), dictationLine('not-in-this-build'));
+  ok('which is not what a phone with dictation says',
+     /this device/.test(dictationLine('device')), dictationLine('device'));
+  ok('and a browser is named as the browser',
+     /this browser/.test(dictationLine('browser')), dictationLine('browser'));
+  ok('anything unrecognised says nothing rather than guessing',
+     dictationLine('something-else') === '' && dictationLine() === '');
+}
+
+// ── What happened when the phone's calendar was read ──
+//
+// Four causes, one empty line under the date: refused, no calendars offered,
+// the module's functions moved, or genuinely nothing in the diary. Only one of
+// those is a bug and only one is fixed in iPhone Settings, so the report has to
+// distinguish them rather than say "no calendar".
+ok('nothing read says nothing', calendarLine('') === '' && calendarLine() === '');
+ok('and whitespace is nothing too', calendarLine('   ') === '');
+{
+  const refused = calendarLine('not allowed — denied. iPhone Settings › DayFlow › Calendars › Full Access');
+  ok('a refusal names the setting that fixes it', /Settings/.test(refused), refused);
+
+  const broken = calendarLine('the calendar module is not the shape this app expects');
+  ok('a broken module says so instead', /not the shape/.test(broken), broken);
+  ok('and the two do not read alike', refused !== broken);
+
+  const fine = calendarLine('read 3 calendars, 0 events in the next three weeks');
+  ok('a successful read is reported too, which is the quiet failure',
+     /0 events/.test(fine), fine);
+  ok('all three are told apart', new Set([refused, broken, fine]).size === 3);
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

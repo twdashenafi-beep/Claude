@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView } from 'react-native';
 import Store from '../services/store';
-import { COLORS, SERIF, SANS } from '../utils/theme';
+import { COLORS, SERIF, SANS, typeSize } from '../utils/theme';
 
 const LOG_KEY = '@dayflow_last_error';
 
@@ -121,28 +121,28 @@ const s = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth, borderColor: COLORS.sheetEdge,
   },
   wordmark: {
-    fontFamily: SERIF, fontSize: 12.5, letterSpacing: 3,
+    fontFamily: SERIF, fontSize: typeSize(12.5), letterSpacing: 3,
     textTransform: 'uppercase', color: COLORS.inkSoft,
   },
-  title: { fontFamily: SERIF, fontSize: 25, color: COLORS.ink, marginTop: 10 },
+  title: { fontFamily: SERIF, fontSize: typeSize(25), color: COLORS.ink, marginTop: 10 },
   rule: { height: 1, backgroundColor: COLORS.pencil, marginTop: 12, marginBottom: 18 },
   blurb: {
-    fontFamily: SERIF, fontSize: 14, fontStyle: 'italic', lineHeight: 21,
+    fontFamily: SERIF, fontSize: typeSize(14), fontStyle: 'italic', lineHeight: typeSize(21),
     color: COLORS.inkSoft, marginBottom: 18,
   },
   box: { borderWidth: 1, borderColor: COLORS.rule, padding: 12, marginBottom: 12 },
-  mono: { fontFamily: SANS, fontSize: 12.5, color: COLORS.accent, lineHeight: 18 },
+  mono: { fontFamily: SANS, fontSize: typeSize(12.5), color: COLORS.accent, lineHeight: typeSize(18) },
   note: {
-    fontFamily: SERIF, fontSize: 12.5, fontStyle: 'italic',
-    color: COLORS.inkFaint, lineHeight: 18, marginBottom: 20,
+    fontFamily: SERIF, fontSize: typeSize(12.5), fontStyle: 'italic',
+    color: COLORS.inkFaint, lineHeight: typeSize(18), marginBottom: 20,
   },
   button: { backgroundColor: COLORS.ink, paddingVertical: 14, alignItems: 'center' },
   buttonText: {
-    fontFamily: SANS, fontSize: 14, fontWeight: '600', color: COLORS.sheet,
+    fontFamily: SANS, fontSize: typeSize(14), fontWeight: '600', color: COLORS.sheet,
     letterSpacing: 1.2, textTransform: 'uppercase',
   },
   secondary: {
-    fontFamily: SANS, fontSize: 13, color: COLORS.inkSoft,
+    fontFamily: SANS, fontSize: typeSize(13), color: COLORS.inkSoft,
     textAlign: 'center', marginTop: 18,
   },
 });

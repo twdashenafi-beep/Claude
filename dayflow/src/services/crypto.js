@@ -1,5 +1,6 @@
 import { pbkdf2Async as noblePbkdf2 } from '@noble/hashes/pbkdf2.js';
 import { sha256 } from '@noble/hashes/sha2.js';
+import { nativeKdf } from './nativeKdf.js';
 
 // Key derivation for an account that syncs.
 //
@@ -30,6 +31,12 @@ import { sha256 } from '@noble/hashes/sha2.js';
 // same iterations: crypto-js 2621ms, noble 277ms — and that was on an engine
 // with a JIT. Hermes has none, so on a phone the difference is the difference
 // between waiting and wondering whether it has crashed.
+//
+// Even noble on Hermes was 12.4 s at unlock on a real device, and no setting of
+// it could do better, because that was the hashing itself on an engine that
+// interprets every line. So a native build now hands the bytes to the system —
+// CommonCrypto on iOS, BoringSSL on Android, through modules/dayflow-kdf — and
+// noble is only what is left for a build without that module, such as Expo Go.
 //
 // The iteration count is the same on every platform and has to be: the same
 // password must derive the same key in the browser and on the phone, or a vault
@@ -112,6 +119,18 @@ async function pbkdf2(password, salt, iterations) {
     return toHex(bits);
   }
 
+  // Bytes as hex, not the strings themselves, so the native side never decides
+  // how a character becomes a byte: utf8Bytes above already did, and it is the
+  // one every platform has to agree with. A native failure is not an answer —
+  // it falls through to noble, which derives the same key, only slower.
+  const native = nativeKdf();
+  if (native) {
+    try {
+      const hex = await native(toHex(passwordBytes), toHex(saltBytes), iterations, KEY_BYTES);
+      if (typeof hex === 'string' && hex.length === KEY_BYTES * 2 && /^[0-9a-f]+$/.test(hex)) return hex;
+    } catch { /* the slow path below */ }
+  }
+
   // The hash is named rather than defaulted. PBKDF2 says nothing about which
   // one to use, and a library changing its mind — crypto-js once defaulted to
   // SHA-1 — would make everything already written undecryptable.
@@ -121,7 +140,31 @@ async function pbkdf2(password, salt, iterations) {
   // it buys is that the app can draw while it runs: 210,000 rounds take several
   // seconds on a phone, and several seconds of a frozen screen is indisting-
   // uishable from a crash. Several seconds of something moving is a wait.
-  return toHex(await noblePbkdf2(sha256, passwordBytes, saltBytes, { c: iterations, dkLen: KEY_BYTES }));
+  // asyncTick is the whole of why unlocking took forty-five seconds.
+  //
+  // noble yields to the event loop every `asyncTick` milliseconds of work so a
+  // long derivation cannot freeze the page, and its default is 10. In a browser
+  // that costs nothing: the yield is a scheduler callback. On a phone there is
+  // no Web Scheduling API, so it falls back to setTimeout(0) — and on React
+  // Native a setTimeout is a trip through the timer bridge, not a microtask.
+  //
+  // Measured on the device: 45.5 s to derive one key. The hashing itself cannot
+  // be more than about fourteen of those seconds even at fifty times slower
+  // than a machine with a JIT, where it takes 277 ms. The rest was the yielding
+  // — thousands of them, one for every ten milliseconds of work.
+  //
+  // A quarter of a second still redraws a spinner four times a second, which is
+  // all anything on that screen needs, and it asks for the bridge twenty-five
+  // times less often.
+  //
+  // Not a change to the output. The key is the same key; this is only how often
+  // the work stops to look up. The pinned vectors in the test suite are what
+  // guarantee that, and they are why this is safe to tune at all.
+  return toHex(await noblePbkdf2(sha256, passwordBytes, saltBytes, {
+    c: iterations,
+    dkLen: KEY_BYTES,
+    asyncTick: 250,
+  }));
 }
 
 export function normalizeEmail(email) {

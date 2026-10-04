@@ -5,7 +5,7 @@ import { VoicePlayButton } from './VoiceRecorder';
 import { latestNote } from '../services/voiceNotes';
 import { groupByDay } from '../services/archive';
 import { projectName } from '../services/projects';
-import { COLORS, SANS, SERIF } from '../utils/theme';
+import { COLORS, SANS, SERIF, typeSize } from '../utils/theme';
 
 // What you got done, kept.
 //
@@ -146,14 +146,14 @@ const s = StyleSheet.create({
   wrap: { marginTop: 20 },
   headRow: { flexDirection: 'row', justifyContent: 'flex-end' },
   emptyAction: {
-    fontFamily: SANS, fontSize: 11, fontWeight: '700', letterSpacing: 1.2,
+    fontFamily: SANS, fontSize: typeSize(11), fontWeight: '700', letterSpacing: 1.2,
     color: COLORS.accent,
   },
   rule: { height: 1, backgroundColor: COLORS.pencil, marginTop: 10 },
 
   group: { marginTop: 22 },
   day: {
-    fontFamily: SERIF, fontSize: 14, fontStyle: 'italic', color: COLORS.inkSoft,
+    fontFamily: SERIF, fontSize: typeSize(14), fontStyle: 'italic', color: COLORS.inkSoft,
     marginBottom: 6,
   },
   row: {
@@ -162,27 +162,27 @@ const s = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COLORS.rule,
   },
   body: { flex: 1 },
-  title: { fontFamily: SANS, fontSize: 14.5, lineHeight: 19, color: COLORS.done },
+  title: { fontFamily: SANS, fontSize: typeSize(14.5), lineHeight: typeSize(19), color: COLORS.done },
   meta: {
-    fontFamily: SERIF, fontSize: 12, fontStyle: 'italic',
+    fontFamily: SERIF, fontSize: typeSize(12), fontStyle: 'italic',
     color: COLORS.inkFaint, marginTop: 2,
   },
   notes: {
-    fontFamily: SERIF, fontSize: 13, lineHeight: 19,
+    fontFamily: SERIF, fontSize: typeSize(13), lineHeight: typeSize(19),
     color: COLORS.inkSoft, marginTop: 6,
   },
   more: {
-    fontFamily: SANS, fontSize: 10.5, fontWeight: '700', letterSpacing: 1,
+    fontFamily: SANS, fontSize: typeSize(10.5), fontWeight: '700', letterSpacing: 1,
     color: COLORS.inkFaint, marginTop: 4,
   },
   voice: { marginTop: 8, alignSelf: 'flex-start' },
   action: {
-    fontFamily: SANS, fontSize: 10.5, fontWeight: '700', letterSpacing: 1,
+    fontFamily: SANS, fontSize: typeSize(10.5), fontWeight: '700', letterSpacing: 1,
     color: COLORS.inkSoft, marginTop: 3,
   },
-  danger: { color: COLORS.accent, fontSize: 13, letterSpacing: 0 },
+  danger: { color: COLORS.accent, fontSize: typeSize(13), letterSpacing: 0 },
   empty: {
-    fontFamily: SERIF, fontSize: 13.5, fontStyle: 'italic', lineHeight: 20,
+    fontFamily: SERIF, fontSize: typeSize(13.5), fontStyle: 'italic', lineHeight: typeSize(20),
     color: COLORS.inkFaint,
   },
 });

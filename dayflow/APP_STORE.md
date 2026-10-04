@@ -27,7 +27,7 @@ That is fixed:
 | `encrypt` throws instead of returning the plaintext it was asked to hide | `src/services/encryption.js` |
 | Key generation stops rather than falling back to a weak source | `src/services/crypto.js` |
 | The app refuses to start if it has no randomness, rather than storing what it cannot protect | `App.js` |
-| The dictation button is hidden where dictation does not exist (both mobile keyboards have their own) | `src/components/AIInput.js` |
+| The dictation button is hidden where dictation does not exist, rather than rendered and inert | `src/components/AIInput.js` |
 
 `tests/native-readiness.test.mjs` covers all of it, including a sandbox that
 reproduces the Hermes environment exactly.
@@ -210,11 +210,17 @@ reference to it, and nothing under `src/` imports it.
 → `xcode` → `uuid`. That is build tooling, run on the machine doing the
 building, not code shipped to a device.
 
-**Do not run `npm audit fix --force`.** It would try to move `expo` off SDK 55
+**Do not run `npm audit fix --force`.** It would try to move `expo` off SDK 57
 to satisfy a transitive dependency of a build tool. That is how the expo-audio
 mismatch happened earlier in this project: a version that looked fine on the web
 and would have failed on the first native build. The advisories are worth
 re-checking when Expo next publishes an SDK, and not before.
+
+Moving between SDKs is a deliberate act, not a fix for an advisory. The move
+from 55 to 57 was made for one reason — `expo-speech-recognition` publishes a
+release per SDK and skipped 55 entirely — and 56 was stepped over because
+Expo's own guidance says to, on account of a Hermes memory regression that
+SDK 55, SDK 56 and early SDK 57 share.
 
 To see the reasoning yourself rather than taking it on trust:
 

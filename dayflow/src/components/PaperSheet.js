@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal, ScrollView } from 'react-native';
-import { COLORS, SANS, SERIF, SHEET_MAX_WIDTH } from '../utils/theme';
+import { COLORS, SANS, SERIF, SHEET_MAX_WIDTH, typeSize } from '../utils/theme';
 
 // The shape both summary pages are cut from.
 //
@@ -129,8 +129,8 @@ const s = StyleSheet.create({
     marginBottom: -13,
     justifyContent: 'center',
   },
-  headerTitle: { fontFamily: SERIF, fontSize: 17, color: COLORS.ink },
-  done: { fontFamily: SANS, fontSize: 16, color: COLORS.accent, textAlign: 'right' },
+  headerTitle: { fontFamily: SERIF, fontSize: typeSize(17), color: COLORS.ink },
+  done: { fontFamily: SANS, fontSize: typeSize(16), color: COLORS.accent, textAlign: 'right' },
 
   body: { flex: 1 },
   bodyInner: {
@@ -139,36 +139,36 @@ const s = StyleSheet.create({
     minHeight: '100%',
   },
 
-  headline: { fontFamily: SERIF, fontSize: 21, color: COLORS.ink, lineHeight: 29 },
-  note: { fontFamily: SANS, fontSize: 12.5, color: COLORS.inkFaint, marginTop: 4 },
+  headline: { fontFamily: SERIF, fontSize: typeSize(21), color: COLORS.ink, lineHeight: typeSize(29) },
+  note: { fontFamily: SANS, fontSize: typeSize(12.5), color: COLORS.inkFaint, marginTop: 4 },
 
   section: { marginTop: 28 },
   sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   sectionTitle: {
-    fontFamily: SERIF, fontSize: 12.5, letterSpacing: 1.2,
+    fontFamily: SERIF, fontSize: typeSize(12.5), letterSpacing: 1.2,
     textTransform: 'uppercase', color: COLORS.inkSoft,
   },
-  sectionCount: { fontFamily: SERIF, fontSize: 13, color: COLORS.inkFaint },
+  sectionCount: { fontFamily: SERIF, fontSize: typeSize(13), color: COLORS.inkFaint },
   rule: { height: 1, backgroundColor: COLORS.pencil, opacity: 0.55, marginTop: 6, marginBottom: 10 },
 
-  empty: { fontFamily: SANS, fontSize: 13.5, color: COLORS.inkFaint, fontStyle: 'italic' },
+  empty: { fontFamily: SANS, fontSize: typeSize(13.5), color: COLORS.inkFaint, fontStyle: 'italic' },
 
   line: { marginBottom: 9 },
-  lineTitle: { fontFamily: SANS, fontSize: 14.5, color: COLORS.ink, lineHeight: 20 },
-  lineNote: { fontFamily: SANS, fontSize: 12.5, color: COLORS.inkFaint, fontStyle: 'italic', marginTop: 1 },
+  lineTitle: { fontFamily: SANS, fontSize: typeSize(14.5), color: COLORS.ink, lineHeight: typeSize(20) },
+  lineNote: { fontFamily: SANS, fontSize: typeSize(12.5), color: COLORS.inkFaint, fontStyle: 'italic', marginTop: 1 },
 
-  more: { fontFamily: SANS, fontSize: 12.5, color: COLORS.inkFaint, fontStyle: 'italic', marginTop: 2 },
+  more: { fontFamily: SANS, fontSize: typeSize(12.5), color: COLORS.inkFaint, fontStyle: 'italic', marginTop: 2 },
 });
 
 // Shared by the pages that group owed things under the person holding them.
 export const groupStyles = StyleSheet.create({
   group: { marginBottom: 12 },
-  person: { fontFamily: SANS, fontSize: 13, fontWeight: '600', color: COLORS.ink, marginBottom: 3 },
-  summary: { fontFamily: SANS, fontSize: 14.5, color: COLORS.ink, lineHeight: 21 },
+  person: { fontFamily: SANS, fontSize: typeSize(13), fontWeight: '600', color: COLORS.ink, marginBottom: 3 },
+  summary: { fontFamily: SANS, fontSize: typeSize(14.5), color: COLORS.ink, lineHeight: typeSize(21) },
   // What to walk into a meeting with, listed under it.
   bring: {
-    fontFamily: SANS, fontSize: 13.5, color: COLORS.inkSoft,
-    marginLeft: 12, marginTop: -4, marginBottom: 7, lineHeight: 19,
+    fontFamily: SANS, fontSize: typeSize(13.5), color: COLORS.inkSoft,
+    marginLeft: 12, marginTop: -4, marginBottom: 7, lineHeight: typeSize(19),
   },
   brought: { color: COLORS.done, textDecorationLine: 'line-through' },
 });

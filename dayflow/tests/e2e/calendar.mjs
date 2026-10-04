@@ -100,9 +100,14 @@ if (await cont.count()) await cont.click();
 await page.waitForTimeout(1500);
 
 const body = async () => page.evaluate(() => document.body.innerText);
+// The day's page draws the diary and carries the sentence as the drawing's
+// label; a week or a month has no shape to draw and shows the sentence itself.
+// Both are the same words, so both are read the same way here.
 const diaryLine = async () => {
   const line = page.locator('[data-diaryline]');
-  return (await line.count()) ? line.first().innerText() : null;
+  if (!(await line.count())) return null;
+  const first = line.first();
+  return (await first.getAttribute('aria-label')) || (await first.innerText());
 };
 async function toDo(title) {
   const box = page.getByPlaceholder('Write a line…');
@@ -190,11 +195,53 @@ await page.waitForTimeout(1500);
   // 09:00–09:30, 11:00–13:00 (the double booking merged into the board call),
   // and 16:00–16:30 worked out from a rule. Three hours, not four.
   ok('and counts overlapping meetings once', /3h booked/.test(line || ''), String(line));
-  // Half past eight to six is nine and a half hours; three of them are gone.
-  ok('with what is left after them', /6h 30m free/.test(line || ''), String(line));
-  ok('and says where the gaps are', /Free 08:30–09:00, 09:30–11:00/.test(line || ''), String(line));
+  // It is half past eight, so the free stretch already running is said as
+  // "until" — the hour it started is behind you.
+  ok('and leads with where the free time is',
+     /^Free until 09:00, then 09:30–11:00/.test(line || ''), String(line));
   ok('the rest of them counted rather than listed', /and 2 more/.test(line || ''), String(line));
   ok('an all-day note books no hours', !/(1[0-9]|2[0-9])h booked/.test(line || ''), String(line));
+  // "6h 30m free" was the third of three facts separated by identical dots,
+  // and it was the one the drawing makes redundant: the empty track is what is
+  // left. One sentence, two clauses, in that order.
+  ok('and does not also count the free hours', !/free/.test(line || ''), String(line));
+}
+
+// ── The day is drawn, not only described ────────────────────────────────────
+//
+// A hairline from the hour the day opens to the hour it closes, the booked
+// stretches inked in, and one figure under it. Where the free time is becomes
+// something you see instead of something you parse.
+{
+  const bar = page.locator('[data-daybar]');
+  ok('the day has a shape on the page', (await bar.count()) === 1,
+     String(await bar.count()));
+
+  const seen = await bar.first().innerText();
+  ok('the two ends of the day are the ruler', /08:00/.test(seen) && /18:00/.test(seen), seen);
+  ok('and the one figure under it is what is booked', /3h booked/.test(seen), seen);
+  ok('with no dotted list of facts left on it', !seen.includes('·'), seen);
+
+  const blocks = await page.$$eval('[data-daybar] [data-booked]', nodes =>
+    nodes.map(n => ({ left: n.offsetLeft, width: n.offsetWidth })));
+  // The standup, the board call with the double booking inside it, and the
+  // one-to-one. Three blocks, because overlapping meetings are one block.
+  ok('one block per stretch of booked time, overlaps merged',
+     blocks.length === 3, JSON.stringify(blocks));
+  ok('in the order the day happens',
+     blocks.every((b, i) => i === 0 || b.left > blocks[i - 1].left), JSON.stringify(blocks));
+  ok('each one wide enough to see',
+     blocks.every(b => b.width >= 2), JSON.stringify(blocks));
+  ok('and surface between them, so the morning does not read as one block',
+     blocks.every((b, i) => i === 0 || b.left - (blocks[i - 1].left + blocks[i - 1].width) >= 2),
+     JSON.stringify(blocks));
+  // Half past eight of a ten-hour day: a twentieth of the way along.
+  const tick = await page.$$eval('[data-daybar] [data-nowtick]', nodes =>
+    nodes.map(n => ({ left: n.offsetLeft, width: n.parentElement.offsetWidth })));
+  ok('and a tick for where you are standing', tick.length === 1, JSON.stringify(tick));
+  ok('at the right hour of it',
+     tick.length === 1 && Math.abs(tick[0].left / tick[0].width - 0.05) < 0.02,
+     JSON.stringify(tick));
 }
 
 // ── And in the briefing ─────────────────────────────────────────────────────
@@ -226,14 +273,11 @@ await page.waitForTimeout(1500);
 // Thursday can be checked against Thursday. Shown whole on the day's page it
 // put next week's meetings in front of somebody looking at today.
 {
-  const line = async () => {
-    const l = page.locator('[data-diaryline]');
-    return (await l.count()) ? l.first().innerText() : '';
-  };
+  const line = async () => (await diaryLine()) || '';
 
   const howMany = text => Number((/^(\d+) meeting/.exec(text) || [])[1] || -1);
 
-  ok('the day page measures the day', /free/.test(await line()), await line());
+  ok('the day page measures the day', /^Free /.test(await line()), await line());
 
   await page.getByLabel('Show week tasks').click();
   await page.waitForTimeout(900);
@@ -257,7 +301,7 @@ await page.waitForTimeout(1500);
 
   await page.getByLabel('Show day tasks').click();
   await page.waitForTimeout(900);
-  ok('back on the day, it is a day again', /free/.test(await line()), await line());
+  ok('back on the day, it is a day again', /^Free /.test(await line()), await line());
 }
 
 // ── Running into something ──────────────────────────────────────────────────
@@ -418,6 +462,76 @@ await page.getByLabel('Close account settings').click();
 await page.waitForTimeout(1300);
 ok('forgetting it puts the page back as it was', (await diaryLine()) === null,
    String(await diaryLine()));
+
+// ── Coming back to the app re-reads the diary ──
+//
+// A calendar subscribed through the phone — a Proton share link, say — is
+// refreshed by iOS on its own schedule, so an event added elsewhere lands in
+// the phone's calendar while DayFlow is in the background. Read only at unlock,
+// the day then says the wrong thing until the next launch, and nothing about
+// that is visible from the outside.
+//
+// The feed is removed from storage directly rather than through the app, which
+// is the whole point: the app must not know it has changed. Deleting a key
+// needs no encryption key, so this can be done from outside the vault exactly
+// as another device would.
+{
+  // The section above forgot the calendar, so put one back.
+  await page.getByLabel('Account settings').click();
+  await page.waitForTimeout(900);
+  const [again] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    page.getByText('Read a calendar', { exact: true }).click(),
+  ]);
+  await again.setFiles({ name: 'work.ics', mimeType: 'text/calendar', buffer: Buffer.from(ICS) });
+  await page.waitForTimeout(1500);
+  await page.getByLabel('Close account settings').click();
+  await page.waitForTimeout(1200);
+
+  ok('the diary is on the page to begin with', (await diaryLine()) !== null, String(await diaryLine()));
+
+  await page.evaluate(async () => {
+    const db = await new Promise((resolve, reject) => {
+      const request = indexedDB.open('dayflow', 1);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction('kv', 'readwrite');
+      tx.objectStore('kv').delete('@dayflow_calendar_v1');
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+  });
+
+  // Still on screen: nothing has told the app to look again.
+  await page.waitForTimeout(400);
+  ok('taking the calendar away behind its back changes nothing on its own',
+     (await diaryLine()) !== null, String(await diaryLine()));
+
+  // Long enough that the return is treated as one. Below this it is the flurry
+  // a phone reports around a control centre pull rather than somebody coming
+  // back, and is deliberately ignored.
+  //
+  // The clock has to be moved rather than waited out: this suite pins the time
+  // so that a Friday's meetings mean the same thing on every day it runs, and a
+  // pinned clock makes every elapsed-time check read zero however long the test
+  // sleeps.
+  await page.clock.setFixedTime(new Date('2026-10-02T08:31:00'));
+
+  // react-native-web listens to the document rather than to a phone's
+  // lifecycle, so this is what "the app came back" looks like in a browser.
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await page.waitForTimeout(1500);
+
+  ok('and coming back to it reads the calendar again',
+     (await diaryLine()) === null, String(await diaryLine()));
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();

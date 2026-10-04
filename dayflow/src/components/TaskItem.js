@@ -12,7 +12,7 @@ import { repeatPhrase } from '../services/repeat';
 import { chaseLabel } from '../services/chase';
 import { scopeNote } from '../services/scope';
 import { meetingLabel } from '../services/meetings';
-import { COLORS, SANS, SERIF } from '../utils/theme';
+import { COLORS, SANS, SERIF, typeSize } from '../utils/theme';
 import { liftTick, dropTick } from '../services/haptics';
 
 // Holding a finger on a row otherwise selects the text under it and raises the
@@ -385,16 +385,16 @@ const st = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
   },
   checkDone: { backgroundColor: COLORS.check, borderColor: COLORS.check },
-  checkMark: { fontSize: 10, color: COLORS.sheet, fontWeight: '700', marginTop: -1 },
+  checkMark: { fontSize: typeSize(10), color: COLORS.sheet, fontWeight: '700', marginTop: -1 },
 
   // Same trick as the checkbox: a row of one short line is nineteen pixels of
   // text, and opening a task is the commonest thing anybody does here.
   body: { flex: 1, paddingVertical: 9, marginVertical: -9 },
   priority: { fontFamily: SERIF, fontWeight: '700', color: COLORS.accent },
-  title: { fontFamily: SANS, fontSize: 14.5, lineHeight: 19, color: COLORS.ink },
+  title: { fontFamily: SANS, fontSize: typeSize(14.5), lineHeight: typeSize(19), color: COLORS.ink },
   titleDone: { color: COLORS.done, textDecorationLine: 'line-through' },
   meta: {
-    fontFamily: SERIF, fontSize: 12, fontStyle: 'italic', color: COLORS.inkSoft,
+    fontFamily: SERIF, fontSize: typeSize(12), fontStyle: 'italic', color: COLORS.inkSoft,
     marginTop: 2, fontVariant: ['tabular-nums'],
   },
   metaDone: { color: COLORS.done },
@@ -416,7 +416,7 @@ const st = StyleSheet.create({
     // two children, so the row is the height it always was.
     marginTop: -8, marginBottom: -12, marginLeft: 2, marginRight: -16,
   },
-  removeMark: { fontFamily: SANS, fontSize: 17, lineHeight: 19, color: '#C4BEB0' },
+  removeMark: { fontFamily: SANS, fontSize: typeSize(17), lineHeight: typeSize(19), color: '#C4BEB0' },
 });
 
 // Rendered only when something about this row changed.

@@ -349,3 +349,127 @@ export function gapsLine(load, most = 2) {
   const rest = load.gaps.length - named.length;
   return `Free ${named.join(', ')}${rest > 0 ? `, and ${rest} more` : ''}`;
 }
+
+// ── The day as a ruled line ──────────────────────────────────────────────────
+//
+// The line this page used to show was three facts with the same separator
+// between them: "1h 38m booked · 7h 2m free · Free 15:52–18:00". Every item
+// weighed the same, "free" meant a quantity in one clause and a place in the
+// next, and the emptiest day printed the longest line. It also said 15:52,
+// which is not a boundary of anything — it is what time it was when you looked.
+//
+// A day has a shape, and a shape is better drawn than counted. So: a hairline
+// from the start of the day to the end of it, the booked stretches inked in,
+// and one short caption underneath. Where the free time is becomes something
+// you see rather than something you parse.
+//
+// The arithmetic lives here and the colours live in the component, so this can
+// be tested without a screen and the component has no sums in it.
+
+// Pixels, not percentages. Two meetings a minute apart are a minute apart on
+// the clock and, as a fraction of a ten-hour day, half a pixel — which is how
+// four afternoon meetings fuse into one unbroken block that nobody has. The
+// gap has to be measured in the units it is seen in.
+export const BAR_GAP = 2;
+
+// A five-minute call is a hundred and twentieth of a working day — one pixel
+// on a phone, and under one on a narrow column. Below this it is drawn at this
+// width, growing later rather than earlier so the hour it starts stays true:
+// an end a pixel out is better than a meeting that is missing.
+export const BAR_LEAST = 2;
+
+// Where the ink goes: one { left, width } per stretch of booked time, in
+// pixels across a track of the given width.
+export function barSegments(load, width, gap = BAR_GAP, least = BAR_LEAST) {
+  if (!load || load.span !== 'day' || !load.window) return [];
+  if (!(width > 0)) return [];
+  const total = load.window.to - load.window.from;
+  if (!(total > 0)) return [];
+
+  const across = when => ((when - load.window.from) / total) * width;
+  const out = [];
+
+  // mergeBusy has already cut every span to the window, so nothing here can
+  // start before the day or run past the end of it. The two adjustments below
+  // are the only things that move an edge, and both stay inside the track.
+  for (const span of mergeBusy(load.events, load.window)) {
+    let left = across(span.start);
+    let right = across(span.end);
+    if (right - left < least) right = Math.min(width, left + least);
+    if (right - left < least) left = Math.max(0, right - least);
+
+    const last = out[out.length - 1];
+    if (last) {
+      const lastRight = last.left + last.width;
+      if (left - lastRight < gap) {
+        // Either the gap is wide enough to read as a gap, or the two are one
+        // block. A hairline of surface pretending to be breathing room is
+        // worse than honest contiguity, so the earlier block gives up the
+        // room — and if it has none to give, the two merge.
+        const trimmed = left - gap - last.left;
+        if (trimmed >= least) last.width = trimmed;
+        else {
+          last.width = Math.max(last.width, right - last.left);
+          continue;
+        }
+      }
+    }
+    out.push({ left, width: right - left });
+  }
+  return out;
+}
+
+// Where you are standing on the day, or null when now is outside it. One tick,
+// no number: the clock is already on the phone.
+export function barNow(load, width, now = new Date()) {
+  if (!load || load.span !== 'day' || !load.window) return null;
+  if (!(width > 0)) return null;
+  const total = load.window.to - load.window.from;
+  if (!(total > 0)) return null;
+  const at = asDate(now);
+  if (!at || at < load.window.from || at > load.window.to) return null;
+  return ((at - load.window.from) / total) * width;
+}
+
+// Whether there is a shape to draw at all. An empty track is not a picture of
+// a free day, it is a picture of nothing, and a holiday in the diary with no
+// meetings in it has no stretches to ink. Both are better said in words.
+export function barDrawable(load) {
+  return !!load && load.span === 'day' && load.events.length > 0 && load.committed > 0;
+}
+
+// The one fact the drawing cannot carry: how much of the day it adds up to.
+export function barCaption(load) {
+  if (!barDrawable(load)) return null;
+  return `${spanMinutes(load.committed)} booked`;
+}
+
+// The same day in a sentence — the fallback, and the label a screen reader
+// reads off the drawing.
+//
+// Unlike the line it replaces, this says where the free time is once rather
+// than twice, and leads with it: what is left is the thing you are deciding
+// with, and what is booked is the thing you cannot change.
+export function loadSentence(load, now = new Date()) {
+  if (!load) return null;
+  if (load.events.length === 0) return null;
+  if (load.span && load.span !== 'day') return loadLine(load);
+
+  const at = asDate(now) || new Date();
+  const named = load.gaps.slice(0, 2);
+  const said = named.map((gap, i) => {
+    if (i > 0) return `then ${clockOf(gap.start)}–${clockOf(gap.end)}`;
+    // Free already: "Free until 16:30" rather than "Free 15:52–16:30". The
+    // hour it started is behind you, and 15:52 is not a boundary of anything —
+    // it is what time it was when you looked, which was half the complaint.
+    return gap.start - at < MINUTE
+      ? `Free until ${clockOf(gap.end)}`
+      : `Free ${clockOf(gap.start)}–${clockOf(gap.end)}`;
+  });
+  const rest = load.gaps.length - named.length;
+  if (rest > 0) said.push(`and ${rest} more`);
+
+  const where = said.length ? said.join(', ') : 'Nothing free';
+  const booked = load.committed > 0 ? `${spanMinutes(load.committed)} booked` : null;
+  return booked ? `${where}  ·  ${booked}` : where;
+}

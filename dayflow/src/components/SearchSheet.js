@@ -2,7 +2,7 @@ import React, { useMemo, useRef, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { searchTasks, excerpt, normalizeQuery, locationOf } from '../services/search';
 import { projectName } from '../services/projects';
-import { COLORS, SANS, SERIF } from '../utils/theme';
+import { COLORS, SANS, SERIF, typeSize } from '../utils/theme';
 
 // Finding a task without remembering where you put it.
 //
@@ -118,37 +118,37 @@ const s = StyleSheet.create({
   field: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   input: {
     flex: 1,
-    fontFamily: SANS, fontSize: 15, color: COLORS.ink,
+    fontFamily: SANS, fontSize: typeSize(15), color: COLORS.ink,
     paddingVertical: 6,
   },
   // Twelve pixels of uppercase, and the way out of the search.
   actionHit: { paddingVertical: 11, paddingHorizontal: 8, marginVertical: -11, marginHorizontal: -8 },
   action: {
-    fontFamily: SANS, fontSize: 10.5, fontWeight: '700', letterSpacing: 1,
+    fontFamily: SANS, fontSize: typeSize(10.5), fontWeight: '700', letterSpacing: 1,
     color: COLORS.inkSoft,
   },
   rule: { height: 1, backgroundColor: COLORS.pencil, marginTop: 8 },
 
   note: {
-    fontFamily: SERIF, fontSize: 13.5, fontStyle: 'italic', lineHeight: 20,
+    fontFamily: SERIF, fontSize: typeSize(13.5), fontStyle: 'italic', lineHeight: typeSize(20),
     color: COLORS.inkFaint, marginTop: 16,
   },
   count: {
-    fontFamily: SERIF, fontSize: 12, fontStyle: 'italic',
+    fontFamily: SERIF, fontSize: typeSize(12), fontStyle: 'italic',
     color: COLORS.inkFaint, marginTop: 14,
   },
   row: {
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COLORS.rule,
   },
-  title: { fontFamily: SANS, fontSize: 14.5, lineHeight: 19, color: COLORS.ink },
+  title: { fontFamily: SANS, fontSize: typeSize(14.5), lineHeight: typeSize(19), color: COLORS.ink },
   struck: { color: COLORS.done, textDecorationLine: 'line-through' },
   where: {
-    fontFamily: SERIF, fontSize: 12, fontStyle: 'italic',
+    fontFamily: SERIF, fontSize: typeSize(12), fontStyle: 'italic',
     color: COLORS.inkFaint, marginTop: 2,
   },
   excerpt: {
-    fontFamily: SERIF, fontSize: 13, lineHeight: 18,
+    fontFamily: SERIF, fontSize: typeSize(13), lineHeight: typeSize(18),
     color: COLORS.inkSoft, marginTop: 4,
   },
 });

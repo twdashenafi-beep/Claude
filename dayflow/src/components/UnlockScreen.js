@@ -5,7 +5,8 @@ import {
 } from 'react-native';
 import { signIn, signUp, getSession, isSyncConfigured } from '../services/account';
 import { rememberedFor, recall } from '../services/remember';
-import { COLORS, SERIF, SANS, SHEET_MAX_WIDTH } from '../utils/theme';
+import { beginOpening, noteStage, nowMs } from '../services/opening';
+import { COLORS, SERIF, SANS, SHEET_MAX_WIDTH, typeSize } from '../utils/theme';
 
 // Sign in, or unlock this device.
 //
@@ -49,8 +50,13 @@ export default function UnlockScreen({ onUnlock, onSetupSync }) {
   const byFace = async () => {
     setError(''); setNotice('');
     setBusy(true);
+    // Both ways in start the clock here, so what is reported afterwards is the
+    // whole wait rather than the part of it this screen happens to see.
+    beginOpening();
     try {
+      const askedAt = nowMs();
       const held = await recall();
+      noteStage('your face', nowMs() - askedAt);
       if (!held) {
         setHeldFor(null);
         setNotice('Use your password this time.');
@@ -72,6 +78,7 @@ export default function UnlockScreen({ onUnlock, onSetupSync }) {
     if (mode === 'signup' && password !== confirm) return setError('Passwords do not match.');
 
     setBusy(true);
+    beginOpening();
     try {
       if (mode === 'signup') {
         const { dataKey, recoveryCode, synced, needsConfirmation } = await signUp(mail, password);
@@ -315,32 +322,32 @@ const s = StyleSheet.create({
     shadowOpacity: 0.14, shadowRadius: 18, elevation: 3,
   },
   wordmark: {
-    fontFamily: SERIF, fontSize: 12.5, letterSpacing: 3,
+    fontFamily: SERIF, fontSize: typeSize(12.5), letterSpacing: 3,
     textTransform: 'uppercase', color: COLORS.inkSoft,
   },
-  title: { fontFamily: SERIF, fontSize: 25, color: COLORS.ink, marginTop: 10 },
+  title: { fontFamily: SERIF, fontSize: typeSize(25), color: COLORS.ink, marginTop: 10 },
   rule: { height: 1, backgroundColor: COLORS.pencil, marginTop: 12 },
   blurb: {
-    fontFamily: SERIF, fontSize: 13.5, fontStyle: 'italic', lineHeight: 20,
+    fontFamily: SERIF, fontSize: typeSize(13.5), fontStyle: 'italic', lineHeight: typeSize(20),
     color: COLORS.inkSoft, marginTop: 16, marginBottom: 20,
   },
   input: {
-    fontFamily: SANS, fontSize: 15.5, color: COLORS.ink,
+    fontFamily: SANS, fontSize: typeSize(15.5), color: COLORS.ink,
     borderBottomWidth: 1, borderBottomColor: COLORS.rule,
     paddingVertical: 10, marginBottom: 14, outlineStyle: 'none',
   },
-  error: { fontFamily: SANS, fontSize: 13, color: COLORS.accent, marginBottom: 10 },
-  notice: { fontFamily: SANS, fontSize: 13, color: COLORS.inkSoft, marginBottom: 10 },
+  error: { fontFamily: SANS, fontSize: typeSize(13), color: COLORS.accent, marginBottom: 10 },
+  notice: { fontFamily: SANS, fontSize: typeSize(13), color: COLORS.inkSoft, marginBottom: 10 },
   button: {
     backgroundColor: COLORS.ink, paddingVertical: 14, alignItems: 'center', marginTop: 6,
   },
   buttonBusy: { opacity: 0.6 },
   buttonText: {
-    fontFamily: SANS, fontSize: 14, fontWeight: '600', color: COLORS.sheet,
+    fontFamily: SANS, fontSize: typeSize(14), fontWeight: '600', color: COLORS.sheet,
     letterSpacing: 1.2, textTransform: 'uppercase',
   },
   switch: {
-    fontFamily: SANS, fontSize: 13, color: COLORS.inkSoft,
+    fontFamily: SANS, fontSize: typeSize(13), color: COLORS.inkSoft,
     textAlign: 'center', marginTop: 18,
   },
   codeBox: {
@@ -349,11 +356,11 @@ const s = StyleSheet.create({
   },
   code: {
     fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'ui-monospace, SFMono-Regular, Menlo, monospace' }),
-    fontSize: 16, letterSpacing: 1.5, textAlign: 'center', color: COLORS.ink, lineHeight: 26,
+    fontSize: typeSize(16), letterSpacing: 1.5, textAlign: 'center', color: COLORS.ink, lineHeight: typeSize(26),
   },
   codeNote: {
-    fontFamily: SERIF, fontSize: 12.5, fontStyle: 'italic',
-    color: COLORS.inkFaint, lineHeight: 18, marginBottom: 20,
+    fontFamily: SERIF, fontSize: typeSize(12.5), fontStyle: 'italic',
+    color: COLORS.inkFaint, lineHeight: typeSize(18), marginBottom: 20,
   },
   // The one thing standing between somebody and losing their vault for good, at
   // seventeen pixels tall. The padding is the target; the margin keeps the
@@ -367,11 +374,11 @@ const s = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
   },
   checkboxOn: { backgroundColor: COLORS.ink, borderColor: COLORS.ink },
-  checkMark: { fontSize: 11, color: COLORS.sheet, fontWeight: '700', marginTop: -1 },
-  checkLabel: { fontFamily: SANS, fontSize: 13.5, color: COLORS.ink },
+  checkMark: { fontSize: typeSize(11), color: COLORS.sheet, fontWeight: '700', marginTop: -1 },
+  checkLabel: { fontFamily: SANS, fontSize: typeSize(13.5), color: COLORS.ink },
   footnote: {
-    fontFamily: SERIF, fontSize: 12, fontStyle: 'italic', color: COLORS.inkSoft,
-    textAlign: 'center', marginTop: 18, lineHeight: 17,
+    fontFamily: SERIF, fontSize: typeSize(12), fontStyle: 'italic', color: COLORS.inkSoft,
+    textAlign: 'center', marginTop: 18, lineHeight: typeSize(17),
     textDecorationLine: 'underline',
   },
 });

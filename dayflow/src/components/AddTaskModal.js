@@ -17,7 +17,7 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
 import DateTimeFields from './DateTimeFields';
 import VoiceRecorder from './VoiceRecorder';
 import { noteFields } from '../services/voiceNotes';
-import { COLORS, SERIF } from '../utils/theme';
+import { COLORS, SERIF, typeSize } from '../utils/theme';
 
 function SectionRow({ icon, label, value, onPress, isFirst, isLast, children, rightElement }) {
   return (
@@ -79,17 +79,17 @@ const rs = StyleSheet.create({
   last: { borderBottomLeftRadius: 10, borderBottomRightRadius: 10 },
   border: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COLORS.rule },
   iconWrap: { width: 28, marginRight: 10 },
-  icon: { fontSize: 17 },
+  icon: { fontSize: typeSize(17) },
   iconBox: {
     width: 28, height: 28, borderRadius: 6, justifyContent: 'center', alignItems: 'center', marginRight: 10,
   },
-  iconBoxText: { fontSize: 15, color: COLORS.sheet },
-  label: { fontSize: 16, color: COLORS.ink },
+  iconBoxText: { fontSize: typeSize(15), color: COLORS.sheet },
+  label: { fontSize: typeSize(16), color: COLORS.ink },
   toggleInfo: { flex: 1 },
-  detail: { fontSize: 13, color: COLORS.inkSoft, marginTop: 1 },
+  detail: { fontSize: typeSize(13), color: COLORS.inkSoft, marginTop: 1 },
   right: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4 },
-  value: { fontSize: 16, color: COLORS.inkSoft },
-  chevron: { fontSize: 20, color: COLORS.inkFaint, marginLeft: 2, fontWeight: '300' },
+  value: { fontSize: typeSize(16), color: COLORS.inkSoft },
+  chevron: { fontSize: typeSize(20), color: COLORS.inkFaint, marginLeft: 2, fontWeight: '300' },
 });
 
 // ── Priority Picker Popup ────────────────────────────────────────────────────
@@ -296,18 +296,18 @@ const s = StyleSheet.create({
   },
   // A sheet's two actions, at twenty pixels tall before this.
   headerHit: { paddingVertical: 12, paddingHorizontal: 6, marginVertical: -12, marginHorizontal: -6 },
-  cancel: { fontSize: 17, color: COLORS.accent },
-  save: { fontSize: 17, fontWeight: '600', color: COLORS.accent },
+  cancel: { fontSize: typeSize(17), color: COLORS.accent },
+  save: { fontSize: typeSize(17), fontWeight: '600', color: COLORS.accent },
   saveOff: { color: '#C4BEB0' },
-  headerTitle: { fontFamily: SERIF, fontSize: 17, fontWeight: '600', color: COLORS.ink },
+  headerTitle: { fontFamily: SERIF, fontSize: typeSize(17), fontWeight: '600', color: COLORS.ink },
   scroll: { flex: 1 },
   titleInput: {
     paddingHorizontal: 20, paddingTop: 20, paddingBottom: 8,
-    fontFamily: SERIF, fontSize: 23, fontWeight: '600', color: COLORS.ink, letterSpacing: -0.3,
+    fontFamily: SERIF, fontSize: typeSize(23), fontWeight: '600', color: COLORS.ink, letterSpacing: -0.3,
   },
   notesInput: {
     paddingHorizontal: 20, paddingTop: 4, paddingBottom: 16,
-    fontSize: 16, color: COLORS.inkSoft, minHeight: 44,
+    fontSize: typeSize(16), color: COLORS.inkSoft, minHeight: 44,
   },
   opts: {
     flexDirection: 'row', paddingHorizontal: 20, gap: 8, paddingBottom: 12, flexWrap: 'wrap',
@@ -318,12 +318,12 @@ const s = StyleSheet.create({
     backgroundColor: '#F4F1EA', borderRadius: 20,
   },
   chipHigh: { backgroundColor: '#F6EBE8' },
-  chipIcon: { fontSize: 13 },
-  chipLabel: { fontSize: 14, color: COLORS.inkSoft },
+  chipIcon: { fontSize: typeSize(13) },
+  chipLabel: { fontSize: typeSize(14), color: COLORS.inkSoft },
   oweSection: { paddingHorizontal: 20, paddingTop: 8, gap: 10 },
-  oweHint: { fontFamily: SERIF, fontSize: 13, fontStyle: 'italic', color: COLORS.inkFaint, lineHeight: 18 },
+  oweHint: { fontFamily: SERIF, fontSize: typeSize(13), fontStyle: 'italic', color: COLORS.inkFaint, lineHeight: typeSize(18) },
   oweInput: {
-    fontSize: 15, color: COLORS.ink, borderBottomWidth: StyleSheet.hairlineWidth,
+    fontSize: typeSize(15), color: COLORS.ink, borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: COLORS.rule, paddingBottom: 10,
   },
 });

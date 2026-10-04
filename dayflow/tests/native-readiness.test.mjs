@@ -378,5 +378,439 @@ ok('two keys in a row differ', generateDataKey() !== generateDataKey());
      silent.length === 0, silent.join(', '));
 }
 
+// ── A native module built for a different React Native ──
+//
+// This is the check that would have stopped a day being lost. Installing
+// expo-speech-recognition on Expo SDK 55 produced a build that compiled and
+// then killed the app the first moment anything rendered the quick-add line —
+// because a native module can compile against the wrong React Native and still
+// fail as it registers, which no try/catch around the require can help with.
+//
+// The package publishes one release per SDK and names it for that SDK: after
+// 3.1.3 come 56 and 57, and 55 is the one it skipped. So the major of the
+// installed package has to be the major of the installed Expo, and a build
+// succeeding is not evidence of anything until it is.
+{
+  const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+  const majorOf = range => {
+    const match = String(range || '').match(/(\d+)\./);
+    return match ? Number(match[1]) : null;
+  };
+  const sdk = majorOf(pkg.dependencies.expo);
+  const speech = pkg.dependencies['expo-speech-recognition'];
+
+  ok('the Expo SDK in use is readable from the manifest', sdk !== null, String(pkg.dependencies.expo));
+
+  // Absent is a perfectly good answer: the phone falls back to the keyboard's
+  // own microphone key, which is what it did between the two attempts.
+  if (speech) {
+    ok('the speech package is built for the SDK this app is on',
+       majorOf(speech) === sdk, `expo ${pkg.dependencies.expo}, speech ${speech}`);
+
+    // Installed, not merely asked for. A range that resolves to something else
+    // is the same failure wearing a different hat.
+    const installed = JSON.parse(
+      fs.readFileSync(new URL('../node_modules/expo-speech-recognition/package.json', import.meta.url), 'utf8')
+    ).version;
+    ok('and the copy actually installed is that one too',
+       majorOf(installed) === sdk, `expo ${pkg.dependencies.expo}, installed ${installed}`);
+
+    // Asking for the microphone is not optional on a phone, and the error it
+    // gives when you skip it looks exactly like a microphone that is broken.
+    const speechSrc = fs.readFileSync(new URL('../src/services/speech.js', import.meta.url), 'utf8');
+    ok('and permission is asked for before anything listens',
+       /requestPermissionsAsync/.test(speechSrc), 'services/speech.js never asks');
+  }
+}
+
+// ── Purpose strings Apple will ask for ──
+//
+// Apple rejects a build whose binary references certain APIs without a
+// user-facing reason in Info.plist, and it does not care whether the app calls
+// them. A dependency deep in the tree is enough: expo depends on
+// expo-file-system, which carries a legacy path for copying a photo out of the
+// library, and that one linked symbol cost a build and an upload.
+//
+// The rejection arrives after the build, the submission and the wait, which is
+// the worst possible place to learn it. Everything needed to know it earlier is
+// on this disk.
+{
+  const appJson = JSON.parse(fs.readFileSync(new URL('../app.json', import.meta.url), 'utf8'));
+  const MODULES = new URL('../node_modules/', import.meta.url).pathname;
+
+  // Kept narrow on purpose. A false alarm here sends somebody looking for a
+  // permission the app does not want, so each pattern is one that means the
+  // API itself rather than a word that appears near it.
+  const NEEDS = [
+    { api: /PHPhotoLibrary|PHPickerViewController|UIImagePickerController/, key: 'NSPhotoLibraryUsageDescription' },
+    { api: /SFSpeechRecognizer/, key: 'NSSpeechRecognitionUsageDescription' },
+    { api: /CNContactStore/, key: 'NSContactsUsageDescription' },
+    { api: /CLLocationManager/, key: 'NSLocationWhenInUseUsageDescription' },
+    { api: /LAContext\b/, key: 'NSFaceIDUsageDescription' },
+    { api: /EKEntityType\.reminder|EKEntityMaskReminder/, key: 'NSRemindersUsageDescription' },
+  ];
+
+  const NATIVE = /\.(swift|m|mm|h)$/;
+  const sources = [];
+  const gather = dir => {
+    let entries;
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) gather(full);
+      else if (NATIVE.test(entry.name)) sources.push(full);
+    }
+  };
+
+  // The native surface of this app: every expo module, and the one other
+  // package that ships iOS code.
+  for (const name of fs.readdirSync(MODULES)) {
+    if (!name.startsWith('expo')) continue;
+    gather(path.join(MODULES, name, 'ios'));
+    gather(path.join(MODULES, name, 'apple'));
+  }
+  gather(path.join(MODULES, '@react-native-async-storage', 'async-storage', 'ios'));
+
+  ok('there is native code to look at', sources.length > 50, String(sources.length));
+
+  // A string counts as present whether it is written here or added by a config
+  // plugin, because the build sees no difference between the two.
+  const declared = new Set(Object.keys((appJson.expo.ios || {}).infoPlist || {}));
+  const pluginNames = (appJson.expo.plugins || []).map(entry => (Array.isArray(entry) ? entry[0] : entry));
+  //
+  // Where a plugin keeps its code varies — some ship plugin/build/*.js, some a
+  // single app.plugin.js at the root — and reading only one of those reports a
+  // string as missing when it is not, which is a worse failure than the one
+  // this is guarding against.
+  const pluginText = pluginNames.map(name => {
+    const root = path.join(MODULES, name);
+    const files = [];
+    const collect = dir => {
+      let entries;
+      try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+      for (const entry of entries) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) collect(full);
+        else if (entry.name.endsWith('.js')) files.push(full);
+      }
+    };
+    collect(path.join(root, 'plugin'));
+    const single = path.join(root, 'app.plugin.js');
+    if (fs.existsSync(single)) files.push(single);
+    return files.map(file => {
+      try { return fs.readFileSync(file, 'utf8'); } catch { return ''; }
+    }).join('\n');
+  }).join('\n');
+
+  const provided = key => declared.has(key) || pluginText.includes(key);
+
+  const wanted = new Map();
+  for (const file of sources) {
+    const text = fs.readFileSync(file, 'utf8');
+    for (const need of NEEDS) {
+      if (!wanted.has(need.key) && need.api.test(text)) {
+        wanted.set(need.key, path.relative(MODULES, file));
+      }
+    }
+  }
+
+  const missing = [...wanted].filter(([key]) => !provided(key));
+  ok('every API Apple asks a reason for has one',
+     missing.length === 0,
+     missing.map(([key, where]) => `${key} (referenced by ${where})`).join('; '));
+
+  // The one that was actually missed, named, so removing it by accident is a
+  // failure with a sentence attached rather than a puzzle.
+  ok('including the photo library, which expo-file-system reaches into',
+     provided('NSPhotoLibraryUsageDescription'), 'nothing declares it');
+}
+
+// ── The yield that cost forty-five seconds ──
+//
+// noble yields to the event loop every `asyncTick` milliseconds so a long
+// derivation cannot freeze the page. Its default is 10, and in a browser that
+// is free — the yield is a scheduler callback. On a phone it falls back to
+// setTimeout(0), which on React Native means the timer bridge, and the device
+// reported 45.5 s to derive one key that takes 277 ms on a machine with a JIT.
+//
+// Left to the default it will be ten again, and nothing about the result will
+// look wrong — the key is correct either way. Only the clock says anything,
+// and only on hardware.
+{
+  const src = fs.readFileSync(new URL('../src/services/crypto.js', import.meta.url), 'utf8');
+  const set = src.match(/asyncTick:\s*(\d+)/);
+  ok('the derivation says how often it may stop to look up', !!set, 'asyncTick is left to the default');
+  if (set) {
+    ok('and it is not the default, which is a yield every ten milliseconds',
+       Number(set[1]) >= 100, `asyncTick: ${set[1]}`);
+  }
+}
+
+// ── Calling a function the module no longer has ──
+//
+// expo-calendar 57 renamed requestCalendarPermissionsAsync, getCalendarsAsync
+// and getEventsAsync and did not keep the old names at the package root; they
+// moved to build/legacy. Calling one that is not there is a TypeError, and the
+// catch around reading the phone's calendar turned that into "this device has
+// no calendar" — indistinguishable from a refused permission.
+//
+// Nothing in a browser can catch that: the whole path is skipped on web. So
+// the names the app calls are checked against the names the installed package
+// actually exports, which is a question answerable from this disk.
+{
+  const MODULES = new URL('../node_modules/', import.meta.url).pathname;
+  const feed = fs.readFileSync(new URL('../src/services/calendarFeed.js', import.meta.url), 'utf8');
+
+  // Every `Calendar.something` the source reaches for.
+  const wanted = [...new Set(
+    [...feed.matchAll(/\bCalendar\.([A-Za-z_]\w*)/g)].map(m => m[1])
+  )];
+  ok('the calendar module is reached for by name', wanted.length > 0, JSON.stringify(wanted));
+
+  // What it exports, read from the built JavaScript rather than the types: the
+  // types describe an intention, the build is what gets bundled.
+  const built = ['Calendar.js', 'index.js']
+    .map(file => {
+      try { return fs.readFileSync(path.join(MODULES, 'expo-calendar', 'build', file), 'utf8'); }
+      catch { return ''; }
+    })
+    .join('\n');
+  ok('and the built module can be read', built.length > 0, 'expo-calendar/build is missing');
+
+  // Exported as a function, as a const, or re-exported in a braced list.
+  const exported = new Set();
+  for (const m of built.matchAll(/export\s+(?:async\s+)?function\s+(\w+)/g)) exported.add(m[1]);
+  for (const m of built.matchAll(/export\s+(?:const|let|var)\s+(\w+)/g)) exported.add(m[1]);
+  for (const m of built.matchAll(/export\s*\{([^}]*)\}/g)) {
+    for (const piece of m[1].split(',')) {
+      const name = piece.trim().split(/\s+as\s+/).pop().trim();
+      if (name) exported.add(name);
+    }
+  }
+
+  // A name the source only reaches for behind a fallback is fine as long as one
+  // of the pair exists; what must never happen is every spelling being absent.
+  const missing = wanted.filter(name => !exported.has(name));
+  const stillThere = wanted.filter(name => exported.has(name));
+
+  ok('at least some of what it calls exists', stillThere.length > 0,
+     `none of ${JSON.stringify(wanted)} is exported`);
+
+  // The three that moved, each tried under both spellings. One of each pair has
+  // to be there or the phone has no diary and says nothing about why.
+  const pairs = [
+    ['requestCalendarPermissions', 'requestCalendarPermissionsAsync'],
+    ['getCalendars', 'getCalendarsAsync'],
+    ['listEvents', 'getEventsAsync'],
+  ];
+  for (const pair of pairs) {
+    const reached = pair.filter(name => wanted.includes(name));
+    if (!reached.length) continue;
+    // Among the spellings the source actually reaches for — not among the
+    // spellings that exist. Asking whether either name is exported passes
+    // happily while the source calls only the one that is gone, which is the
+    // precise bug this is here to catch.
+    ok(`what the source calls for ${pair.join(' / ')} is exported`,
+       reached.some(name => exported.has(name)),
+       `the source calls ${reached.join(' and ')}, and none of those is exported`);
+  }
+
+  // Said rather than hidden: a name that is gone is worth knowing about even
+  // when a fallback covers it, because the fallback is the thing that will be
+  // deleted one day as dead code.
+  if (missing.length) {
+    console.log(`      (not exported, covered by a fallback: ${missing.join(', ')})`);
+  }
+}
+
+// ── Two features that were dead on a phone and said nothing ──
+//
+// pickTextFile returned null immediately on anything but the web, so "Read a
+// calendar" did nothing when tapped and so did restoring a backup from a file.
+// The callers read that null as a cancellation, which is why neither said
+// anything. Restoring is the one that matters: it is the button somebody
+// presses after losing everything.
+//
+// It still cannot pick a file on a phone — that needs expo-document-picker,
+// which is a native module and a decision of its own. What it must never do
+// again is be silent about it.
+//
+// Nothing in the browser suite can see any of this: on the web it works.
+{
+  const MODULES = new URL('../node_modules/', import.meta.url).pathname;
+  const picker = fs.readFileSync(new URL('../src/services/saveFile.js', import.meta.url), 'utf8');
+  const sheet = fs.readFileSync(new URL('../src/components/AccountSheet.js', import.meta.url), 'utf8');
+
+  ok('a phone is not handed the same null as a cancellation',
+     !/Platform\.OS !== 'web'\)\s*return Promise\.resolve\(null\)/.test(picker),
+     'pickTextFile still returns a bare null on native');
+  ok('and it says why instead', /failed:/.test(picker), 'no way to report a picker that cannot open');
+
+  // Both callers have to act on it. One of them reporting it and the other
+  // swallowing it is the same bug half fixed.
+  const reported = sheet.match(/file\.failed/g) || [];
+  ok('both features report it, not one', reported.length >= 2,
+     `file.failed is handled ${reported.length} time(s)`);
+
+  // And the reason it is not simply implemented: the picker expo-file-system
+  // declares is not reachable from JavaScript in this version. If a later one
+  // connects it, this fails and the note above can be deleted.
+  let reachable = false;
+  try {
+    const fsPkg = JSON.parse(fs.readFileSync(path.join(MODULES, 'expo-file-system', 'package.json'), 'utf8'));
+    const entries = Object.keys(fsPkg.exports || {});
+    const built = fs.readFileSync(path.join(MODULES, 'expo-file-system', 'build', 'File.js'), 'utf8');
+    reachable = /pickFileAsync/.test(built) || entries.some(e => /ExpoFileSystem/.test(e));
+  } catch { reachable = false; }
+  ok('expo-file-system still offers no picker JavaScript can call',
+     reachable === false,
+     'a picker is reachable now — saveFile.js can use it and the note can go');
+}
+
+// ── Every expo name the app uses, against what is installed ──
+//
+// The calendar broke because three functions were renamed in SDK 57 and the
+// old names were called into a catch. That is not a calendar problem, it is a
+// shape of problem, and the rest of the expo surface deserves the same check:
+// a name that has moved is a feature that silently does nothing, and only a
+// device would ever say so.
+{
+  const MODULES = new URL('../node_modules/', import.meta.url).pathname;
+  const ROOT = new URL('../', import.meta.url).pathname;
+
+  // What a package really exports, following `export *` and reading whatever
+  // entry point it declares — not a guess at build/index.js. Two of these do
+  // not have one, and guessing meant checking nothing while looking thorough.
+  const exportsOf = (pkg, file = null, seen = new Set()) => {
+    let full;
+    if (file) {
+      full = path.join(MODULES, pkg, 'build', file);
+    } else {
+      let main;
+      try { main = JSON.parse(fs.readFileSync(path.join(MODULES, pkg, 'package.json'), 'utf8')).main; }
+      catch { return new Set(); }
+      if (!main) return new Set();
+      const built = main.replace(/^src\//, 'build/').replace(/\.tsx?$/, '.js');
+      // A package may ship TypeScript source and let Metro compile it.
+      full = [built, `${built}.js`, main, `${main}.ts`, `${main}.tsx`]
+        .map(c => path.join(MODULES, pkg, c))
+        .find(c => fs.existsSync(c));
+      if (!full) return new Set();
+    }
+    if (seen.has(full) || !fs.existsSync(full)) return new Set();
+    seen.add(full);
+
+    const text = fs.readFileSync(full, 'utf8');
+    const names = new Set();
+    for (const m of text.matchAll(/export\s+(?:async\s+)?function\s+(\w+)/g)) names.add(m[1]);
+    for (const m of text.matchAll(/export\s+(?:const|let|var)\s+(\w+)/g)) names.add(m[1]);
+    for (const m of text.matchAll(/export\s+(?:declare\s+)?class\s+(\w+)/g)) names.add(m[1]);
+    for (const m of text.matchAll(/export\s*\{([^}]*)\}/g)) {
+      for (const piece of m[1].split(',')) {
+        const name = piece.trim().split(/\s+as\s+/).pop().trim();
+        if (name) names.add(name);
+      }
+    }
+    for (const m of text.matchAll(/export\s*\*\s*from\s*["']\.\/([^"']+)["']/g)) {
+      const next = m[1].endsWith('.js') ? m[1] : `${m[1]}.js`;
+      for (const n of exportsOf(pkg, next, seen)) names.add(n);
+    }
+    return names;
+  };
+
+  const sources = [];
+  const gather = dir => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) gather(full);
+      else if (entry.name.endsWith('.js')) sources.push(full);
+    }
+  };
+  gather(path.join(ROOT, 'src'));
+  for (const extra of ['App.js', 'index.js']) {
+    const full = path.join(ROOT, extra);
+    if (fs.existsSync(full)) sources.push(full);
+  }
+
+  const used = new Map();
+  const note = (pkg, name, where) => {
+    if (!used.has(pkg)) used.set(pkg, new Map());
+    if (!used.get(pkg).has(name)) used.get(pkg).set(name, new Set());
+    used.get(pkg).get(name).add(path.relative(ROOT, where));
+  };
+
+  for (const file of sources) {
+    const text = fs.readFileSync(file, 'utf8');
+    for (const m of text.matchAll(/import\s*\{([^}]*)\}\s*from\s*["'](expo-[\w-]+)["']/g)) {
+      for (const piece of m[1].split(',')) {
+        const name = piece.trim().split(/\s+as\s+/)[0].trim();
+        if (name) note(m[2], name, file);
+      }
+    }
+    for (const m of text.matchAll(/import\s*\*\s*as\s+(\w+)\s*from\s*["'](expo-[\w-]+)["']/g)) {
+      for (const hit of text.matchAll(new RegExp(`\\b${m[1]}\\.(\\w+)`, 'g'))) note(m[2], hit[1], file);
+    }
+  }
+
+  ok('the app reaches for expo modules by name', used.size > 0, 'none found to check');
+
+  const unreadable = [];
+  const missing = [];
+  for (const [pkg, names] of used) {
+    const have = exportsOf(pkg);
+    // A package that cannot be read is the failure that looks like a pass.
+    if (!have.size) { unreadable.push(pkg); continue; }
+    for (const name of names.keys()) {
+      if (!have.has(name)) missing.push(`${pkg}.${name} (${[...names.get(name)].join(', ')})`);
+    }
+  }
+
+  ok('every expo module the app uses can be read', unreadable.length === 0, unreadable.join(', '));
+  ok('and every name it uses is exported by the copy installed',
+     missing.length === 0, missing.join('; '));
+}
+
+// ── The native derivation hands across the right bytes ──
+//
+// On a phone the key is derived by modules/dayflow-kdf, which no test here can
+// run. What can be checked is the half that lives in JavaScript: that crypto.js
+// gives it the password and salt as UTF-8 bytes, in hex, and takes back a key
+// in hex — so that a native side doing standard PBKDF2 lands on the pinned keys.
+// node's own pbkdf2Sync stands in for CommonCrypto, fed only the hex it is given.
+{
+  const nodeCrypto = await import('node:crypto');
+  const { installNativeKdf } = await import('../src/services/nativeKdf.js');
+  const saved = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
+  delete globalThis.crypto;
+  try {
+    let calls = 0;
+    installNativeKdf(async (passwordHex, saltHex, iterations, keyBytes) => {
+      calls += 1;
+      return nodeCrypto.pbkdf2Sync(
+        Buffer.from(passwordHex, 'hex'), Buffer.from(saltHex, 'hex'), iterations, keyBytes, 'sha256'
+      ).toString('hex');
+    });
+    const plain = await deriveAccountKeys('t.ashenafi@pm.me', 'correct horse battery');
+    ok('with no Web Crypto, the derivation goes to the native module', calls > 0);
+    ok('and lands on the pinned key-encrypting key',
+       plain.kek === '07532576c0a78e4ddc9bdabc5d40ab78c01c61b47efa18a8f561862561110ba8', plain.kek);
+    const accented = await deriveAccountKeys('t.ashenafi@pm.me', 'Ünïcodé pässwörd 😀');
+    ok('and on the pinned key for a password outside ASCII',
+       accented.kek === '57bbc24159f7c4a5ad58d1f3c1df258f6b7acd93df9aae66ec1be35a0f2dceaa', accented.kek);
+
+    // A native side that throws, or answers with something that is not a key,
+    // must cost time and nothing else.
+    installNativeKdf(async () => { throw new Error('no CommonCrypto today'); });
+    const thrown = await deriveAccountKeys('t.ashenafi@pm.me', 'correct horse battery');
+    ok('a native failure falls back to the same key', thrown.kek === plain.kek);
+    installNativeKdf(async () => 'not a key');
+    const garbled = await deriveAccountKeys('t.ashenafi@pm.me', 'correct horse battery');
+    ok('and so does a native answer that is not a key', garbled.kek === plain.kek);
+  } finally {
+    installNativeKdf(null);
+    if (saved) Object.defineProperty(globalThis, 'crypto', saved);
+  }
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

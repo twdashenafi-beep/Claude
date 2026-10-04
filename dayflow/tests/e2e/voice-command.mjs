@@ -138,10 +138,22 @@ await page.addInitScript(() => {
       setTimeout(() => this.onend && this.onend(), 0);
     }
     abort() { window.__mic.live = false; }
+    // A browser keeps every result of the session and points resultIndex at the
+    // first one that changed — it does not resend only the newest. This used
+    // to send one result at index zero holding just the latest phrase, which
+    // is neither engine: a browser accumulates, and a phone resends the whole
+    // transcript. Code that read it correctly for either would have failed
+    // here, and did.
+    _results = [];
+
     say(text) {
       const alternatives = [{ transcript: text }];
       alternatives.isFinal = true;
-      this.onresult && this.onresult({ resultIndex: 0, results: [alternatives] });
+      this._results.push(alternatives);
+      this.onresult && this.onresult({
+        resultIndex: this._results.length - 1,
+        results: this._results,
+      });
     }
   }
   window.SpeechRecognition = FakeRecognition;
@@ -198,12 +210,23 @@ ok('and a pause after it does not end dictation', await micLive(),
    `box: ${await boxText()}`);
 ok('the words are still waiting in the box', (await boxText()).toLowerCase().includes('owe me'));
 
+// And it says what it is waiting for. The pause after a bare command is
+// forgiven rather than treated as the end of the sentence — but "pause when
+// you have finished" is the wrong instruction at that moment, because nothing
+// has been started, and the silence being forgiven looks exactly like the
+// silence that ends a sentence.
+ok('and says it is waiting for the task, not for you to finish',
+   (await body()).includes('now say the task'),
+   (await body()).match(/Listening[^\n]*/) || '');
+
 await speak('the signed inventory');
 await page.waitForTimeout(PAUSE + 800);
 ok('naming the task afterwards finishes the sentence',
    (await columnOf('The signed inventory')) === 'owe', await columnOf('The signed inventory'));
 ok('and the command is not in the title', !(await body()).includes('Owe me the signed'));
 ok('and the box is emptied', (await boxText()) === '', await boxText());
+ok('and it stops asking for a task once one has arrived',
+   !(await body()).includes('now say the task'), (await body()).match(/Listening[^\n]*/) || '');
 
 // ── To Do, the same way ──
 await tapMic();
