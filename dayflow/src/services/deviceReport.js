@@ -143,3 +143,29 @@ export function deviceLines(summary) {
 
   return lines;
 }
+
+// Which copy of DayFlow this is, in one line for the foot of the settings.
+//
+// The question it answers is not "what version am I on" but "am I looking at
+// the web app or the installed one", because that is the fork that decides
+// whether a missing change is a stale cache or a build that was never made.
+// So the platform is said first and the number second.
+export function buildLine(info) {
+  const it = info || {};
+  const web = it.platform === 'web' || !it.platform;
+
+  if (web) {
+    const stamp = String(it.stamp || '').trim();
+    // The export script stamps the build; running from source does not, and
+    // saying "build dev" invites somebody to go looking for build dev.
+    return stamp && stamp !== 'dev' ? `Web app · build ${stamp}` : 'Web app · built from source';
+  }
+
+  const version = String(it.version || '').trim();
+  const build = String(it.build || '').trim();
+  if (version && build) return `Installed app · ${version} (${build})`;
+  if (version) return `Installed app · ${version}`;
+  // Better than a number nobody can check: TestFlight lists the build, and an
+  // app that cannot read its own is a fact worth seeing rather than hiding.
+  return 'Installed app · build unknown';
+}

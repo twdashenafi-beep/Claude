@@ -6,15 +6,23 @@
 #   /world-monitor/  the static dashboard from the repo root
 #
 # One-time setup: repo Settings -> Pages -> Source: "GitHub Actions".
-# If a run is blocked with a deployment-protection error, allow this branch
-# under Settings -> Environments -> github-pages -> Deployment branches.
+#
+# Only the deploy branch is listed below, and that is deliberate. The
+# github-pages environment permits that branch alone, so a run started from any
+# other one builds the site, is refused at the deploy job before a single step
+# runs, and leaves a red cross that can never go green. That is worse than not
+# running: it reads as a broken build, and twice it was taken as a deploy that
+# had gone out when nothing had. Publishing therefore means merging here.
+#
+# To preview a working branch instead, two things have to change together —
+# add it under Settings -> Environments -> github-pages -> Deployment branches,
+# and list it here. Either one alone puts the cross back.
 name: Deploy Pages
 
 on:
   push:
     branches:
       - claude/plw-vpvdd9
-      - claude/finalize-app-build-qjasx3
   workflow_dispatch:
 
 permissions:

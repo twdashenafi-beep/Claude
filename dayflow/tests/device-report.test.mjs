@@ -9,6 +9,7 @@
 
 import {
   bytesOf, sizeWords, notesIn, summarise, deviceLines, dictationLine, calendarLine,
+  buildLine,
 } from '../src/services/deviceReport.js';
 
 let pass = 0, fail = 0;
@@ -139,6 +140,56 @@ ok('and whitespace is nothing too', calendarLine('   ') === '');
   ok('a successful read is reported too, which is the quiet failure',
      /0 events/.test(fine), fine);
   ok('all three are told apart', new Set([refused, broken, fine]).size === 3);
+}
+
+// ── Which copy of DayFlow this is ───────────────────────────────────────────
+//
+// Written after an afternoon spent not knowing. A change went out, the web
+// deploy was green, and the phone kept showing the old screen — and from
+// inside the app there was no way to tell whether the phone was holding a
+// cached web page or running a build that predated the work. Those are fixed
+// in two different places, so the line has to say which before it says any
+// number at all.
+{
+  ok('the web app says it is the web app',
+     buildLine({ platform: 'web', stamp: '20261004-1243' }) === 'Web app · build 20261004-1243',
+     buildLine({ platform: 'web', stamp: '20261004-1243' }));
+
+  // "Build dev" is what the export script leaves when nothing stamped it, and
+  // it reads like a build somebody could go and look up. Nobody can.
+  ok('and an unstamped one says so rather than naming a build nobody can find',
+     buildLine({ platform: 'web', stamp: 'dev' }) === 'Web app · built from source',
+     buildLine({ platform: 'web', stamp: 'dev' }));
+  ok('as does one with no stamp at all',
+     buildLine({ platform: 'web' }) === 'Web app · built from source');
+
+  // The number TestFlight lists, so the two can be held side by side.
+  ok('the installed app gives the version and the build',
+     buildLine({ platform: 'ios', version: '1.0.0', build: '18' })
+       === 'Installed app · 1.0.0 (18)',
+     buildLine({ platform: 'ios', version: '1.0.0', build: '18' }));
+  ok('and the same on the other phone',
+     buildLine({ platform: 'android', version: '1.0.0', build: '18' })
+       === 'Installed app · 1.0.0 (18)');
+  ok('a version with no build number still says the version',
+     buildLine({ platform: 'ios', version: '1.0.0' }) === 'Installed app · 1.0.0',
+     buildLine({ platform: 'ios', version: '1.0.0' }));
+
+  // The module is reached through a try/catch, so it can come back empty. A
+  // line that quietly dropped to nothing would leave exactly the gap this
+  // was written to close.
+  ok('and a module that told it nothing says that, rather than going quiet',
+     buildLine({ platform: 'ios' }) === 'Installed app · build unknown',
+     buildLine({ platform: 'ios' }));
+
+  ok('nothing at all is still a line', typeof buildLine() === 'string' && buildLine().length > 0,
+     String(buildLine()));
+  // The whole point: the two platforms are never confusable.
+  ok('the web app and the installed app can never read the same',
+     buildLine({ platform: 'web', stamp: 'x' }) !== buildLine({ platform: 'ios', version: 'x' }));
+  ok('and each says which it is before it says any number',
+     /^Web app/.test(buildLine({ platform: 'web', stamp: 'x' }))
+       && /^Installed app/.test(buildLine({ platform: 'ios', version: 'x' })));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
