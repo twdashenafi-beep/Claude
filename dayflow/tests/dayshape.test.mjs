@@ -14,7 +14,7 @@
 // Run under a fixed zone: every assertion here is about clock times.
 import {
   barSegments, barNow, barDrawable, barCaption, loadSentence,
-  spanLoad, dayLoad, BAR_GAP, BAR_LEAST,
+  spanLoad, dayLoad, BAR_GAP, BAR_LEAST, tomorrowLine,
 } from '../src/services/agenda.js';
 
 let pass = 0, fail = 0;
@@ -294,6 +294,70 @@ const near = (a, b, slack = 0.51) => Math.abs(a - b) <= slack;
   const after = spanLoad([], todayOnly, evening, 'day');
   ok('a meeting earlier today is not tomorrow\u2019s', after.events.length === 0,
      after.events.map(e => e.title).join(', '));
+}
+
+// ── The hours when tomorrow belongs to no page ──────────────────────────────
+//
+// Between the end of a working day and nine in the evening, tomorrow is
+// nowhere: the day's page is today and today is spent, the week's page is this
+// week — which on a Sunday is already over — and the month's page counts
+// meetings without saying when any of them are. Somebody finishing at six and
+// wondering about the morning had to open their calendar, which is the one
+// errand a day's page exists to save.
+{
+  const at = (day, h, mi = 0) => new Date(2026, 9, day, h, mi);
+  const some = (title, a, b, allDay = false) => ({ id: title, title, start: a, end: b, allDay });
+  const diary = [
+    some('Late call', at(4, 16), at(4, 17)),
+    some('Standup', at(5, 9), at(5, 9, 30)),
+  ];
+  const lineAt = now => tomorrowLine(spanLoad([], diary, now, 'day'), diary, now);
+
+  // Still something to be somewhere for.
+  ok('nothing is said while the day still holds a meeting', lineAt(at(4, 15)) === null,
+     String(lineAt(at(4, 15))));
+  // Spent, but the working day is not over: a single morning meeting must not
+  // have the page talking about tomorrow from half past nine.
+  ok('nor once it is over but the day is not', lineAt(at(4, 17)) === null,
+     String(lineAt(at(4, 17))));
+
+  const said = lineAt(at(4, 18, 30));
+  ok('once the day closes, tomorrow is named', said === 'Tomorrow starts 09:00 — Standup', String(said));
+
+  // Past nine the whole page is tomorrow and the strip says so properly.
+  // Saying it twice, as a strip and a sentence under it, is noise.
+  ok('and it goes quiet again when the page becomes tomorrow',
+     lineAt(at(4, 21, 30)) === null, String(lineAt(at(4, 21, 30))));
+
+  // A meeting tonight that runs past midnight. The day's window only stretches
+  // to something ending before midnight, so the window closes at six while the
+  // call is still ahead — and a page saying "tomorrow starts at nine" while you
+  // are still due on a call at eleven has its priorities backwards.
+  const overnight = [
+    some('Late call', at(4, 16), at(4, 17)),
+    some('Call the coast', at(4, 23), new Date(2026, 9, 5, 1)),
+    some('Standup', at(5, 9), at(5, 9, 30)),
+  ];
+  ok('a call tonight that runs past midnight still comes first',
+     tomorrowLine(spanLoad([], overnight, at(4, 18, 30), 'day'), overnight, at(4, 18, 30)) === null,
+     String(tomorrowLine(spanLoad([], overnight, at(4, 18, 30), 'day'), overnight, at(4, 18, 30))));
+
+  // A public holiday does not start at a time, and "Tomorrow starts 00:00 —
+  // Team offsite week" is worse than silence.
+  const holiday = [some('Team offsite week', at(5, 0), at(6, 0), true)];
+  ok('an all-day entry is not something tomorrow starts with',
+     tomorrowLine(spanLoad([], holiday, at(4, 18, 30), 'day'), holiday, at(4, 18, 30)) === null);
+
+  // An empty tomorrow says nothing rather than something reassuring. The line
+  // exists to name a meeting; with none to name there is nothing to say.
+  const onlyToday = [some('Late call', at(4, 16), at(4, 17))];
+  ok('an empty tomorrow is not announced',
+     tomorrowLine(spanLoad([], onlyToday, at(4, 18, 30), 'day'), onlyToday, at(4, 18, 30)) === null);
+
+  // A week or a month is not a day and has no tomorrow to speak of.
+  ok('the week page says nothing of the kind',
+     tomorrowLine(spanLoad([], diary, at(4, 18, 30), 'week'), diary, at(4, 18, 30)) === null);
+  ok('and nothing at all is survived', tomorrowLine(null, diary, at(4, 18, 30)) === null);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

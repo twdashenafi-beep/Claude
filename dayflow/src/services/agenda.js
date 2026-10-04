@@ -530,3 +530,50 @@ export function loadSentence(load, now = new Date()) {
   // Said first, because every clock time after it belongs to a different day.
   return load.tomorrow ? `Tomorrow — ${line.charAt(0).toLowerCase()}${line.slice(1)}` : line;
 }
+
+// What tomorrow opens with, once today has nothing left in it.
+//
+// There is a gap between the end of a working day and nine in the evening when
+// tomorrow belongs to no page. The day's page is still today and today is
+// spent; the week's page is this week, which on a Sunday is over; and the
+// month's page counts meetings without saying when any of them are. So
+// somebody finishing at six and wondering what the morning holds had to open
+// their calendar — which is the one thing a day's page exists to save them.
+//
+// Deliberately narrow. It says nothing while there is still something to be
+// somewhere for today, nothing before the working day has closed, and nothing
+// after nine, when the page has become tomorrow and the strip says it properly.
+// One line, one meeting, in the hour or three where it is the only way to know.
+export function tomorrowLine(load, rawEvents, now = new Date()) {
+  if (!load || load.span !== 'day' || !load.window) return null;
+
+  const at = asDate(now) || new Date();
+  // The day has to be over. Otherwise a single nine o'clock meeting would have
+  // the page talking about tomorrow from half past.
+  //
+  // This also covers the evening after nine, when the page has already become
+  // tomorrow: the window is then tomorrow's own, and tonight is necessarily
+  // before the close of a day that has not started. An explicit check for that
+  // was written here first and taken out again — it could not be made to fail,
+  // because there is no hour at which it answers anything this does not.
+  if (at < load.window.to) return null;
+
+  // Something still to be somewhere for: today is not spent.
+  //
+  // Not covered by the window above, and this is the whole of why it stays:
+  // dayWindow only stretches the day to an event that ends before midnight, so
+  // a call at eleven tonight running into tomorrow leaves the window closing
+  // at six while the call is still ahead of you.
+  if (load.next) return null;
+
+  const from = startOfDay(at);
+  from.setDate(from.getDate() + 1);
+  const to = new Date(from);
+  to.setDate(to.getDate() + 1);
+
+  // All-day entries are dropped: a public holiday does not start at a time,
+  // and "Tomorrow starts 00:00 — Team offsite week" is worse than silence.
+  const [first] = eventsWithin(rawEvents, { from, to }).filter(e => !e.allDay);
+  if (!first) return null;
+  return `Tomorrow starts ${clockOf(first.start)} — ${first.title}`;
+}
