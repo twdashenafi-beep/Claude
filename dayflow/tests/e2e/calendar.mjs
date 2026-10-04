@@ -100,9 +100,14 @@ if (await cont.count()) await cont.click();
 await page.waitForTimeout(1500);
 
 const body = async () => page.evaluate(() => document.body.innerText);
+// The day's page draws the diary and carries the sentence as the drawing's
+// label; a week or a month has no shape to draw and shows the sentence itself.
+// Both are the same words, so both are read the same way here.
 const diaryLine = async () => {
   const line = page.locator('[data-diaryline]');
-  return (await line.count()) ? line.first().innerText() : null;
+  if (!(await line.count())) return null;
+  const first = line.first();
+  return (await first.getAttribute('aria-label')) || (await first.innerText());
 };
 async function toDo(title) {
   const box = page.getByPlaceholder('Write a line…');
@@ -190,11 +195,53 @@ await page.waitForTimeout(1500);
   // 09:00–09:30, 11:00–13:00 (the double booking merged into the board call),
   // and 16:00–16:30 worked out from a rule. Three hours, not four.
   ok('and counts overlapping meetings once', /3h booked/.test(line || ''), String(line));
-  // Half past eight to six is nine and a half hours; three of them are gone.
-  ok('with what is left after them', /6h 30m free/.test(line || ''), String(line));
-  ok('and says where the gaps are', /Free 08:30–09:00, 09:30–11:00/.test(line || ''), String(line));
+  // It is half past eight, so the free stretch already running is said as
+  // "until" — the hour it started is behind you.
+  ok('and leads with where the free time is',
+     /^Free until 09:00, then 09:30–11:00/.test(line || ''), String(line));
   ok('the rest of them counted rather than listed', /and 2 more/.test(line || ''), String(line));
   ok('an all-day note books no hours', !/(1[0-9]|2[0-9])h booked/.test(line || ''), String(line));
+  // "6h 30m free" was the third of three facts separated by identical dots,
+  // and it was the one the drawing makes redundant: the empty track is what is
+  // left. One sentence, two clauses, in that order.
+  ok('and does not also count the free hours', !/free/.test(line || ''), String(line));
+}
+
+// ── The day is drawn, not only described ────────────────────────────────────
+//
+// A hairline from the hour the day opens to the hour it closes, the booked
+// stretches inked in, and one figure under it. Where the free time is becomes
+// something you see instead of something you parse.
+{
+  const bar = page.locator('[data-daybar]');
+  ok('the day has a shape on the page', (await bar.count()) === 1,
+     String(await bar.count()));
+
+  const seen = await bar.first().innerText();
+  ok('the two ends of the day are the ruler', /08:00/.test(seen) && /18:00/.test(seen), seen);
+  ok('and the one figure under it is what is booked', /3h booked/.test(seen), seen);
+  ok('with no dotted list of facts left on it', !seen.includes('·'), seen);
+
+  const blocks = await page.$$eval('[data-daybar] [data-booked]', nodes =>
+    nodes.map(n => ({ left: n.offsetLeft, width: n.offsetWidth })));
+  // The standup, the board call with the double booking inside it, and the
+  // one-to-one. Three blocks, because overlapping meetings are one block.
+  ok('one block per stretch of booked time, overlaps merged',
+     blocks.length === 3, JSON.stringify(blocks));
+  ok('in the order the day happens',
+     blocks.every((b, i) => i === 0 || b.left > blocks[i - 1].left), JSON.stringify(blocks));
+  ok('each one wide enough to see',
+     blocks.every(b => b.width >= 2), JSON.stringify(blocks));
+  ok('and surface between them, so the morning does not read as one block',
+     blocks.every((b, i) => i === 0 || b.left - (blocks[i - 1].left + blocks[i - 1].width) >= 2),
+     JSON.stringify(blocks));
+  // Half past eight of a ten-hour day: a twentieth of the way along.
+  const tick = await page.$$eval('[data-daybar] [data-nowtick]', nodes =>
+    nodes.map(n => ({ left: n.offsetLeft, width: n.parentElement.offsetWidth })));
+  ok('and a tick for where you are standing', tick.length === 1, JSON.stringify(tick));
+  ok('at the right hour of it',
+     tick.length === 1 && Math.abs(tick[0].left / tick[0].width - 0.05) < 0.02,
+     JSON.stringify(tick));
 }
 
 // ── And in the briefing ─────────────────────────────────────────────────────
@@ -226,14 +273,11 @@ await page.waitForTimeout(1500);
 // Thursday can be checked against Thursday. Shown whole on the day's page it
 // put next week's meetings in front of somebody looking at today.
 {
-  const line = async () => {
-    const l = page.locator('[data-diaryline]');
-    return (await l.count()) ? l.first().innerText() : '';
-  };
+  const line = async () => (await diaryLine()) || '';
 
   const howMany = text => Number((/^(\d+) meeting/.exec(text) || [])[1] || -1);
 
-  ok('the day page measures the day', /free/.test(await line()), await line());
+  ok('the day page measures the day', /^Free /.test(await line()), await line());
 
   await page.getByLabel('Show week tasks').click();
   await page.waitForTimeout(900);
@@ -257,7 +301,7 @@ await page.waitForTimeout(1500);
 
   await page.getByLabel('Show day tasks').click();
   await page.waitForTimeout(900);
-  ok('back on the day, it is a day again', /free/.test(await line()), await line());
+  ok('back on the day, it is a day again', /^Free /.test(await line()), await line());
 }
 
 // ── Running into something ──────────────────────────────────────────────────

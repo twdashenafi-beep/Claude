@@ -10,7 +10,7 @@ import { recordChase } from '../services/chase';
 import { isReckoningDay } from '../services/reckoning';
 import { eventsFor } from '../services/calendarFeed';
 import { scopeNow, horizonStamp } from '../services/scope';
-import { spanLoad, loadLine, gapsLine } from '../services/agenda';
+import { spanLoad } from '../services/agenda';
 import { EVERYTHING, projectOf, projectName } from '../services/projects';
 import { moveTick } from '../services/haptics';
 import { ARCHIVE, deletionOf } from '../services/archive';
@@ -22,6 +22,7 @@ import ProjectBar from '../components/ProjectBar';
 import ArchiveSheet from '../components/ArchiveSheet';
 import SearchSheet from '../components/SearchSheet';
 import ViewToggle from '../components/ViewToggle';
+import DayBar from '../components/DayBar';
 import AddTaskModal from '../components/AddTaskModal';
 import TaskDetail from '../components/TaskDetail';
 import AIInput from '../components/AIInput';
@@ -618,14 +619,18 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
   // Week, this month on Month. The whole three weeks is loaded so that a time
   // given to a task next Thursday can be checked against Thursday, and showing
   // all of it wherever you happened to be was the bug this fixes.
-  const load = useMemo(
-    () => (diary ? spanLoad(inView, diary.events, new Date(), viewMode) : null),
-    [diary, inView, viewMode, today],
-  );
-  const dayLine = useMemo(() => {
-    if (!load || searching || project === ARCHIVE) return null;
-    return [loadLine(load), gapsLine(load)].filter(Boolean).join('  ·  ') || null;
-  }, [load, searching, project]);
+  const load = useMemo(() => {
+    if (!diary) return null;
+    // One reading of the clock for both the figures and the tick that says
+    // where you are standing, so the drawing cannot disagree with its own
+    // caption by the few milliseconds between two calls to Date.now().
+    const at = new Date();
+    return { ...spanLoad(inView, diary.events, at, viewMode), at };
+  }, [diary, inView, viewMode, today]);
+  // The day's shape, or the day in a sentence when there is no shape to draw.
+  // The arithmetic for both is in agenda.js; this only decides whether the
+  // page is one the diary has anything to say about.
+  const showDiary = !!load && !searching && project !== ARCHIVE;
 
   // Search reaches past the current page by design, so it is handed the
   // archive as well as what is on screen — the whole point is not having to
@@ -808,7 +813,7 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
           {/* The hours that are already spoken for. A line rather than a
               panel: it is context for the list underneath, not a thing to
               look at on its own. */}
-          {dayLine ? <Text style={s.diary} dataSet={{ diaryline: 'true' }}>{dayLine}</Text> : null}
+          {showDiary ? <DayBar load={load} now={load.at} /> : null}
 
           {/* A device that has stopped saving says so, in the one place that is
               always on screen. Not the undo bar at the bottom: that clears
@@ -1180,7 +1185,6 @@ const s = StyleSheet.create({
   },
   date: { fontFamily: SERIF, fontSize: typeSize(25), color: COLORS.ink, marginTop: 10, letterSpacing: -0.3 },
   tally: { fontFamily: SANS, fontSize: typeSize(12), color: COLORS.inkFaint, marginTop: 4 },
-  diary: { fontFamily: SANS, fontSize: typeSize(12), color: COLORS.inkSoft, marginTop: 3 },
 
   // Headings sit above the rule, one per column.
   headings: { flexDirection: 'row', alignItems: 'flex-end' },
