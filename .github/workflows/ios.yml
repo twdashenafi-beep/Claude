@@ -191,6 +191,7 @@ jobs:
         working-directory: dayflow
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          RUN_OK: ${{ job.status == 'success' }}
         run: |
           eas build:list --platform ios --limit 1 --non-interactive --json \
             > "$RUNNER_TEMP/built.json" 2>/dev/null || true
@@ -200,6 +201,11 @@ jobs:
               const b = Array.isArray(list) ? list[0] : null;
               if (!b) { console.log("::notice::eas returned no builds"); process.exit(0); }
               const said = [
+                // Said as what it is: the newest build EAS holds. On a failed
+                // run it is the one before this one, and printing it as though
+                // it were this run's output reads as a success beside a red
+                // cross — which is the sort of thing this file keeps removing.
+                process.env.RUN_OK === "true" ? "built" : "last build on EAS was",
                 `build ${b.appBuildVersion ?? "?"}`,
                 `version ${b.appVersion ?? "?"}`,
                 `status ${b.status ?? "?"}`,
