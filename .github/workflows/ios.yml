@@ -186,6 +186,20 @@ jobs:
       # to tell a real build from a reused one — the build number was in the
       # log, and the log is on a host the API will not follow. Notice
       # annotations do come back, so the answer goes there.
+      # What actually came out, in a form that can be read from outside.
+      #
+      # The first green run finished its build step in two minutes and twenty
+      # seconds, which is fast for an iOS build, and there was no way from here
+      # to tell a real build from a reused one — the build number was in the
+      # log, and the log is on a host the API will not follow. Notice
+      # annotations do come back, so the answer goes there.
+      #
+      # The script goes through a quoted heredoc rather than being passed as a
+      # single-quoted argument. It was the latter until an apostrophe in a
+      # comment closed the string, broke the shell, and turned a run that had
+      # built and submitted perfectly well into a red cross. A quoted heredoc
+      # takes apostrophes, dollars and backticks literally, so prose in this
+      # script cannot break the step that carries it.
       - name: Say what came out
         if: always()
         working-directory: dayflow
@@ -195,25 +209,30 @@ jobs:
         run: |
           eas build:list --platform ios --limit 1 --non-interactive --json \
             > "$RUNNER_TEMP/built.json" 2>/dev/null || true
-          if [ -s "$RUNNER_TEMP/built.json" ]; then
-            node -e '
-              const list = JSON.parse(require("fs").readFileSync(process.env.RUNNER_TEMP + "/built.json", "utf8"));
-              const b = Array.isArray(list) ? list[0] : null;
-              if (!b) { console.log("::notice::eas returned no builds"); process.exit(0); }
-              const said = [
-                // Said as what it is: the newest build EAS holds. On a failed
-                // run it is the one before this one, and printing it as though
-                // it were this run's output reads as a success beside a red
-                // cross — which is the sort of thing this file keeps removing.
-                process.env.RUN_OK === "true" ? "built" : "last build on EAS was",
-                `build ${b.appBuildVersion ?? "?"}`,
-                `version ${b.appVersion ?? "?"}`,
-                `status ${b.status ?? "?"}`,
-                b.completedAt ? `finished ${b.completedAt}` : null,
-                b.id ? `id ${b.id}` : null,
-              ].filter(Boolean).join(" · ");
-              console.log(`::notice::${said}`);
-            ' || echo "::notice::could not read the build list"
-          else
+          if [ ! -s "$RUNNER_TEMP/built.json" ]; then
             echo "::notice::eas build:list produced nothing"
+            exit 0
           fi
+          cat > "$RUNNER_TEMP/said.js" <<'JS'
+          const fs = require("fs");
+          const list = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + "/built.json", "utf8"));
+          const b = Array.isArray(list) ? list[0] : null;
+          if (!b) {
+            console.log("::notice::eas returned no builds");
+            process.exit(0);
+          }
+          // Said as what it is: the newest build EAS holds. On a failed run
+          // that is the one before this one, and printing it as though this
+          // run had made it reads as a success beside a red cross.
+          const lead = process.env.RUN_OK === "true" ? "built" : "last build on EAS was";
+          const said = [
+            lead,
+            "build " + (b.appBuildVersion || "?"),
+            "version " + (b.appVersion || "?"),
+            "status " + (b.status || "?"),
+            b.completedAt ? "finished " + b.completedAt : null,
+            b.id ? "id " + b.id : null,
+          ].filter(Boolean).join(" \u00b7 ");
+          console.log("::notice::" + said);
+          JS
+          node "$RUNNER_TEMP/said.js" || echo "::notice::could not read the build list"
