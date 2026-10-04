@@ -100,11 +100,16 @@ jobs:
 
       # --wait so the step's success means a finished build rather than a
       # queued one, which is what the submit below depends on.
+      #
+      # Kept in a file as well as on the console: see "Say why it failed".
       - name: Build
         working-directory: dayflow
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: eas build --platform ios --profile production --non-interactive --wait
+        run: |
+          set -o pipefail
+          eas build --platform ios --profile production --non-interactive --wait \
+            2>&1 | tee -a "$RUNNER_TEMP/eas.log"
 
       # Skipped only when the run was started by hand with the box unticked.
       # A tag always submits: tagging a commit ios-something is not a thing
@@ -114,7 +119,40 @@ jobs:
         working-directory: dayflow
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: eas submit --platform ios --profile production --latest --non-interactive
+        run: |
+          set -o pipefail
+          eas submit --platform ios --profile production --latest --non-interactive \
+            2>&1 | tee -a "$RUNNER_TEMP/eas.log"
+
+      # Why a failure here is otherwise invisible.
+      #
+      # GitHub serves job logs from a storage host, and reading this repository
+      # over the API cannot follow the redirect to it — so the first time this
+      # workflow failed, all that could be learned from outside was "exit code
+      # 1", and the actual reason had to be read off somebody's screen and
+      # typed back in. The run summary and an error annotation both come back
+      # through the API, so the end of the output goes in both.
+      #
+      # Secrets are masked by the runner before anything is written, here as
+      # anywhere else.
+      - name: Say why it failed
+        if: failure()
+        run: |
+          log="$RUNNER_TEMP/eas.log"
+          [ -s "$log" ] || { echo "::error::eas produced no output at all"; exit 0; }
+          {
+            echo '## eas failed'
+            echo
+            echo '```'
+            tail -n 80 "$log"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          # Annotations are one line each and the API returns them, so the few
+          # lines that usually carry the reason go out that way too.
+          tail -n 12 "$log" | tr -d '\r' | while IFS= read -r line; do
+            [ -n "$line" ] && echo "::error::${line}"
+          done
+          exit 0
 
       - name: Say what came out
         if: always()
