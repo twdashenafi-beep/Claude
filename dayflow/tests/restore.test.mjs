@@ -201,5 +201,62 @@ ok('and junk where the task list should be', (() => {
   ok('but it is still brought in when nothing is there', ids(other.add) === 'a');
 }
 
+// ── A copy that arrived as text rather than as a file ───────────────────────
+//
+// On a phone nothing can hand this app a file, so the route that works is to
+// open the backup somewhere, copy it, and paste it in. That route is the same
+// from here on — readBackup has always taken text — but the text arrives
+// having been through a notes app, and those curl the quotes as you look at
+// them. A restore lost to a typographic quote, at the one moment somebody is
+// restoring, is the worst time for it.
+{
+  const real = backupText(buildBackup({
+    account: 'a@b.c',
+    tasks: [task('t1', '2026-02-01T00:00:00.000Z')],
+    projects: [],
+  }));
+
+  const curled = real.replace(/"/g, '\u201C');
+  const read = readBackup(curled);
+  ok('a copy whose quotes were curled on the way through still reads',
+     read.ok === true, read.error);
+  ok('and holds the same tasks it did', read.ok && read.backup.tasks.length === 1,
+     read.ok ? String(read.backup.tasks.length) : read.error);
+
+  // Only JSON's own punctuation is touched. An apostrophe in a title is
+  // already valid, and the repair must leave it alone — which only means
+  // anything on a copy that actually needs repairing, so this one is curled
+  // like the last and carries an apostrophe through it.
+  const withApostrophe = backupText(buildBackup({
+    account: 'a@b.c',
+    tasks: [task('t2', '2026-02-01T00:00:00.000Z', { title: 'Ring Bob\u2019s office' })],
+    projects: [],
+  })).replace(/"/g, '\u201C');
+  const kept = readBackup(withApostrophe);
+  ok('a typographic apostrophe inside a title survives the repair',
+     kept.ok && kept.backup.tasks[0].title === 'Ring Bob\u2019s office',
+     kept.ok ? kept.backup.tasks[0].title : kept.error);
+
+  // The repair is only kept when it produces valid JSON. A title that really
+  // contains curly double quotes must not be mangled into something that
+  // parses as the wrong thing.
+  const quoted = backupText(buildBackup({
+    account: 'a@b.c',
+    tasks: [task('t3', '2026-02-01T00:00:00.000Z', { title: 'He said \u201Chello\u201D' })],
+    projects: [],
+  }));
+  const safe = readBackup(quoted);
+  ok('and a title that genuinely contains curly quotes is left as written',
+     safe.ok && safe.backup.tasks[0].title === 'He said \u201Chello\u201D',
+     safe.ok ? safe.backup.tasks[0].title : safe.error);
+
+  // Nothing about the repair may rescue something that was never a backup.
+  ok('text that is not JSON at all is still refused',
+     readBackup('just some words').ok === false);
+  ok('and so is JSON that is not a DayFlow copy',
+     readBackup('{"app":"Something else"}').ok === false);
+  ok('and empty text', readBackup('   ').ok === false);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

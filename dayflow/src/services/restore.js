@@ -28,7 +28,26 @@ export function readBackup(text) {
   try {
     parsed = JSON.parse(text);
   } catch {
-    return { ok: false, error: 'That is not a DayFlow copy — it is not even JSON.' };
+    // A copy that came through a notes app rather than a file.
+    //
+    // On a phone there is no way to hand this app a file, so the route that
+    // works is opening the backup somewhere, copying it, and pasting it in.
+    // Notes and Mail turn straight quotes into typographic ones while you
+    // look at them, and JSON has no opinion about how pretty a quote is — it
+    // simply will not parse. Losing a restore to a curled quote, at the one
+    // moment somebody is restoring, is not a good enough reason to refuse.
+    //
+    // Only the double quotes, because only those are JSON's own punctuation;
+    // an apostrophe inside a title is already valid and none of this business.
+    // And only kept if the repair parses: a backup whose titles really do
+    // contain curly quotes comes out broken rather than fixed, and then the
+    // original error is the honest one.
+    const straightened = text.replace(/[\u201C\u201D]/g, '"');
+    try {
+      parsed = JSON.parse(straightened);
+    } catch {
+      return { ok: false, error: 'That is not a DayFlow copy — it is not even JSON.' };
+    }
   }
 
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
