@@ -20,6 +20,8 @@
 // to { id, title, start, end, allDay }, from the phone's calendar on native or
 // from an imported file on the web, and this module does not care which.
 
+import { HANDOVER_HOUR } from './scope.js';
+
 // A working day, when the calendar gives no reason to think otherwise. Widened
 // below by whatever is actually in the diary, so a seven o'clock call or an
 // eight o'clock dinner moves the boundary rather than falling outside the day.
@@ -67,6 +69,47 @@ export function tidyEvents(raw, day = new Date()) {
 // Thursday can be checked against Thursday — which is right for that question
 // and wrong for every other one, and showing all of it wherever you happened to
 // be standing was the bug this fixes.
+// Which day the day's page is about.
+//
+// Today, until the evening hands over to tomorrow.
+//
+// The tasks on that page already work this way: scope.js brings a task due
+// tomorrow onto the day's page at nine the evening before, because at nine
+// o'clock what you need is tomorrow and not the three hours left of tonight.
+// The diary did not, and the result was that somebody could subscribe a
+// calendar, have it read correctly three weeks deep, and still find tomorrow's
+// nine o'clock meeting on no page in the app — not today, and not this week,
+// which on a Sunday is over.
+//
+// Taking the same hour from the same constant is the point: two definitions of
+// when tomorrow begins would be the bug this fixes, wearing a different hat.
+export function dayInFocus(now = new Date()) {
+  const at = asDate(now) || new Date();
+  const focus = startOfDay(at);
+  if (at.getHours() >= HANDOVER_HOUR) focus.setDate(focus.getDate() + 1);
+  return focus;
+}
+
+// Whether the day's page is showing tomorrow rather than today, which anything
+// putting a number on screen has to say out loud. "3h booked" under tonight's
+// date, meaning tomorrow, is worse than not saying it.
+export function showingTomorrow(now = new Date()) {
+  const at = asDate(now) || new Date();
+  return at.getHours() >= HANDOVER_HOUR;
+}
+
+// The stretch of time a page is about.
+//
+// The three pages are a horizon, and the diary should follow it: the day's page
+// answers for today, the week's for this week, the month's for this month. The
+// diary itself is read three weeks deep so that a time given to a task next
+// Thursday can be checked against Thursday — which is right for that question
+// and wrong for every other one, and showing all of it wherever you happened to
+// be standing was the bug this fixes.
+//
+// The week is the calendar week, Monday to Monday, and the month the calendar
+// month. Those are the weeks and months people keep: "this week" means the one
+// on the wall, not the seven days in front of you.
 export function spanWindow(view, now = new Date()) {
   const from = startOfDay(now);
 
@@ -84,9 +127,10 @@ export function spanWindow(view, now = new Date()) {
     return { from, to };
   }
 
-  const to = new Date(from);
+  const start = dayInFocus(now);
+  const to = new Date(start);
   to.setDate(to.getDate() + 1);
-  return { from, to };
+  return { from: start, to };
 }
 
 export function eventsWithin(raw, window) {
@@ -298,12 +342,18 @@ export function spanLoad(tasks, rawEvents, now = new Date(), view = 'day') {
     };
   }
 
-  const events = tidyEvents(rawEvents, at);
-  const window = dayWindow(events, at);
+  // The day being reported on, which after nine in the evening is tomorrow.
+  // Office hours and the events both have to come from that day; `at` stays
+  // the clock, because what is left of a day is still measured from now.
+  const focus = dayInFocus(at);
+  const events = tidyEvents(rawEvents, focus);
+  const window = dayWindow(events, focus);
   const gaps = freeGaps(events, window, at);
 
   return {
     span,
+    focus,
+    tomorrow: showingTomorrow(at),
     events,
     window,
     gaps,
@@ -439,9 +489,14 @@ export function barDrawable(load) {
 }
 
 // The one fact the drawing cannot carry: how much of the day it adds up to.
+//
+// And which day. After nine in the evening the strip is tomorrow's, and a
+// figure under tonight's date that silently means tomorrow is worse than no
+// figure at all.
 export function barCaption(load) {
   if (!barDrawable(load)) return null;
-  return `${spanMinutes(load.committed)} booked`;
+  const booked = `${spanMinutes(load.committed)} booked`;
+  return load && load.tomorrow ? `Tomorrow  ·  ${booked}` : booked;
 }
 
 // The same day in a sentence — the fallback, and the label a screen reader
@@ -471,5 +526,54 @@ export function loadSentence(load, now = new Date()) {
 
   const where = said.length ? said.join(', ') : 'Nothing free';
   const booked = load.committed > 0 ? `${spanMinutes(load.committed)} booked` : null;
-  return booked ? `${where}  ·  ${booked}` : where;
+  const line = booked ? `${where}  ·  ${booked}` : where;
+  // Said first, because every clock time after it belongs to a different day.
+  return load.tomorrow ? `Tomorrow — ${line.charAt(0).toLowerCase()}${line.slice(1)}` : line;
+}
+
+// What tomorrow opens with, once today has nothing left in it.
+//
+// There is a gap between the end of a working day and nine in the evening when
+// tomorrow belongs to no page. The day's page is still today and today is
+// spent; the week's page is this week, which on a Sunday is over; and the
+// month's page counts meetings without saying when any of them are. So
+// somebody finishing at six and wondering what the morning holds had to open
+// their calendar — which is the one thing a day's page exists to save them.
+//
+// Deliberately narrow. It says nothing while there is still something to be
+// somewhere for today, nothing before the working day has closed, and nothing
+// after nine, when the page has become tomorrow and the strip says it properly.
+// One line, one meeting, in the hour or three where it is the only way to know.
+export function tomorrowLine(load, rawEvents, now = new Date()) {
+  if (!load || load.span !== 'day' || !load.window) return null;
+
+  const at = asDate(now) || new Date();
+  // The day has to be over. Otherwise a single nine o'clock meeting would have
+  // the page talking about tomorrow from half past.
+  //
+  // This also covers the evening after nine, when the page has already become
+  // tomorrow: the window is then tomorrow's own, and tonight is necessarily
+  // before the close of a day that has not started. An explicit check for that
+  // was written here first and taken out again — it could not be made to fail,
+  // because there is no hour at which it answers anything this does not.
+  if (at < load.window.to) return null;
+
+  // Something still to be somewhere for: today is not spent.
+  //
+  // Not covered by the window above, and this is the whole of why it stays:
+  // dayWindow only stretches the day to an event that ends before midnight, so
+  // a call at eleven tonight running into tomorrow leaves the window closing
+  // at six while the call is still ahead of you.
+  if (load.next) return null;
+
+  const from = startOfDay(at);
+  from.setDate(from.getDate() + 1);
+  const to = new Date(from);
+  to.setDate(to.getDate() + 1);
+
+  // All-day entries are dropped: a public holiday does not start at a time,
+  // and "Tomorrow starts 00:00 — Team offsite week" is worse than silence.
+  const [first] = eventsWithin(rawEvents, { from, to }).filter(e => !e.allDay);
+  if (!first) return null;
+  return `Tomorrow starts ${clockOf(first.start)} — ${first.title}`;
 }

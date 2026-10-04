@@ -12,6 +12,7 @@ import {
   tidyEvents, dayWindow, mergeBusy, committedMinutes, freeGaps, freeMinutes,
   clashes, spanMinutes, clockOf, dayLoad, loadLine, gapsLine, LEAST_USEFUL_GAP,
   momentOf, clashNote, spanWindow, spanLoad, eventsWithin,
+  dayInFocus, showingTomorrow, barCaption, loadSentence,
 } from '../src/services/agenda.js';
 
 let pass = 0, fail = 0;
@@ -279,13 +280,14 @@ ok('and time cannot go backwards', spanMinutes(-30) === '0m');
      `${day.from.toDateString()} → ${day.to.toDateString()}`);
   ok('and starts at midnight', day.from.getHours() === 0);
 
+  // The week is the calendar week and the month the calendar month: the ones
+  // on the wall, which is what people mean by "this week".
   const week = spanWindow('week', at);
   ok('a week starts on its Monday', week.from.getDay() === 1 && week.from.getDate() === 28,
      week.from.toDateString());
   ok('and ends on the next one', week.to.getDate() === 5, week.to.toDateString());
 
-  // From a Sunday, the week is the six days behind you and not the one ahead.
-  const sunday = spanWindow('week', new Date('2026-10-04T21:00:00'));
+  const sunday = spanWindow('week', new Date('2026-10-04T19:00:00'));
   ok('a Sunday belongs to the week it ends', sunday.from.getDate() === 28,
      sunday.from.toDateString());
 
@@ -294,6 +296,32 @@ ok('and time cannot go backwards', spanMinutes(-30) === '0m');
      month.from.toDateString());
   ok('and ends on the next first', month.to.getDate() === 1 && month.to.getMonth() === 10,
      month.to.toDateString());
+
+  // ── The evening hands the day over ──
+  //
+  // Which is how tomorrow's nine o'clock meeting gets seen at all. On a Sunday
+  // the calendar week is behind you, so without this a meeting tomorrow is on
+  // no page in the app: not today, and not a week that ends tonight.
+  //
+  // The hour comes from scope.js, where it already decides when a task due
+  // tomorrow appears on the day's page. Two definitions of when tomorrow
+  // begins would be this same bug in a different coat.
+  const evening = new Date('2026-10-04T21:00:00');
+  const beforeNine = new Date('2026-10-04T20:59:00');
+  ok('before nine the day is still today',
+     spanWindow('day', beforeNine).from.getDate() === 4,
+     spanWindow('day', beforeNine).from.toDateString());
+  ok('and from nine it is tomorrow',
+     spanWindow('day', evening).from.getDate() === 5,
+     spanWindow('day', evening).from.toDateString());
+  ok('which is one day long, not two',
+     spanWindow('day', evening).to.getDate() === 6);
+  ok('the handover is said out loud, not only acted on',
+     showingTomorrow(evening) === true && showingTomorrow(beforeNine) === false);
+  // Asking twice must not walk the day forward again.
+  ok('and asking for the day in focus twice gives the same day',
+     dayInFocus(dayInFocus(evening)).getDate() === 5,
+     dayInFocus(dayInFocus(evening)).toDateString());
 
   ok('anything unrecognised is a day', spanWindow('fortnight', at).to.getDate() === 3);
 }
@@ -307,7 +335,7 @@ ok('and time cannot go backwards', spanMinutes(-30) === '0m');
     some(2, 9, 'This morning'),
     some(2, 14, 'This afternoon'),
     some(4, 10, 'Sunday'),
-    some(7, 10, 'Next week'),
+    some(7, 10, 'Five days on'),
     some(28, 10, 'Late October'),
     { id: 'nov', title: 'November', start: new Date(2026, 10, 3, 10), end: new Date(2026, 10, 3, 11), allDay: false },
   ];
@@ -322,7 +350,7 @@ ok('and time cannot go backwards', spanMinutes(-30) === '0m');
   const week = spanLoad([], diary, at, 'week');
   ok('the week page sees the week', week.events.length === 3,
      week.events.map(e => e.title).join(', '));
-  ok('not next week', !week.events.some(e => e.title === 'Next week'));
+  ok('not the week after', !week.events.some(e => e.title === 'Five days on'));
   ok('counted rather than measured against an afternoon',
      loadLine(week) === '3 meetings  ·  3h booked', loadLine(week));
   ok('and no gaps, because free hours spread over five days are not an afternoon',

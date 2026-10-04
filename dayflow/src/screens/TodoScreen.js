@@ -10,7 +10,7 @@ import { recordChase } from '../services/chase';
 import { isReckoningDay } from '../services/reckoning';
 import { eventsFor } from '../services/calendarFeed';
 import { scopeNow, horizonStamp } from '../services/scope';
-import { spanLoad } from '../services/agenda';
+import { spanLoad, tomorrowLine } from '../services/agenda';
 import { EVERYTHING, projectOf, projectName } from '../services/projects';
 import { moveTick } from '../services/haptics';
 import { ARCHIVE, deletionOf } from '../services/archive';
@@ -632,6 +632,15 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
   // page is one the diary has anything to say about.
   const showDiary = !!load && !searching && project !== ARCHIVE;
 
+  // Between the end of a working day and nine in the evening, tomorrow is on
+  // no page: today is spent, this week may be over, and the month counts
+  // meetings without saying when they are. One line closes that, and says
+  // nothing at all outside it.
+  const tomorrow = useMemo(
+    () => (showDiary && diary ? tomorrowLine(load, diary.events, load.at) : null),
+    [showDiary, diary, load],
+  );
+
   // Search reaches past the current page by design, so it is handed the
   // archive as well as what is on screen — the whole point is not having to
   // remember which of the two a task ended up in.
@@ -814,6 +823,9 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
               panel: it is context for the list underneath, not a thing to
               look at on its own. */}
           {showDiary ? <DayBar load={load} now={load.at} /> : null}
+          {tomorrow ? (
+            <Text style={s.tomorrow} dataSet={{ tomorrowline: 'true' }}>{tomorrow}</Text>
+          ) : null}
 
           {/* A device that has stopped saving says so, in the one place that is
               always on screen. Not the undo bar at the bottom: that clears
@@ -1188,6 +1200,9 @@ const s = StyleSheet.create({
   },
   date: { fontFamily: SERIF, fontSize: typeSize(25), color: COLORS.ink, marginTop: 10, letterSpacing: -0.3 },
   tally: { fontFamily: SANS, fontSize: typeSize(12), color: COLORS.inkFaint, marginTop: 4 },
+  // Quieter than the day it sits under, because it is about a day you are not
+  // standing in yet.
+  tomorrow: { fontFamily: SANS, fontSize: typeSize(11.5), color: COLORS.inkFaint, marginTop: 6 },
 
   // Headings sit above the rule, one per column.
   headings: { flexDirection: 'row', alignItems: 'flex-end' },
