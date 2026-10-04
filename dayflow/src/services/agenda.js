@@ -67,25 +67,29 @@ export function tidyEvents(raw, day = new Date()) {
 // Thursday can be checked against Thursday — which is right for that question
 // and wrong for every other one, and showing all of it wherever you happened to
 // be standing was the bug this fixes.
+// Forward from today, never backwards — and that was a bug for a while.
+//
+// The week used to mean the calendar week, Monday to Monday. The tasks on the
+// same page never did: a task lands on Week when it falls within seven days of
+// today (see scope.js), which is a window that moves. So one page carried two
+// different weeks, and on a Sunday evening they disagreed completely — the
+// tasks showed tomorrow and the diary counted a week that had just ended, so a
+// meeting at nine the next morning appeared nowhere in the app at all.
+//
+// A planner looks forward. "This week" on a Sunday means the week coming, not
+// the one going, and the page already took that view of the work on it; the
+// diary was the half that did not.
+export const WEEK_AHEAD = 7;
+export const MONTH_AHEAD = 30;
+
 export function spanWindow(view, now = new Date()) {
   const from = startOfDay(now);
-
-  if (view === 'week') {
-    // Monday-first, like every other week in this app.
-    from.setDate(from.getDate() - ((from.getDay() + 6) % 7));
-    const to = new Date(from);
-    to.setDate(to.getDate() + 7);
-    return { from, to };
-  }
-  if (view === 'month') {
-    from.setDate(1);
-    const to = new Date(from);
-    to.setMonth(to.getMonth() + 1);
-    return { from, to };
-  }
-
   const to = new Date(from);
-  to.setDate(to.getDate() + 1);
+
+  if (view === 'week') to.setDate(to.getDate() + WEEK_AHEAD);
+  else if (view === 'month') to.setDate(to.getDate() + MONTH_AHEAD);
+  else to.setDate(to.getDate() + 1);
+
   return { from, to };
 }
 

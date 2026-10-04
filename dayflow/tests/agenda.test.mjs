@@ -279,21 +279,38 @@ ok('and time cannot go backwards', spanMinutes(-30) === '0m');
      `${day.from.toDateString()} → ${day.to.toDateString()}`);
   ok('and starts at midnight', day.from.getHours() === 0);
 
+  // The week runs forward from today, because the tasks on that page always
+  // did — scope.js puts a task on Week when it falls within seven days of now
+  // — and a page cannot hold two different weeks.
   const week = spanWindow('week', at);
-  ok('a week starts on its Monday', week.from.getDay() === 1 && week.from.getDate() === 28,
-     week.from.toDateString());
-  ok('and ends on the next one', week.to.getDate() === 5, week.to.toDateString());
+  ok('a week starts today', week.from.getDate() === 2, week.from.toDateString());
+  ok('and runs seven days forward', week.to.getDate() === 9, week.to.toDateString());
 
-  // From a Sunday, the week is the six days behind you and not the one ahead.
+  // The case that made this a bug rather than a preference. On a Sunday the
+  // calendar week is entirely behind you, so a meeting at nine tomorrow
+  // morning was on no page in the app: not today, and not a week that ended
+  // this evening.
   const sunday = spanWindow('week', new Date('2026-10-04T21:00:00'));
-  ok('a Sunday belongs to the week it ends', sunday.from.getDate() === 28,
-     sunday.from.toDateString());
+  const nineTomorrow = new Date('2026-10-05T09:00:00');
+  ok('and from a Sunday it is the week ahead, not the one just gone',
+     sunday.from.getDate() === 4, sunday.from.toDateString());
+  ok('so tomorrow morning is on it',
+     nineTomorrow >= sunday.from && nineTomorrow < sunday.to,
+     `${sunday.from.toDateString()} → ${sunday.to.toDateString()}`);
 
   const month = spanWindow('month', at);
-  ok('a month starts on the first', month.from.getDate() === 1 && month.from.getMonth() === 9,
-     month.from.toDateString());
-  ok('and ends on the next first', month.to.getDate() === 1 && month.to.getMonth() === 10,
+  ok('a month starts today too', month.from.getDate() === 2, month.from.toDateString());
+  ok('and runs a month forward', month.to.getMonth() === 10 && month.to.getDate() === 1,
      month.to.toDateString());
+  // Whatever the window, a longer page must contain a shorter one. When the
+  // week moved and the month did not, the last days of a month had a week
+  // reaching past it, which is nonsense on a page that nests them.
+  for (const when of ['2026-10-02T08:00:00', '2026-10-29T08:00:00', '2026-12-30T08:00:00']) {
+    const w = spanWindow('week', new Date(when));
+    const m = spanWindow('month', new Date(when));
+    ok(`the week sits inside the month on ${when.slice(0, 10)}`,
+       w.from >= m.from && w.to <= m.to, `${w.to.toDateString()} vs ${m.to.toDateString()}`);
+  }
 
   ok('anything unrecognised is a day', spanWindow('fortnight', at).to.getDate() === 3);
 }
@@ -307,7 +324,7 @@ ok('and time cannot go backwards', spanMinutes(-30) === '0m');
     some(2, 9, 'This morning'),
     some(2, 14, 'This afternoon'),
     some(4, 10, 'Sunday'),
-    some(7, 10, 'Next week'),
+    some(7, 10, 'Five days on'),
     some(28, 10, 'Late October'),
     { id: 'nov', title: 'November', start: new Date(2026, 10, 3, 10), end: new Date(2026, 10, 3, 11), allDay: false },
   ];
@@ -320,11 +337,16 @@ ok('and time cannot go backwards', spanMinutes(-30) === '0m');
   ok('and where', gapsLine(day) !== null);
 
   const week = spanLoad([], diary, at, 'week');
-  ok('the week page sees the week', week.events.length === 3,
+  // Seven days forward from the Friday: both of today's, the Sunday, and the
+  // Wednesday after. The one late in the month is not a week away.
+  ok('the week page sees the seven days ahead', week.events.length === 4,
      week.events.map(e => e.title).join(', '));
-  ok('not next week', !week.events.some(e => e.title === 'Next week'));
+  ok('including the one five days out, which is what a week ahead means',
+     week.events.some(e => e.title === 'Five days on'),
+     week.events.map(e => e.title).join(', '));
+  ok('and not one three weeks out', !week.events.some(e => e.title === 'Late October'));
   ok('counted rather than measured against an afternoon',
-     loadLine(week) === '3 meetings  ·  3h booked', loadLine(week));
+     loadLine(week) === '4 meetings  ·  4h booked', loadLine(week));
   ok('and no gaps, because free hours spread over five days are not an afternoon',
      gapsLine(week) === null);
 
