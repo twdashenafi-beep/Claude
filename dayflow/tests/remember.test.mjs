@@ -11,7 +11,7 @@
 //
 // Run with `npm test`.
 
-import { unparcel } from '../src/services/keyParcel.js';
+import { parcel, unparcel } from '../src/services/keyParcel.js';
 
 let pass = 0, fail = 0;
 const ok = (label, cond, extra = '') => {
@@ -53,6 +53,45 @@ for (const [what, raw] of [
 // Not a string at all, which is what a keychain that threw looks like by the
 // time it reaches here.
 ok('and so does anything that is not a string', unparcel(undefined) === null && unparcel(7) === null);
+
+// ── What a face unlock needs to sign in with ────────────────────────────────
+//
+// A face unlock unwrapped the key and went straight in, never reaching the
+// server. That was harmless only while a signed-in session sat in ordinary
+// storage refreshing itself — and the keychain survives the app being deleted
+// while that storage does not. So a reinstalled app could still open with a
+// face and never sync again: "Not signed in", every time, with nothing on any
+// screen able to repair it, because signing in only ever happened on the
+// screen a face unlock skips.
+//
+// The auth hash is what a password sign-in sends. Carrying it here is what
+// lets a face do both jobs.
+{
+  const round = unparcel(parcel('t@example.com', KEY, 'the-auth-hash'));
+  ok('a parcel carries what the server accepts as a password',
+     round.authHash === 'the-auth-hash', JSON.stringify(round));
+  ok('along with the key', round.dataKey === KEY);
+  ok('and the account it belongs to', round.email === 't@example.com');
+
+  // Every parcel written before this existed. Those devices must still open —
+  // the key is the part that matters, and refusing them would turn a sync
+  // fault into a vault nobody can get into.
+  const old = unparcel(JSON.stringify({ email: 't@example.com', dataKey: KEY }));
+  ok('a parcel from before this still opens the vault', old !== null && old.dataKey === KEY,
+     JSON.stringify(old));
+  ok('and says it has no hash, rather than carrying undefined about',
+     old.authHash === '', JSON.stringify(old.authHash));
+
+  // A hash that is not a string is not a hash. It would be sent to the server
+  // as a password, and "[object Object]" is a confusing way to fail.
+  const bad = unparcel(JSON.stringify({ email: 'a@b.c', dataKey: KEY, authHash: { nope: 1 } }));
+  ok('and nonsense in that field reads as nothing', bad.authHash === '',
+     JSON.stringify(bad.authHash));
+
+  // The key is still the one thing without which there is no parcel at all.
+  ok('a parcel with a hash but no key is still nothing',
+     unparcel(JSON.stringify({ email: 'a@b.c', authHash: 'x' })) === null);
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
