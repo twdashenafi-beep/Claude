@@ -64,11 +64,11 @@ export async function rememberedFor() {
   }
 }
 
-export async function remember(email, dataKey) {
+export async function remember(email, dataKey, authHash) {
   const box = keychain();
   if (!box || !dataKey) return false;
   try {
-    await box.setItemAsync(KEY, parcel(email, dataKey), {
+    await box.setItemAsync(KEY, parcel(email, dataKey, authHash), {
       requireAuthentication: true,
       authenticationPrompt: 'Unlock DayFlow',
       // This device, while it is unlocked, and never in a backup that could
@@ -108,4 +108,26 @@ export async function forget() {
   // happen, which is worse than not offering one.
   try { await box.deleteItemAsync(KEY); } catch { /* already gone */ }
   try { await box.deleteItemAsync(MARK); } catch { /* already gone */ }
+}
+
+// Bring a parcel written before the auth hash existed up to date.
+//
+// Those devices open with a face and then cannot sign in, which is the whole
+// fault this closes — and asking somebody to turn Face ID off and on again to
+// repair it is asking them to understand the bug. A password unlock has
+// everything needed, so it simply rewrites the parcel in passing.
+//
+// Only when there is already one: this must never turn Face ID on for somebody
+// who did not ask for it. Silent either way — it is a repair, not a feature,
+// and a device that refuses is no worse off than before.
+export async function refreshRemembered(email, dataKey, authHash) {
+  if (!authHash || !dataKey) return false;
+  const box = keychain();
+  if (!box) return false;
+  try {
+    if (!(await box.getItemAsync(MARK))) return false;
+  } catch {
+    return false;
+  }
+  return remember(email, dataKey, authHash);
 }

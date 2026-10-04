@@ -90,7 +90,32 @@ export async function signIn(email, password) {
     } catch { /* offline — it will go up on a later sign-in */ }
   }
 
-  return { dataKey, synced: isSyncConfigured() };
+  // authHash goes back so it can be kept behind Face ID. A face unlock has no
+  // password to derive it from, and without it that unlock cannot sign in.
+  return { dataKey, authHash, synced: isSyncConfigured() };
+}
+
+// Signing in with what a face unlock has, rather than with a password.
+//
+// Opening with a face unwrapped the vault key and went in without ever
+// reaching the server. That was invisible while a session sat in storage
+// refreshing itself, and permanent the moment one did not: the keychain
+// survives the app being deleted and ordinary storage does not, so a
+// reinstalled app could open with a face and never sync again.
+//
+// Quiet about failure on purpose. The vault opens either way — it is local and
+// the key is in hand — and a sync that cannot start says so itself, now, in
+// the device report. Refusing to open the app because the server is
+// unreachable would be a worse answer than the bug.
+export async function signInWithHash(email, authHash) {
+  if (!isSyncConfigured() || !authHash) return false;
+  try {
+    const { error } = await getSupabase().auth
+      .signInWithPassword({ email: normalizeEmail(email), password: authHash });
+    return !error;
+  } catch {
+    return false;
+  }
 }
 
 // Recovery. Proving the recovery code opens the vault; the new password is then

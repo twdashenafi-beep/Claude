@@ -261,7 +261,7 @@ function Column({
   );
 }
 
-export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
+export default function TodoScreen({ account, dataKey, authHash, onLock, onDeleted }) {
   const {
     tasks, addTask, toggleTask, deleteTask, restoreTask, updateTask, reorderTasks, syncState, syncFault,
     storageError, vaultError, slowOpening, dismissSlowOpening,
@@ -1088,6 +1088,7 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
         visible={showAccount}
         email={account}
         dataKey={dataKey}
+        authHash={authHash}
         tasks={tasks}
         archived={archived}
         projects={projects}

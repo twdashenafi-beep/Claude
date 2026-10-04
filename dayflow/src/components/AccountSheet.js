@@ -56,7 +56,7 @@ const SAVE_RESULT = {
 const CALENDAR_HINT = 'Import an .ics from your calendar, so the day knows what is booked';
 
 export default function AccountSheet({
-  visible, email, dataKey, tasks = [], archived = [], projects = [],
+  visible, email, dataKey, authHash = '', tasks = [], archived = [], projects = [],
   tombstones = [], syncState = 'off', syncFault = '',
   onImport, onCalendar, onClose, onLock, onDeleted,
 }) {
@@ -150,7 +150,10 @@ export default function AccountSheet({
       setFaceSaid('Your password is the only way in again');
       return;
     }
-    const took = await remember(email, dataKey);
+    // The auth hash goes in with the key. Without it a face unlock opens the
+    // vault and never signs in, and every sync afterwards fails with "Not
+    // signed in" — invisibly, until the stored session runs out.
+    const took = await remember(email, dataKey, authHash);
     setFace(took);
     setFaceSaid(took
       ? 'Face ID will open this device from now on'

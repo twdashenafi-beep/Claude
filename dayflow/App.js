@@ -90,6 +90,7 @@ export default function App() {
           <TodoScreen
             account={vault.email}
             dataKey={vault.dataKey}
+            authHash={vault.authHash}
             onLock={() => setVault(null)}
             onDeleted={() => setVault(null)}
           />

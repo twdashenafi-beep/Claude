@@ -3,8 +3,8 @@ import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, SafeAreaView,
   KeyboardAvoidingView, Platform, ActivityIndicator, ScrollView,
 } from 'react-native';
-import { signIn, signUp, getSession, isSyncConfigured } from '../services/account';
-import { rememberedFor, recall } from '../services/remember';
+import { signIn, signUp, getSession, isSyncConfigured, signInWithHash } from '../services/account';
+import { rememberedFor, recall, refreshRemembered } from '../services/remember';
 import { beginOpening, noteStage, nowMs } from '../services/opening';
 import { COLORS, SERIF, SANS, SHEET_MAX_WIDTH, typeSize } from '../utils/theme';
 
@@ -63,7 +63,19 @@ export default function UnlockScreen({ onUnlock, onSetupSync }) {
         return;
       }
       if (held.email) setEmail(held.email);
-      onUnlock({ dataKey: held.dataKey, synced: isSyncConfigured(), email: held.email || email.trim() });
+      // The part a face unlock used to skip. Without it the vault opens and
+      // the server never hears from this device again: every sync from then on
+      // fails with "Not signed in", and nothing on this screen would ever fix
+      // it, because this screen is the only place a sign-in happens.
+      const signedAt = nowMs();
+      const on = await signInWithHash(held.email || email.trim(), held.authHash);
+      if (held.authHash) noteStage(on ? 'signing in' : 'could not sign in', nowMs() - signedAt);
+      onUnlock({
+        dataKey: held.dataKey,
+        authHash: held.authHash,
+        synced: isSyncConfigured(),
+        email: held.email || email.trim(),
+      });
     } finally {
       setBusy(false);
     }
@@ -88,8 +100,12 @@ export default function UnlockScreen({ onUnlock, onSetupSync }) {
         return;
       }
 
-      const { dataKey, synced } = await signIn(mail, password);
-      onUnlock({ dataKey, synced, email: mail });
+      const { dataKey, authHash, synced } = await signIn(mail, password);
+      // Carried so that a device already remembering a key from before this
+      // existed is repaired by the first password unlock, rather than needing
+      // Face ID turned off and on again.
+      await refreshRemembered(mail, dataKey, authHash);
+      onUnlock({ dataKey, authHash, synced, email: mail });
     } catch (e) {
       const message = String(e.message || e);
       if (message === 'WRONG_PASSWORD') {
