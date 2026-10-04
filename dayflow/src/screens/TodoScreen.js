@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView, useWindowDimensions,
+  AppState,
 } from 'react-native';
 import { useTasks } from '../context/TaskContext';
 import { sortForDisplay, targetIndex, shiftFor, moveWithin } from '../services/ordering';
@@ -299,6 +300,18 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
       .catch(() => {});
     return () => { dropped = true; };
   }, [dataKey, diaryAt]);
+
+  // Coming back to the app is when somebody looks at the day again, and a phone
+  // keeps an app alive in the background for days. Without this a meeting added
+  // in Proton this morning waited for the next cold start; now it waits for the
+  // next time DayFlow is brought forward. A linked calendar is only fetched when
+  // its copy is half an hour old, so this costs nothing most of the time.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', state => {
+      if (state === 'active') setDiaryAt(n => n + 1);
+    });
+    return () => sub.remove();
+  }, []);
   const [banner, setBanner] = useState(null);
 
   // Which project's sheet is on screen. Empty is the main list, and the bar

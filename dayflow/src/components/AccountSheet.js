@@ -16,7 +16,7 @@ import { inspectRows } from '../services/leak';
 import { buildBackup, backupText, backupFilename, describe } from '../services/backup';
 import { readBackup, planRestore, recordsOf, describePlan } from '../services/restore';
 import { saveTextFile, pickTextFile } from '../services/saveFile';
-import { saveFeed, readFeed, clearFeed, feedAge, FEED_KEY } from '../services/calendarFeed';
+import { saveFeed, saveFeedLink, readFeed, clearFeed, feedAge, FEED_KEY } from '../services/calendarFeed';
 import Store from '../services/store';
 import { STORAGE_KEY } from '../context/TaskContext';
 import { decryptTask } from '../services/encryption';
@@ -86,10 +86,12 @@ export default function AccountSheet({
   // A copy that has been read and understood but not yet applied, and what
   // applying it would do.
   const [pending, setPending] = useState(null);
+  // The calendar link being pasted.
+  const [link, setLink] = useState('');
 
   const reset = () => {
     setView('menu'); setPassword(''); setConfirm(''); setTyped('');
-    setCode(''); setError(''); setDone(''); setPending(null);
+    setCode(''); setError(''); setDone(''); setPending(null); setLink('');
   };
 
   // Ask the server what it has, and read it back the way an intruder would.
@@ -328,6 +330,27 @@ export default function AccountSheet({
     }
   };
 
+  // A subscription link: Proton's "Share via link", or the secret address any
+  // calendar service hands out. Read by the device itself, so it stays current
+  // without a file being exported again — and on a phone, where there is no
+  // file to pick, it is the only way a Proton diary gets here at all.
+  const readLink = async () => {
+    setError(''); setDone(''); setBusy(true);
+    try {
+      const saved = await saveFeedLink(link, dataKey);
+      if (!saved) throw new Error('That link does not lead to a calendar');
+      setFeed(saved);
+      setLink('');
+      if (onCalendar) onCalendar();
+      const soon = saved.ahead === 0 ? 'none in the next three weeks' : `${saved.ahead} in the next three weeks`;
+      setDone(`Connected${saved.name ? ` to ${saved.name}` : ''} · ${soon}. It is read again whenever DayFlow opens.`);
+    } catch (e) {
+      setError(String((e && e.message) || e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const forgetCalendar = async () => {
     await clearFeed();
     setFeed(null);
@@ -413,6 +436,7 @@ export default function AccountSheet({
               : view === 'password' ? 'Change password'
               : view === 'code' ? 'Recovery code'
               : view === 'restore' ? 'Restore from a copy'
+              : view === 'calendar' ? 'Calendar link'
               : 'Delete account'}
           </Text>
           <View style={{ width: 46 }} />
@@ -444,13 +468,24 @@ export default function AccountSheet({
               {/* What the day already contains. Everything else in this app
                   treats a day as an empty container to put tasks into; a diary
                   is what makes that container the size it really is. */}
+              {/* A phone has no file to pick, so the file row is the web's
+                  alone; the link works on both. */}
+              {Platform.OS === 'web' ? (
+                <Row
+                  label={feed ? 'Calendar' : 'Read a calendar'}
+                  detail={calendar
+                    || (feed
+                      ? `${feed.name || 'Imported'} · ${typeof feed.ahead === 'number' ? `${feed.ahead} ahead · ` : ''}${feedAge({ source: 'file', at: feed.at }) || ''}`
+                      : CALENDAR_HINT)}
+                  onPress={chooseCalendar}
+                />
+              ) : null}
               <Row
-                label={feed ? 'Calendar' : 'Read a calendar'}
-                detail={calendar
-                  || (feed
-                    ? `${feed.name || 'Imported'} · ${typeof feed.ahead === 'number' ? `${feed.ahead} ahead · ` : ''}${feedAge({ source: 'file', at: feed.at }) || ''}`
-                    : CALENDAR_HINT)}
-                onPress={chooseCalendar}
+                label="Calendar link"
+                detail={feed && feed.url
+                  ? `${feed.name || 'Linked'} · ${typeof feed.ahead === 'number' ? `${feed.ahead} ahead · ` : ''}${feedAge({ source: 'file', at: feed.at }) || ''}`
+                  : 'Proton, Google or any calendar — paste its subscription link'}
+                onPress={() => { setError(''); setDone(''); setView('calendar'); }}
               />
               {feed ? (
                 <Row label="Forget the calendar" detail="Nothing else changes" onPress={forgetCalendar} />
@@ -592,6 +627,45 @@ export default function AccountSheet({
                   {pending ? 'Choose a different file' : 'Choose a file'}
                 </Text>
               </TouchableOpacity>
+            </>
+          ) : null}
+
+          {view === 'calendar' ? (
+            <>
+              <Text style={s.blurb}>
+                Proton Calendar keeps its events encrypted, so it never shares them
+                with the iPhone's own calendar — which is the only one DayFlow could
+                read until now. Give DayFlow the calendar's private link instead
+                and it reads it directly, every time it opens.
+              </Text>
+              <Text style={s.blurb}>
+                In Proton Calendar on the web: Settings › Calendars › your calendar
+                › Share › Share with anyone › Create link, then copy the link. Pick
+                "Full view" to see what each meeting is called.
+              </Text>
+              <Text style={s.blurb}>
+                Anyone with the link can see that calendar, and it is stored here
+                encrypted like your tasks. Turning the link off in Proton stops it.
+              </Text>
+              <TextInput
+                accessibilityLabel="Calendar link"
+                style={s.input} placeholder="https://calendar.proton.me/api/calendar/v1/url/…"
+                placeholderTextColor={COLORS.inkFaint}
+                autoCapitalize="none" autoCorrect={false} keyboardType="url"
+                value={link} onChangeText={setLink}
+              />
+              {error ? <Text style={s.error}>{error}</Text> : null}
+              {done ? <Text style={s.done}>{done}</Text> : null}
+              <TouchableOpacity
+                style={[s.button, (busy || !link.trim()) && s.busy]}
+                onPress={readLink} disabled={busy || !link.trim()}
+                accessibilityRole="button" accessibilityLabel="Connect this calendar link"
+              >
+                {busy ? <ActivityIndicator color={COLORS.sheet} /> : <Text style={s.buttonText}>Connect</Text>}
+              </TouchableOpacity>
+              {feed ? (
+                <Row label="Forget the calendar" detail={feed.name || 'Nothing else changes'} onPress={forgetCalendar} />
+              ) : null}
             </>
           ) : null}
 

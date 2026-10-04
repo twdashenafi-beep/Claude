@@ -5,8 +5,14 @@
 //
 //   native   the phone's own calendar, read through the OS, which expands
 //            recurring meetings for us and is always current
-//   web      a calendar file you import, or the secret subscription link every
+//   feed     a calendar file you import, or the secret subscription link every
 //            calendar service hands out, parsed here
+//
+// Both, when there are both. Proton Calendar is end-to-end encrypted and never
+// hands its events to the phone's own calendar, so on an iPhone whose diary
+// lives in Proton the native read succeeds — with nothing from Proton in it.
+// That empty success used to win outright, and the Proton feed behind it was
+// never looked at. The two are now read together and shown as one diary.
 //
 // The web one exists because that is the app people are using today, and a
 // feature that arrives with the iOS build is a feature nobody has. It is the
@@ -26,6 +32,9 @@ import { Platform } from 'react-native';
 import Store from './store';
 import { encrypt, decrypt } from './encryption';
 import { parseICS, describeICS } from './ics';
+import { feedUrl, linkName, mergeEvents } from './calendarLink';
+
+export { feedUrl };
 
 export const FEED_KEY = '@dayflow_calendar_v1';
 
@@ -45,7 +54,7 @@ function startOfDay(date) {
 
 // ── The imported file ───────────────────────────────────────────────────────
 
-export async function saveFeed(text, key, now = new Date(), label = '') {
+export async function saveFeed(text, key, now = new Date(), label = '', link = '') {
   const seen = describeICS(text);
   if (!seen) return null;
 
@@ -73,9 +82,79 @@ export async function saveFeed(text, key, now = new Date(), label = '') {
     name: seen.name || String(label || '').replace(/\.ics$/i, ''),
     events: seen.events,
     ahead,
+    // Kept only when the calendar came from a link, so it can be read again.
+    // It is a secret — Proton's carries the key that decrypts the calendar —
+    // which is one more reason the whole record is encrypted.
+    ...(link ? { url: link } : {}),
   };
   await Store.setItem(FEED_KEY, encrypt(JSON.stringify(record), key));
   return record;
+}
+
+// ── The subscription link ───────────────────────────────────────────────────
+
+// How stale a linked calendar may get before opening the app reads it again.
+// Proton regenerates its shared feed on its own schedule; half an hour is often
+// enough to see a meeting added this morning, and rare enough not to fetch the
+// whole diary every time the app comes forward.
+const LINK_FRESH_MS = 30 * 60 * 1000;
+const LINK_TIMEOUT_MS = 20000;
+
+// Why a link could not be read, in words that say where to look.
+export class FeedLinkError extends Error {}
+
+async function fetchCalendar(url) {
+  const Abort = globalThis.AbortController;
+  const abort = typeof Abort === 'function' ? new Abort() : null;
+  const timer = abort ? setTimeout(() => abort.abort(), LINK_TIMEOUT_MS) : null;
+  let response;
+  try {
+    response = await fetch(url, {
+      headers: { Accept: 'text/calendar, text/plain, */*' },
+      ...(abort ? { signal: abort.signal } : {}),
+    });
+  } catch (e) {
+    if (Platform.OS === 'web') {
+      // A browser may not read another site's file unless that site allows it,
+      // and calendar services do not. The phone has no such rule.
+      throw new FeedLinkError('This browser is not allowed to read that link. Add it on the phone, or import the file instead');
+    }
+    throw new FeedLinkError(abort && abort.signal.aborted
+      ? 'The calendar took too long to answer'
+      : 'Could not reach the calendar — check the connection');
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+  if (response.status === 401 || response.status === 403 || response.status === 404) {
+    throw new FeedLinkError('The calendar refused the link — it may have been turned off or replaced. Make a new one and paste that');
+  }
+  if (!response.ok) throw new FeedLinkError(`The calendar answered ${response.status}`);
+  const text = await response.text();
+  if (!describeICS(text)) throw new FeedLinkError('That link does not lead to a calendar');
+  return text;
+}
+
+// Read a link for the first time and keep it.
+export async function saveFeedLink(pasted, key, now = new Date()) {
+  const url = feedUrl(pasted);
+  if (!url) throw new FeedLinkError('That is not a calendar link. It starts with https:// or webcal://');
+  const text = await fetchCalendar(url);
+  return saveFeed(text, key, now, linkName(url), url);
+}
+
+// Read a linked calendar again if the copy is old. A failure keeps the copy it
+// had: yesterday's diary, said to be yesterday's, beats none.
+export async function refreshFeed(key, now = new Date(), { force = false } = {}) {
+  const feed = await readFeed(key);
+  if (!feed || !feed.url) return feed;
+  const age = new Date(now) - new Date(feed.at);
+  if (!force && age >= 0 && age < LINK_FRESH_MS) return feed;
+  try {
+    const text = await fetchCalendar(feed.url);
+    return (await saveFeed(text, key, now, feed.name || linkName(feed.url), feed.url)) || feed;
+  } catch {
+    return feed;
+  }
 }
 
 export async function readFeed(key) {
@@ -206,17 +285,23 @@ export async function eventsFor(day, key) {
   to.setDate(to.getDate() + AHEAD_DAYS);
 
   const fromDevice = await deviceEvents(from, to);
-  if (fromDevice) return { events: fromDevice, source: 'device', at: new Date() };
+  const feed = key ? await refreshFeed(key) : null;
+  let fromFeed = null;
+  if (feed) {
+    try { fromFeed = parseICS(feed.text, { from, to }); } catch { fromFeed = null; }
+  }
 
-  if (!key) return null;
-  const feed = await readFeed(key);
-  if (!feed) return null;
+  if (!fromDevice && !fromFeed) return null;
+  if (!fromFeed) return { events: fromDevice, source: 'device', at: new Date() };
 
+  const events = mergeEvents(fromDevice || [], fromFeed);
   return {
-    events: parseICS(feed.text, { from, to }),
+    events,
     source: 'file',
     at: new Date(feed.at),
     name: feed.name,
+    linked: !!feed.url,
+    alsoDevice: !!(fromDevice && fromDevice.length),
   };
 }
 
