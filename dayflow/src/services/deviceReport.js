@@ -169,3 +169,16 @@ export function buildLine(info) {
   // app that cannot read its own is a fact worth seeing rather than hiding.
   return 'Installed app · build unknown';
 }
+
+// Why the last sync failed, where somebody can read it.
+//
+// The page says "sync failed — will retry", which is the right thing for a
+// page to say: it is context, not an incident. But the reason went to
+// console.warn, which on a phone is nowhere — and those four words cover a
+// row-level security rule, an expired session, a table that is not there and a
+// train tunnel, all of which are fixed somewhere different.
+export function syncLine(state, fault) {
+  if (state !== 'error') return '';
+  const said = String(fault || '').trim();
+  return said ? `The last sync failed: ${said}` : 'The last sync failed, and said no reason why';
+}

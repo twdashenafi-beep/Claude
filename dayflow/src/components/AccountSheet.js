@@ -22,7 +22,7 @@ import { STORAGE_KEY } from '../context/TaskContext';
 import { decryptTask } from '../services/encryption';
 import { isTask } from '../services/projects';
 import {
-  summarise, deviceLines, bytesOf, dictationLine, calendarLine, buildLine,
+  summarise, deviceLines, bytesOf, dictationLine, calendarLine, buildLine, syncLine,
 } from '../services/deviceReport';
 import { buildInfo } from '../services/build';
 import { openingLine } from '../services/opening';
@@ -57,7 +57,8 @@ const CALENDAR_HINT = 'Import an .ics from your calendar, so the day knows what 
 
 export default function AccountSheet({
   visible, email, dataKey, tasks = [], archived = [], projects = [],
-  tombstones = [], onImport, onCalendar, onClose, onLock, onDeleted,
+  tombstones = [], syncState = 'off', syncFault = '',
+  onImport, onCalendar, onClose, onLock, onDeleted,
 }) {
   const [view, setView] = useState('menu'); // menu | password | code | delete
   const [password, setPassword] = useState('');
@@ -196,10 +197,12 @@ export default function AccountSheet({
       const opened = openingLine();
       const dictation = dictationLine(speechSource());
       const diary = calendarLine(calendarReading());
+      const sync = syncLine(syncState, syncFault);
       setHeld([
         ...deviceLines(summary),
         ...(dictation ? [dictation] : []),
         ...(diary ? [diary] : []),
+        ...(sync ? [sync] : []),
         ...(opened ? [opened] : []),
       ].join(' · '));
     } catch (e) {

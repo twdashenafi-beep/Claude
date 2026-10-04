@@ -9,7 +9,7 @@
 
 import {
   bytesOf, sizeWords, notesIn, summarise, deviceLines, dictationLine, calendarLine,
-  buildLine,
+  buildLine, syncLine,
 } from '../src/services/deviceReport.js';
 
 let pass = 0, fail = 0;
@@ -190,6 +190,33 @@ ok('and whitespace is nothing too', calendarLine('   ') === '');
   ok('and each says which it is before it says any number',
      /^Web app/.test(buildLine({ platform: 'web', stamp: 'x' }))
        && /^Installed app/.test(buildLine({ platform: 'ios', version: 'x' })));
+}
+
+// ── Why the last sync failed ────────────────────────────────────────────────
+//
+// The page says "sync failed — will retry", which is right for a page: it is
+// context, not an incident. But those four words cover a row-level security
+// rule, an expired session, a table that is not there and a train tunnel, and
+// the reason went to console.warn — which on a phone is nowhere at all.
+{
+  const said = syncLine('error', '42501 new row violates row-level security policy');
+  ok('a failure gives the reason the server gave',
+     said === 'The last sync failed: 42501 new row violates row-level security policy', said);
+
+  // A failure with nothing attached still says a failure happened. Going quiet
+  // would put it back where it was.
+  ok('and a failure with no reason says that, rather than nothing',
+     syncLine('error', '') === 'The last sync failed, and said no reason why',
+     syncLine('error', ''));
+  ok('as does one with only whitespace',
+     syncLine('error', '   ') === 'The last sync failed, and said no reason why');
+
+  // Every other state is silent. A report that says "the last sync failed" on
+  // a device syncing happily is a report nobody trusts twice.
+  for (const state of ['ok', 'off', 'idle', 'syncing']) {
+    ok(`a device that is ${state} says nothing about failures`,
+       syncLine(state, 'stale reason from before') === '', syncLine(state, 'x'));
+  }
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

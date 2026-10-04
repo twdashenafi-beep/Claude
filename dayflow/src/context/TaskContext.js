@@ -88,6 +88,15 @@ export function TaskProvider({ children, encryptionKey, synced }) {
   const [tasks, setTasks] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [syncState, setSyncState] = useState(synced ? 'idle' : 'off');
+  // Why the last sync failed, in the server's own words.
+  //
+  // "sync failed — will retry" is the right thing to say on the page: it is
+  // context, not an incident, and the page is not where somebody debugs. But
+  // the reason was going to console.warn, which on a phone is nowhere at all —
+  // and "sync failed" with no reason is a row-level security rule, an expired
+  // session, a table that does not exist and no network, all wearing the same
+  // four words. The device report is where this belongs.
+  const [syncFault, setSyncFault] = useState('');
   // Empty when the last local write succeeded. A storage failure is not a sync
   // failure and does not belong in syncState: one means the server is out of
   // reach, the other means this device is.
@@ -348,8 +357,13 @@ export function TaskProvider({ children, encryptionKey, synced }) {
       if (rows.length || tombRows.length) await pushTasks([...rows, ...tombRows]);
 
       setSyncState('ok');
+      setSyncFault('');
     } catch (e) {
-      console.warn('Sync failed:', e.message);
+      // Kept rather than only warned about. Postgres puts the useful part in
+      // `message`, and `code` is what a search engine actually finds.
+      const said = [e && e.code, e && e.message].filter(Boolean).join(' ');
+      console.warn('Sync failed:', said);
+      setSyncFault(said || 'no reason given');
       setSyncState('error');
     } finally {
       syncing.current = false;
@@ -732,7 +746,7 @@ export function TaskProvider({ children, encryptionKey, synced }) {
     <TaskContext.Provider
       value={{
         tasks: visibleTasks, addTask, toggleTask, deleteTask, restoreTask, updateTask,
-        reorderTasks, syncState, syncNow, storageError, vaultError,
+        reorderTasks, syncState, syncFault, syncNow, storageError, vaultError,
         slowOpening, dismissSlowOpening: () => setSlowOpening(''),
         // The same function under a second name. Tasks and projects are one
         // record list underneath, and both carry an order, so moving either is
