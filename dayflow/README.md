@@ -64,7 +64,7 @@ works with the aeroplane mode on.
 |---|---|---|
 | **Web** | `https://twdashenafi-beep.github.io/Claude/` | Deployed by `.github/workflows/pages.yml` |
 | **iPhone / iPad** | Open that URL in Safari → Share → **Add to Home Screen** | Full-screen, works offline, free |
-| **iPhone / iPad (native)** | `eas build --platform ios --profile production` → TestFlight | Adds reminders and calendar sync; needs an Apple Developer account |
+| **iPhone / iPad (native)** | Actions → **Build for TestFlight** → Run workflow, or `eas build --platform ios --profile production` | Adds reminders and calendar sync; needs an Apple Developer account. The workflow needs an `EXPO_TOKEN` secret — see `.github/workflows/ios.yml` |
 | **Mac** | `cd desktop && npm run dmg` | `.dmg` in `desktop/dist/` |
 | **Trying it out** | `npx expo start`, scan the QR with Expo Go | No install, runs while your machine serves |
 
