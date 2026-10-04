@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { Platform, Dimensions } from 'react-native';
 
 // The sheet aesthetic: DayFlow reads as one page of paper on a desk rather
 // than a stack of app chrome. Everything visual is defined here so the screen
@@ -27,7 +27,23 @@ export function mainSheetWidth(windowWidth) {
 // heights too: a font that grows inside a fixed line height is clipped, and
 // clipped at the bottom, where the descenders are. Rounded to half a point, the
 // step the sizes were written in.
-const TYPE_SCALE = 1.12;
+//
+// Larger on a Mac or an iPad, where the page is wide and read from further away;
+// the sizes as written on a phone, where 1.12 made two columns of text feel
+// crowded. Decided by the screen's short side, read once: the style sheets are
+// built when the app starts, and a phone does not turn into a tablet.
+const PHONE_SHORT_SIDE = 600;
+
+function screenShortSide() {
+  try {
+    const { width, height } = Dimensions.get('screen');
+    return Math.min(width, height) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+const TYPE_SCALE = screenShortSide() >= PHONE_SHORT_SIDE ? 1.12 : 1;
 
 export function typeSize(points) {
   return Math.round(points * TYPE_SCALE * 2) / 2;
