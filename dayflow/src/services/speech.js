@@ -86,3 +86,37 @@ export function speechSource() {
   if (!mod) return 'not-in-this-build';
   return mod.ExpoWebSpeechRecognition ? 'device' : 'no-engine-in-module';
 }
+
+// Whether this device has actually been allowed to listen.
+//
+// speechSource answers "is there an engine here", which is a different
+// question and was being read as the same one: a report saying "Dictation
+// comes from this device" on a phone where the microphone button does nothing
+// is a report that answered the wrong thing confidently. The engine can be
+// present and permission refused — in iOS Settings, months ago, by somebody
+// who has forgotten — and that is fixed in Settings rather than in this app,
+// which is precisely why it has to be said rather than guessed at.
+//
+// getPermissionsAsync rather than request: this runs because a settings sheet
+// was opened, and a sheet that throws a microphone prompt at somebody who did
+// not ask for one is its own bug.
+//
+// Resolves to 'granted', 'refused', 'unasked', or '' when there is nothing
+// here to ask — the engine's absence is already reported by speechSource and
+// saying it twice in two different ways helps nobody.
+export async function speechPermission() {
+  if (Platform.OS === 'web') return '';
+  const mod = nativeModule();
+  const api = mod && mod.ExpoSpeechRecognitionModule;
+  if (!api || typeof api.getPermissionsAsync !== 'function') return '';
+  try {
+    const result = await api.getPermissionsAsync();
+    if (!result) return '';
+    if (result.granted) return 'granted';
+    // canAskAgain says which of the two refusals this is, and they are not the
+    // same: one is answered by tapping the button, the other only in Settings.
+    return result.canAskAgain ? 'unasked' : 'refused';
+  } catch {
+    return '';
+  }
+}

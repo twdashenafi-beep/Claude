@@ -182,3 +182,20 @@ export function syncLine(state, fault) {
   const said = String(fault || '').trim();
   return said ? `The last sync failed: ${said}` : 'The last sync failed, and said no reason why';
 }
+
+// Whether the microphone was ever allowed, which is not the same question as
+// whether there is an engine here.
+//
+// "Dictation comes from this device" was being read as "the microphone works",
+// and on a phone where permission had been refused it was both true and
+// useless. The two answers sit side by side now, because they are fixed in
+// different places: one by a build, the other in iOS Settings.
+const LISTENING = {
+  granted: 'and this device has been allowed to listen',
+  refused: 'but this device is not allowed to listen — allow DayFlow the microphone and speech recognition in Settings',
+  unasked: 'and it has not been asked for the microphone yet',
+};
+
+export function listeningLine(permission) {
+  return LISTENING[permission] || '';
+}

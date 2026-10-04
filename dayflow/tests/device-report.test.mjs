@@ -9,7 +9,7 @@
 
 import {
   bytesOf, sizeWords, notesIn, summarise, deviceLines, dictationLine, calendarLine,
-  buildLine, syncLine,
+  buildLine, syncLine, listeningLine,
 } from '../src/services/deviceReport.js';
 
 let pass = 0, fail = 0;
@@ -217,6 +217,34 @@ ok('and whitespace is nothing too', calendarLine('   ') === '');
     ok(`a device that is ${state} says nothing about failures`,
        syncLine(state, 'stale reason from before') === '', syncLine(state, 'x'));
   }
+}
+
+// ── An engine, and permission to use it ─────────────────────────────────────
+//
+// Two questions that were being answered as one. "Dictation comes from this
+// device" says there is an engine in this build; it says nothing about
+// whether iOS has been asked, or asked and refused. On a phone with a
+// microphone button that does nothing, the report said the first and was
+// read as the second — confidently answering the wrong question, which is
+// worse than saying nothing.
+{
+  ok('a device that may listen says so',
+     /allowed to listen/.test(listeningLine('granted')), listeningLine('granted'));
+
+  // The two refusals are not the same and are not fixed in the same place:
+  // one is answered by tapping the button, the other only in Settings.
+  const refused = listeningLine('refused');
+  ok('a device that was refused says where that is undone',
+     /Settings/.test(refused), refused);
+  ok('and one that was never asked says that instead',
+     /not been asked/.test(listeningLine('unasked')), listeningLine('unasked'));
+  ok('the two refusals are told apart', refused !== listeningLine('unasked'));
+
+  // Nothing to ask: the engine's absence is already reported by the line
+  // beside this one, and saying it twice in two voices helps nobody.
+  ok('a device with nothing to ask says nothing', listeningLine('') === '');
+  ok('and neither does an answer that never came', listeningLine(undefined) === '');
+  ok('nor one this does not recognise', listeningLine('something else') === '');
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
