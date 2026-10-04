@@ -284,10 +284,16 @@ export default function TodoScreen({ account, dataKey, onLock, onDeleted }) {
 
   // What the day already contains.
   //
-  // Read once when the vault opens and then left alone. A diary is not a live
-  // feed — nobody's Tuesday changes while they are looking at it often enough
-  // to be worth polling for — and re-reading it on every render would ask the
-  // phone for calendar permission in a loop.
+  // Read when the vault opens, and again when the app comes back to the front.
+  // Not polled: a diary is not a live feed, and re-reading it on every render
+  // would ask the phone for calendar permission in a loop.
+  //
+  // Coming back is the right moment because it is the only one where a stale
+  // diary is visible. A calendar subscribed through the phone — a Proton link,
+  // say — is refreshed by iOS on its own schedule, so an event added elsewhere
+  // arrives in the phone's calendar while DayFlow is in the background and was
+  // then missed until the next unlock. Nothing about that is obvious from the
+  // outside: the day simply says the wrong thing.
   const [diary, setDiary] = useState(null);
   // Bumped when a calendar is imported or forgotten, so the day's line changes
   // as soon as you close the sheet rather than on the next launch.
