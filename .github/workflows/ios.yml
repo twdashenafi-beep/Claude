@@ -179,9 +179,35 @@ jobs:
           done
           exit 0
 
+      # What actually came out, in a form that can be read from outside.
+      #
+      # The first green run finished its build step in two minutes and twenty
+      # seconds, which is fast for an iOS build, and there was no way from here
+      # to tell a real build from a reused one — the build number was in the
+      # log, and the log is on a host the API will not follow. Notice
+      # annotations do come back, so the answer goes there.
       - name: Say what came out
         if: always()
         working-directory: dayflow
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: eas build:list --platform ios --limit 1 --non-interactive || true
+        run: |
+          eas build:list --platform ios --limit 1 --non-interactive --json \
+            > "$RUNNER_TEMP/built.json" 2>/dev/null || true
+          if [ -s "$RUNNER_TEMP/built.json" ]; then
+            node -e '
+              const list = JSON.parse(require("fs").readFileSync(process.env.RUNNER_TEMP + "/built.json", "utf8"));
+              const b = Array.isArray(list) ? list[0] : null;
+              if (!b) { console.log("::notice::eas returned no builds"); process.exit(0); }
+              const said = [
+                `build ${b.appBuildVersion ?? "?"}`,
+                `version ${b.appVersion ?? "?"}`,
+                `status ${b.status ?? "?"}`,
+                b.completedAt ? `finished ${b.completedAt}` : null,
+                b.id ? `id ${b.id}` : null,
+              ].filter(Boolean).join(" · ");
+              console.log(`::notice::${said}`);
+            ' || echo "::notice::could not read the build list"
+          else
+            echo "::notice::eas build:list produced nothing"
+          fi
