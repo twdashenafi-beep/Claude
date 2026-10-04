@@ -71,6 +71,19 @@ const breathe = () => new Promise(resolve => setTimeout(resolve, 0));
 // which of two edits wins.
 const stamp = () => new Date().toISOString();
 
+// A vault that would not open, put aside under its own key rather than left in
+// the path of the next write.
+//
+// Takes what was already read when there is some, because reading it again to
+// save it is one more chance for the read to fail — and this runs precisely
+// when reads are going wrong.
+async function keepUnreadable(already) {
+  try {
+    const raw = already || await Store.getItem(STORAGE_KEY);
+    if (raw) await Store.setItem(`${STORAGE_KEY}_unreadable`, raw);
+  } catch { /* nothing more can be done for it */ }
+}
+
 export function TaskProvider({ children, encryptionKey, synced }) {
   const [tasks, setTasks] = useState([]);
   const [loaded, setLoaded] = useState(false);
@@ -113,6 +126,24 @@ export function TaskProvider({ children, encryptionKey, synced }) {
   const [opening, setOpening] = useState(null);
   // What the wait came to, when it came to enough to be worth saying.
   const [slowOpening, setSlowOpening] = useState('');
+
+  // Whether what is in memory may be written over what is on the disk.
+  //
+  // This is the difference between data that is hidden and data that is gone.
+  //
+  // The list is saved two hundred and fifty milliseconds after it settles,
+  // which is right when the list came from the vault and catastrophic when it
+  // did not. Two ways it does not: the read came back with nothing when there
+  // was something there, and every row failed to decrypt — the loop below
+  // skips a row it cannot read, which is correct for one bad row among many
+  // and, when the key is wrong, skips all of them. Either way the app had an
+  // empty list, no error, and a timer already counting down to writing it over
+  // the only copy.
+  //
+  // So nothing is written until a read has succeeded. An empty vault stays
+  // empty and saves normally; a vault that would not open is left exactly as
+  // it is, with a copy put aside and something said on screen.
+  const safeToWrite = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -174,7 +205,35 @@ export function TaskProvider({ children, encryptionKey, synced }) {
           // because it is the only line here that is the app's own doing.
           const drawing = nowMs() - loopFrom - plain.ms - heavy.ms;
           if (drawing > 0) noteStage('letting the screen draw', drawing);
-          if (!cancelled) { tasksRef.current = decrypted; setTasks(decrypted); }
+          // Rows were there and not one of them opened. That is a key that
+          // does not fit, not an empty vault, and the two must never be
+          // confused — the empty one is saved over the full one.
+          if (rows.length > 0 && decrypted.length === 0) {
+            await keepUnreadable(stored);
+            if (!cancelled) {
+              setVaultError(
+                'The tasks saved on this device could not be read, so nothing has been '
+                + 'changed here. A copy has been kept, and anything on your other '
+                + 'devices will sync back.'
+              );
+            }
+          } else if (!cancelled) {
+            safeToWrite.current = true;
+            tasksRef.current = decrypted;
+            setTasks(decrypted);
+          }
+        } else {
+          // Nothing under this key: a device that has not saved anything yet,
+          // which is the ordinary first run and must go on to save normally.
+          //
+          // A read that wrongly came back empty would land here too, and that
+          // was worth a long look. It turns out not to be the dangerous case:
+          // the write goes back to the same drawer the read came from, so a
+          // drawer that answered "nothing" is a drawer with nothing in it to
+          // destroy. The copy that still exists is in a drawer this is not
+          // writing to. The case that destroys work is the one above — real
+          // rows, read, and then not one of them opening.
+          safeToWrite.current = true;
         }
       } catch (e) {
         console.warn('Failed to load vault:', e.message);
@@ -184,10 +243,7 @@ export function TaskProvider({ children, encryptionKey, synced }) {
         // server has another copy; on one that does not, this is the only copy
         // there is. So it is put aside first, under its own key, and the app
         // says that it happened rather than starting quietly from nothing.
-        try {
-          const raw = await Store.getItem(STORAGE_KEY);
-          if (raw) await Store.setItem(`${STORAGE_KEY}_unreadable`, raw);
-        } catch { /* nothing more can be done for it */ }
+        await keepUnreadable(null);
         if (!cancelled) {
           setVaultError(
             'The tasks saved on this device could not be read. A copy has been kept, '
@@ -207,6 +263,8 @@ export function TaskProvider({ children, encryptionKey, synced }) {
 
   const persist = useCallback(
     async list => {
+      // The guard this module exists around. See safeToWrite.
+      if (!safeToWrite.current) return [];
       const rows = encryptAll(list, encryptionKey);
       await Store.setItem(
         STORAGE_KEY,
