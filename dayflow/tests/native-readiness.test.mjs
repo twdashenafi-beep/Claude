@@ -750,6 +750,14 @@ ok('two keys in a row differ', generateDataKey() !== generateDataKey());
     for (const m of text.matchAll(/import\s*\*\s*as\s+(\w+)\s*from\s*["'](expo-[\w-]+)["']/g)) {
       for (const hit of text.matchAll(new RegExp(`\\b${m[1]}\\.(\\w+)`, 'g'))) note(m[2], hit[1], file);
     }
+    // Three modules are reached by require rather than import, because they do
+    // not exist on the web and a static import would be loaded there anyway.
+    // That is a good reason to require them and no reason at all to leave them
+    // unchecked — which is what this audit did until something written against
+    // a transitive dependency walked straight through it.
+    for (const m of text.matchAll(/(?:const|let|var)\s+(\w+)\s*=\s*require\(\s*["'](expo-[\w-]+)["']\s*\)/g)) {
+      for (const hit of text.matchAll(new RegExp(`\\b${m[1]}\\.(\\w+)`, 'g'))) note(m[2], hit[1], file);
+    }
   }
 
   ok('the app reaches for expo modules by name', used.size > 0, 'none found to check');
@@ -768,6 +776,38 @@ ok('two keys in a row differ', generateDataKey() !== generateDataKey());
   ok('every expo module the app uses can be read', unreadable.length === 0, unreadable.join(', '));
   ok('and every name it uses is exported by the copy installed',
      missing.length === 0, missing.join('; '));
+
+  // The part that matters more than either: whether this audit is looking at
+  // everything it thinks it is.
+  //
+  // Twice now a guard in this file has been toothless — one asked whether
+  // either of two names existed, the other guessed at a file path. Both passed
+  // while checking nothing. A module reached in a form the collector cannot
+  // follow is the same failure wearing a third hat, so the forms it cannot
+  // follow have to be named rather than silently skipped.
+  //
+  // These two bind the module to an outer variable inside a getter and hand it
+  // out from there, which no regex is going to follow. Both have their own
+  // checks above — the speech package against the SDK major and by module
+  // name, the keychain through the two buttons that were dead on a phone — so
+  // the list is short and every entry says where the real check lives.
+  const CHECKED_ELSEWHERE = new Map([
+    ['expo-speech-recognition', 'checked against the SDK major, and by name, above'],
+    ['expo-secure-store', 'checked through the two buttons that use it, above'],
+  ]);
+
+  const unfollowed = [];
+  for (const file of sources) {
+    const text = fs.readFileSync(file, 'utf8');
+    for (const m of text.matchAll(/require\(\s*["'](expo-[\w-]+)["']\s*\)/g)) {
+      const pkg = m[1];
+      if (used.has(pkg) || CHECKED_ELSEWHERE.has(pkg)) continue;
+      unfollowed.push(`${pkg} (${path.relative(ROOT, file)})`);
+    }
+  }
+  ok('and no expo module is reached in a way this audit cannot follow',
+     unfollowed.length === 0,
+     `${unfollowed.join('; ')} — bind it as \`const X = require('…')\` or say where it is checked`);
 }
 
 // ── The native derivation hands across the right bytes ──

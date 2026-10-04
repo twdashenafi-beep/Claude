@@ -21,7 +21,10 @@ import Store from '../services/store';
 import { STORAGE_KEY } from '../context/TaskContext';
 import { decryptTask } from '../services/encryption';
 import { isTask } from '../services/projects';
-import { summarise, deviceLines, bytesOf, dictationLine, calendarLine } from '../services/deviceReport';
+import {
+  summarise, deviceLines, bytesOf, dictationLine, calendarLine, buildLine,
+} from '../services/deviceReport';
+import { buildInfo } from '../services/build';
 import { openingLine } from '../services/opening';
 import { speechSource } from '../services/speech';
 import { calendarReading } from '../services/calendarFeed';
@@ -697,6 +700,14 @@ export default function AccountSheet({
               </TouchableOpacity>
             </>
           ) : null}
+          {/* Which copy of DayFlow this is. Always on screen rather than
+              behind the storage report, because the question it answers —
+              web page or installed app — is the one somebody asks when a
+              change they were told about is not there, and at that moment
+              they are already not sure what to trust. */}
+          <Text style={s.build} dataSet={{ buildline: 'true' }} selectable>
+            {buildLine(buildInfo())}
+          </Text>
         </ScrollView>
       </View>
     </Modal>
@@ -719,6 +730,12 @@ const s = StyleSheet.create({
   email: { fontFamily: SERIF, fontSize: typeSize(17), color: COLORS.ink },
   rule: { height: 1, backgroundColor: COLORS.pencil, marginTop: 12, marginBottom: 4 },
   gap: { height: 26 },
+  // The same quiet treatment as the stamp on the first-run sync screen, so the
+  // two read as one fact said in two places rather than two different claims.
+  build: {
+    fontFamily: SANS, fontSize: typeSize(10.5), letterSpacing: 0.8,
+    color: COLORS.inkFaint, marginTop: 28, marginBottom: 8, textAlign: 'right',
+  },
 
   row: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',

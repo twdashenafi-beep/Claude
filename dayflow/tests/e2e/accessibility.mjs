@@ -198,6 +198,27 @@ await page.waitForTimeout(700);
 await page.getByLabel('Account settings').click();
 await page.waitForTimeout(700);
 await look('account');
+
+// Which copy of DayFlow this is, without pressing anything.
+//
+// The app knew this all along and printed it on the first-run sync screen —
+// which you see once, before there is anything to be confused about. It cost
+// an afternoon: a change shipped, the web deploy green, and the phone showing
+// the old screen, with no way to tell from inside whether the phone held a
+// cached web page or a build that predated the work.
+{
+  const stamp = page.locator('[data-buildline]');
+  ok('the account says which copy of DayFlow this is', (await stamp.count()) === 1,
+     String(await stamp.count()));
+  const said = await stamp.first().innerText();
+  // In the browser it can only be the web app, and saying so is the whole job:
+  // the fork this answers is web page or installed app, not which version.
+  ok('and in a browser it says the web app', /^Web app/.test(said), said);
+  ok('and names the build, or says it was not stamped',
+     /build \S+$|built from source$/.test(said), said);
+  ok('it is not hidden behind the storage report', await stamp.first().isVisible(), said);
+}
+
 await page.getByText('Done', { exact: true }).first().click();
 await page.waitForTimeout(600);
 
