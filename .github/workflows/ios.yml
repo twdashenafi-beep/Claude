@@ -1,0 +1,124 @@
+# Builds DayFlow for iPhone and sends it to TestFlight.
+#
+# This exists because the one step in this project that could not be done from
+# a session — making a build — was also the step most often asked for. Every
+# other kind of work could be written, tested, merged and deployed from a
+# machine with no Apple account on it; the build had to be handed back to a Mac
+# every time, and a change nobody can install is a change nobody has.
+#
+# ── One-time setup ─────────────────────────────────────────────────────────
+#
+# Create an access token at expo.dev → account settings → access tokens, and
+# add it as a repository secret named EXPO_TOKEN (Settings → Secrets and
+# variables → Actions). Nothing else is needed here: the iOS signing
+# certificate, the provisioning profile and the App Store Connect key already
+# live on EAS from the builds made by hand, and both commands below use them
+# from there.
+#
+# ── Running it ─────────────────────────────────────────────────────────────
+#
+# From the Actions tab: "Build for TestFlight" → Run workflow, pick the branch,
+# and leave "submit" ticked to send it on to TestFlight when it is done. Or
+# push a tag beginning with ios- (ios-24, ios-strip, anything), which builds
+# and submits the commit it points at.
+#
+# A build is slow and not free, so nothing here fires on an ordinary push.
+#
+# ── The build number ───────────────────────────────────────────────────────
+#
+# eas.json sets appVersionSource: remote with autoIncrement, so EAS takes the
+# last build number it issued and adds one. Nothing is written back to the
+# repository and no commit here needs to carry a number.
+name: Build for TestFlight
+
+on:
+  workflow_dispatch:
+    inputs:
+      submit:
+        description: Send the finished build to TestFlight
+        type: boolean
+        default: true
+  push:
+    tags:
+      - 'ios-*'
+
+permissions:
+  contents: read
+
+# Two builds of the same app at once would race for the next build number.
+concurrency:
+  group: ios-build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # A build takes a while and then waits in Apple's queue.
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: dayflow/package-lock.json
+
+      # Said before anything slow happens, and without echoing the value —
+      # the alternative is a token error from deep inside eas twenty minutes
+      # in, which reads as a build failure rather than a missing setting.
+      - name: Check the Expo token is there
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::EXPO_TOKEN is not set. Create one at expo.dev → account settings"
+            echo "::error::→ access tokens, then add it under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          echo "EXPO_TOKEN: present"
+
+      - name: Install DayFlow dependencies
+        working-directory: dayflow
+        run: npm ci
+
+      # The gate, not a formality.
+      #
+      # native-readiness is in here, and it is the suite that catches the
+      # faults a build cannot: an expo name that moved in an SDK upgrade, a
+      # purpose string Apple will ask for and reject the build without, a
+      # speech package built against a different React Native. Every one of
+      # those produced a build that compiled and was broken on a phone. Finding
+      # them here costs four minutes; finding them in TestFlight costs a day.
+      - name: Run the checks that a build cannot
+        working-directory: dayflow
+        run: npm test
+
+      - name: Install EAS
+        run: npm install -g eas-cli
+
+      # --wait so the step's success means a finished build rather than a
+      # queued one, which is what the submit below depends on.
+      - name: Build
+        working-directory: dayflow
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: eas build --platform ios --profile production --non-interactive --wait
+
+      # Skipped only when the run was started by hand with the box unticked.
+      # A tag always submits: tagging a commit ios-something is not a thing
+      # anybody does to produce a build they did not want sent.
+      - name: Send it to TestFlight
+        if: github.event_name == 'push' || inputs.submit
+        working-directory: dayflow
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: eas submit --platform ios --profile production --latest --non-interactive
+
+      - name: Say what came out
+        if: always()
+        working-directory: dayflow
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: eas build:list --platform ios --limit 1 --non-interactive || true
