@@ -639,11 +639,16 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
   // nothing at all outside it.
   // Putting work into the free time: the one move the diary could describe and
   // never make. Only on the day's page — a gap in a week is not a slot.
+  const [planning, setPlanning] = useState(false);
   const [gapPicked, setGapPicked] = useState(null);
-  const openGap = useCallback(gap => setGapPicked(gap || null), []);
+  // Opened by the tap, not by whether the tap found anything. A day with no
+  // free time left has an answer, and it is "nothing free is left today" —
+  // said in the sheet rather than by the sheet refusing to appear.
+  const openGap = useCallback(gap => { setGapPicked(gap || null); setPlanning(true); }, []);
+  const closePlanning = useCallback(() => { setPlanning(false); setGapPicked(null); }, []);
   const placeInGap = useCallback((task, gap) => {
     const when = planFor(gap);
-    setGapPicked(null);
+    closePlanning();
     if (!task || !when) return;
     updateTask(task.id, when);
     setBanner({
@@ -652,7 +657,7 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
       label: 'Undo putting it in the free time',
       run: () => updateTask(task.id, { dueDate: task.dueDate || '', dueTime: task.dueTime || '' }),
     });
-  }, [updateTask]);
+  }, [updateTask, closePlanning]);
 
   const tomorrow = useMemo(
     () => (showDiary && diary ? tomorrowLine(load, diary.events, load.at) : null),
@@ -1121,12 +1126,12 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
       <ConfettiOverlay visible={celebrating} onDone={() => setCelebrating(false)} />
 
       <PlanSheet
-        visible={!!gapPicked}
+        visible={planning}
         gaps={load && load.span === 'day' ? load.gaps : []}
         chosen={gapPicked}
         tasks={inView}
         onPlace={placeInGap}
-        onClose={() => setGapPicked(null)}
+        onClose={closePlanning}
       />
 
       <AccountSheet

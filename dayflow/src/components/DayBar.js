@@ -46,8 +46,11 @@ export default function DayBar({ load, now, plans = [], onPickGap, style }) {
   const tapped = event => {
     if (!onPickGap) return;
     const x = event && event.nativeEvent ? event.nativeEvent.locationX : 0;
-    const gap = gapAt(load, width, x);
-    if (gap) onPickGap(gap);
+    // Answered even when the answer is none. Past the end of a working day
+    // there is no free time left to tap, and this used to do nothing at all —
+    // a dead control that looks exactly like a broken one, which is the fault
+    // this app has spent two days taking out of everything else.
+    onPickGap(gapAt(load, width, x));
   };
 
   // The sentence holds the place until there is a width to draw into, and
