@@ -433,7 +433,9 @@ const near = (a, b, slack = 0.51) => Math.abs(a - b) <= slack;
     { id: 'undated', title: 'undated' },
     timed('overdue', 2, 9),
     timed('ahead', 3, 11),
+    { id: 'today', title: 'today', dueDate: new Date(2026, 9, 2).toISOString() },
     { id: 'dated', title: 'dated', dueDate: new Date(2026, 9, 3).toISOString() },
+    { id: 'nextweek', title: 'nextweek', dueDate: new Date(2026, 9, 12).toISOString() },
     timed('older', 1, 9),
     { id: 'done', title: 'done', completed: true },
   ];
@@ -443,11 +445,39 @@ const near = (a, b, slack = 0.51) => Math.abs(a - b) <= slack;
   ok('and an hour still ahead is left alone', !offered.includes('ahead'), offered.join(', '));
   ok('finished work is not offered', !offered.includes('done'), offered.join(', '));
 
+  // ── What a day with no hour means ──
+  //
+  // It used to mean nothing: anything without a valid hour counted as "not
+  // already somewhere" and was offered. Putting something off is exactly how a
+  // task ends up dated and untimed — a week out, a month out, the twenty-third
+  // — so a task moved to next week came straight back onto the list as though
+  // the decision had not been taken. The app arguing with an instruction it had
+  // just been given.
+  //
+  // The rule, said once: what is owed by the end of the day being filled, plus
+  // anything carrying no date at all.
+  ok('something owed today is offered', offered.includes('today'), offered.join(', '));
+  ok('something put off to next week is not',
+     !offered.includes('nextweek'), offered.join(', '));
+  ok('nor is tomorrow\u2019s work, while today is the day being filled',
+     !offered.includes('dated'), offered.join(', '));
+
+  // And on the Tomorrow page, the horizon moves with it: tomorrow's work is
+  // the point, next week's still is not.
+  const forTomorrow = placeable(mixed, evening, new Date(2026, 9, 3)).map(x => x.id);
+  ok('filling tomorrow offers what is owed tomorrow',
+     forTomorrow.includes('dated'), forTomorrow.join(', '));
+  ok('and still not what was pushed past it',
+     !forTomorrow.includes('nextweek'), forTomorrow.join(', '));
+  ok('and what was already owed stays offered',
+     forTomorrow.includes('overdue') && forTomorrow.includes('today'),
+     forTomorrow.join(', '));
+
   // Ordered by how much the answer is owed, because the top of the list is
   // the part anybody reads.
   ok('the longest overdue comes first', offered[0] === 'older', offered.join(', '));
   ok('then the rest of what is overdue', offered[1] === 'overdue', offered.join(', '));
-  ok('then what has a day but no hour', offered[2] === 'dated', offered.join(', '));
+  ok('then what has a day but no hour', offered[2] === 'today', offered.join(', '));
   ok('and the undated last, having no claim on any day', offered[3] === 'undated',
      offered.join(', '));
 

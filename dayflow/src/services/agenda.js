@@ -37,6 +37,14 @@ function startOfDay(date) {
   return d;
 }
 
+// The last instant of a day, so "on or before this day" is one comparison
+// rather than a date-equality test that has to know about months.
+function endOfDay(date) {
+  const d = startOfDay(date);
+  d.setHours(23, 59, 59, 999);
+  return d;
+}
+
 function at(date, hours) {
   const d = startOfDay(date);
   d.setHours(hours, 0, 0, 0);
@@ -615,14 +623,31 @@ export function tomorrowLine(load, rawEvents, now = new Date()) {
 // within that, because a thing missed twice is worse than a thing missed once;
 // then dated but untimed, nearest first; then everything else, which has no
 // claim on any particular day and sits in the order it was written.
-export function placeable(tasks, now = new Date()) {
+export function placeable(tasks, now = new Date(), planning = null) {
   const at = asDate(now) || new Date();
+  // The last day worth offering for: the end of the day being filled.
+  //
+  // Without this the list offered everything with a date but no hour, which is
+  // most of what putting something off produces — a week out, a month out, the
+  // twenty-third. So a task moved to next week came straight back onto the
+  // Tomorrow page as though nothing had been decided, which is the app arguing
+  // with a decision it had just been given.
+  //
+  // The rule, said once: what is owed by the end of the day you are filling,
+  // plus anything carrying no date at all.
+  const edge = endOfDay(asDate(planning) || at);
 
   const open = (tasks || []).filter(task => {
     if (!task || task.completed || task.archivedAt) return false;
     const when = momentOf(task.dueDate, task.dueTime);
     // Already somewhere, and that somewhere has not happened yet.
-    return !when || when <= at;
+    if (when) return when <= at;
+    const day = asDate(task.dueDate);
+    // A day but no hour: owed that day, so offerable up to the day being
+    // filled and not before it.
+    if (day) return startOfDay(day) <= edge;
+    // Nothing on it at all, which is what the free time is mostly for.
+    return true;
   });
 
   const rank = task => {
