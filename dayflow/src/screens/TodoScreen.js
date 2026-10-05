@@ -10,7 +10,7 @@ import { recordChase } from '../services/chase';
 import { isReckoningDay } from '../services/reckoning';
 import { eventsFor } from '../services/calendarFeed';
 import { scopeNow, horizonStamp } from '../services/scope';
-import { spanLoad, tomorrowLine, planFor } from '../services/agenda';
+import { spanLoad, tomorrowLine, planFor, tomorrowGaps } from '../services/agenda';
 import { EVERYTHING, projectOf, projectName } from '../services/projects';
 import { moveTick } from '../services/haptics';
 import { ARCHIVE, deletionOf } from '../services/archive';
@@ -659,6 +659,16 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
     });
   }, [updateTask, closePlanning]);
 
+  // What a tap on the strip can offer. Today's free time while there is any,
+  // and tomorrow's once the day has closed — because at seven in the evening
+  // "nothing free is left today" is true and no use, and the page is already
+  // saying what tomorrow opens with two lines above.
+  const planWhen = useMemo(() => {
+    if (!load || load.span !== 'day' || !diary) return { gaps: [], tomorrow: false };
+    if (load.gaps.length > 0) return { gaps: load.gaps, tomorrow: !!load.tomorrow };
+    return { gaps: tomorrowGaps(diary.events, load.at), tomorrow: true };
+  }, [load, diary]);
+
   const tomorrow = useMemo(
     () => (showDiary && diary ? tomorrowLine(load, diary.events, load.at) : null),
     [showDiary, diary, load],
@@ -1127,7 +1137,8 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
 
       <PlanSheet
         visible={planning}
-        gaps={load && load.span === 'day' ? load.gaps : []}
+        gaps={planWhen.gaps}
+        tomorrow={planWhen.tomorrow}
         chosen={gapPicked}
         tasks={inView}
         onPlace={placeInGap}

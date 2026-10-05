@@ -15,7 +15,9 @@ import { COLORS, SANS, SERIF, SHEET_MAX_WIDTH, typeSize } from '../utils/theme';
 // ordinary task that happens to know when it is — it clashes, it reminds, it
 // sorts into the day like everything else.
 
-export default function PlanSheet({ visible, gaps = [], chosen, tasks = [], onPlace, onClose }) {
+export default function PlanSheet({
+  visible, gaps = [], tomorrow = false, chosen, tasks = [], onPlace, onClose,
+}) {
   const [gap, setGap] = useState(null);
   const here = gap || chosen || gaps[0] || null;
 
@@ -33,13 +35,17 @@ export default function PlanSheet({ visible, gaps = [], chosen, tasks = [], onPl
           <TouchableOpacity onPress={close} accessibilityRole="button" accessibilityLabel="Close">
             <Text style={s.close}>Done</Text>
           </TouchableOpacity>
-          <Text style={s.title} accessibilityRole="header">Free time</Text>
+          <Text style={s.title} accessibilityRole="header">
+            {tomorrow ? 'Tomorrow' : 'Free time'}
+          </Text>
           <View style={s.balance} />
         </View>
 
         <ScrollView contentContainerStyle={s.body} keyboardShouldPersistTaps="handled">
           {gaps.length === 0 ? (
-            <Text style={s.blurb}>Nothing free is left today.</Text>
+            <Text style={s.blurb}>
+              Nothing free is left today, and tomorrow is full.
+            </Text>
           ) : (
             <>
               {/* Every gap, so a tap that landed on the wrong one is one more
@@ -66,7 +72,8 @@ export default function PlanSheet({ visible, gaps = [], chosen, tasks = [], onPl
 
               <Text style={s.blurb}>
                 {here
-                  ? `${spanMinutes(Math.round((here.end - here.start) / 60000))} free from ${clockOf(here.start)}. `
+                  ? `${spanMinutes(Math.round((here.end - here.start) / 60000))} free `
+                    + `${tomorrow ? 'tomorrow ' : ''}from ${clockOf(here.start)}. `
                     + 'Pick something to do in it.'
                   : 'Pick a stretch of free time.'}
               </Text>

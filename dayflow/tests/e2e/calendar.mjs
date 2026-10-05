@@ -317,6 +317,11 @@ await page.waitForTimeout(1500);
     document.dispatchEvent(new Event('visibilitychange'));
   });
 
+  // Something to put in it. The only untimed task went into a gap further up,
+  // so without this the sheet would correctly offer nothing and the assertion
+  // below would be proving that rather than what it claims.
+  await toDo('Write the quarterly note');
+
   // Seven in the evening: the day closed at six and nothing is left of it.
   await page.clock.setFixedTime(new Date('2026-10-02T19:00:00'));
   await back();
@@ -329,8 +334,19 @@ await page.waitForTimeout(1500);
     await page.waitForTimeout(900);
     const said = await body();
     ok('a tap with nothing free still opens, rather than doing nothing',
-       /Free time/i.test(said), said.slice(0, 300));
-    ok('and says so in words', /Nothing free is left today/i.test(said), said.slice(0, 400));
+       /Tomorrow|Free time/i.test(said), said.slice(0, 300));
+    // Honest and useless would be "nothing free is left today". The page is
+    // already saying what tomorrow opens with two lines above the strip, so
+    // tomorrow is what somebody reaching for it at seven actually wants.
+    ok('and offers tomorrow, rather than shrugging about today',
+       /free tomorrow from \d\d:\d\d/i.test(said), said.slice(0, 400));
+    ok('naming it as tomorrow so no hour is mistaken for tonight',
+       /Tomorrow/.test(said), said.slice(0, 300));
+
+    const forTomorrow = page.locator('[data-plantask]');
+    ok('with something to put in it', (await forTomorrow.count()) > 0,
+       String(await forTomorrow.count()));
+
     await page.getByText('Done', { exact: true }).first().click();
     await page.waitForTimeout(600);
   }

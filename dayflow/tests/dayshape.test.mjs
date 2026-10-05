@@ -15,7 +15,7 @@
 import {
   barSegments, barNow, barDrawable, barCaption, loadSentence,
   spanLoad, dayLoad, BAR_GAP, BAR_LEAST, tomorrowLine,
-  barPlans, gapAt, planFor, placeable, clockOf,
+  barPlans, gapAt, planFor, placeable, clockOf, tomorrowGaps,
 } from '../src/services/agenda.js';
 
 let pass = 0, fail = 0;
@@ -440,6 +440,50 @@ const near = (a, b, slack = 0.51) => Math.abs(a - b) <= slack;
 
   ok('a week has no slots to fill',
      barPlans(spanLoad([], [], on(9), 'week'), placed, W).length === 0);
+}
+
+// ── Tapping the strip when today is spent ───────────────────────────────────
+//
+// Seven in the evening: the day closed at six, nothing is free, and the first
+// version of this did nothing at all when tapped. Answering "nothing free is
+// left today" would be honest and no use — the page is already saying what
+// tomorrow opens with, two lines above the strip, so tomorrow is what somebody
+// reaching for it at seven actually wants.
+{
+  const d = (day, h, mi = 0) => new Date(2026, 9, day, h, mi);
+  const some = (title, a, b) => ({ id: title, title, start: a, end: b, allDay: false });
+  const diary = [
+    some('Late call', d(5, 16), d(5, 17)),
+    some('Swim', d(6, 7), d(6, 8)),
+    some('Board', d(6, 11), d(6, 12, 30)),
+  ];
+  const evening = d(5, 19, 4);
+
+  ok('today has nothing free left at seven',
+     spanLoad([], diary, evening, 'day').gaps.length === 0);
+
+  const ahead = tomorrowGaps(diary, evening);
+  ok('so tomorrow is offered instead', ahead.length === 2,
+     ahead.map(g => clockOf(g.start)).join(', '));
+  // Asked at a minute past midnight so none of tomorrow is already behind you.
+  ok('and all of tomorrow is offered, not the part after seven',
+     clockOf(ahead[0].start) === '08:00', clockOf(ahead[0].start));
+  ok('with tomorrow\u2019s own meetings taken out of it',
+     clockOf(ahead[0].end) === '11:00', clockOf(ahead[0].end));
+
+  // The hour written must be tomorrow's, or the task lands on a day that has
+  // already gone — which would be the feature quietly doing the wrong thing
+  // rather than nothing, and that is worse.
+  const when = planFor(ahead[0]) || {};
+  ok('and a task put there takes tomorrow\u2019s date',
+     new Date(when.dueDate).getDate() === 6, String(when.dueDate));
+  ok('at the hour the gap starts', when.dueTime === '08:00', String(when.dueTime));
+
+  // A day whose tomorrow is solid has nothing to offer, and says so.
+  const packed = [some('All of it', d(6, 0), d(7, 0))];
+  ok('a tomorrow with no room in it offers nothing',
+     tomorrowGaps(packed, evening).length === 0,
+     String(tomorrowGaps(packed, evening).length));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
