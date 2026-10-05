@@ -347,7 +347,8 @@ ok('every reminder gets its own row', (await dueRows.count()) > 0, String(await 
 ok('each one can be ticked off without leaving',
    (await A.page.locator('[data-duedone]').count()) === (await dueRows.count()));
 ok('and each one can be put off',
-   (await A.page.locator('[data-dueputoff]').count()) === (await dueRows.count()));
+   (await A.page.locator('[data-laterbutton]').count()) === (await dueRows.count()),
+   String(await A.page.locator('[data-laterbutton]').count()));
 
 await A.page.locator('[data-dueopen]').first().click();
 await A.page.waitForTimeout(1200);

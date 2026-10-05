@@ -15,7 +15,7 @@
 import {
   barSegments, barNow, barDrawable, barCaption, loadSentence,
   spanLoad, dayLoad, BAR_GAP, BAR_LEAST, tomorrowLine,
-  barPlans, gapAt, planFor, placeable, clockOf, tomorrowGaps, putOff,
+  barPlans, gapAt, planFor, placeable, clockOf, tomorrowGaps, putOff, LATER,
 } from '../src/services/agenda.js';
 
 let pass = 0, fail = 0;
@@ -525,67 +525,62 @@ const near = (a, b, slack = 0.51) => Math.abs(a - b) <= slack;
      String(tomorrowGaps(packed, evening).length));
 }
 
-// ── Not ready for it ────────────────────────────────────────────────────────
+// ── When, then ──────────────────────────────────────────────────────────────
 //
-// The sheet asks "shall I do this tomorrow" and took only one answer. Going
-// down a list of things you are not ready for, with no way to say so, is the
-// sheet asking a question it will not let you answer.
+// Named times rather than arithmetic. "Put off" meant plus seven days and a
+// month was a second tap on a line at the top of the sheet, so the commonest
+// decision in any list spoke a language nobody thinks in and reported itself
+// where nobody was looking.
 //
-// Putting a task off moves when it is due — a promise being moved. Filing it
-// under the month moves which page it sits on and touches no promise: it is
-// still overdue if it was, and the page will still say so. Two decisions, kept
-// apart, because merging them would quietly do the wrong one.
+// One rule behind all four: each is the first day of the period it names.
+// Tomorrow is the next day, the weekend is Saturday, next week is Monday, next
+// month is the first.
 {
-  const now = new Date(2026, 9, 5, 20, 18);
-  const dated = (y, mo, d, time = '') => ({
-    id: 'x', title: 'Pay Ambesso', dueDate: new Date(y, mo, d).toISOString(), dueTime: time,
-  });
+  const D = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const dayOf = iso => D[new Date(iso).getDay()];
+  const dateOf = iso => new Date(iso).getDate();
+  const monthOf = iso => new Date(iso).getMonth();
+  const put = (step, when, task = {}) => putOff(task, step, when).dueDate;
 
-  // A week on one tap, because most things are not ready today and will be by
-  // Thursday; a month is the second tap.
-  const aWeek = new Date(putOff(dated(2026, 1, 3, '09:00'), 'week', now).dueDate);
-  ok('a week is seven days from today, not from the date it carries',
-     aWeek.getMonth() === 9 && aWeek.getDate() === 12, aWeek.toDateString());
+  ok('four answers, and they are named rather than counted',
+     LATER.length === 4 && LATER.every(x => x.label && !/\d/.test(x.label)),
+     LATER.map(x => x.label).join(', '));
 
-  // The second tap works from where the task was, not from the week it has
-  // just been given — two taps mean a month, not five weeks.
-  const thenMonth = new Date(putOff(dated(2026, 1, 3, '09:00'), 'month', now).dueDate);
-  ok('and a month after it is still a month, not five weeks',
-     thenMonth.getMonth() === 10 && thenMonth.getDate() === 5, thenMonth.toDateString());
+  // Monday 5 October 2026.
+  const mon = new Date(2026, 9, 5, 20, 18);
+  ok('tomorrow is the next day', dateOf(put('tomorrow', mon)) === 6, put('tomorrow', mon));
+  ok('the weekend is Saturday', dayOf(put('weekend', mon)) === 'Sat', put('weekend', mon));
+  ok('next week is Monday', dayOf(put('week', mon)) === 'Mon' && dateOf(put('week', mon)) === 12,
+     put('week', mon));
+  ok('next month is the first of it',
+     dateOf(put('month', mon)) === 1 && monthOf(put('month', mon)) === 10, put('month', mon));
 
-  // A week never needs the short-month guard, and must not get it: the 29th
-  // of December plus seven days is the 5th of January.
-  const across = new Date(putOff(dated(2026, 11, 29), 'week', now).dueDate);
-  ok('a week crossing a year end is simply seven days on',
-     across.getFullYear() === 2027 && across.getDate() === 5, across.toDateString());
+  // Said on a Saturday, "the weekend" means the one coming. Putting something
+  // off has to move it; an answer that leaves it where it is, is not an answer.
+  const sat = new Date(2026, 9, 10, 20, 18);
+  ok('the weekend said on a Saturday is the next one, not today',
+     dateOf(put('weekend', sat)) === 17, put('weekend', sat));
+  // The same rule for a Monday: next week never means this morning.
+  ok('and next week said on a Monday is the Monday after',
+     dateOf(put('week', mon)) === 12, put('week', mon));
 
-  // Counted from today, not from the date it carries. Eight months overdue,
-  // put off by a month, must not come back seven months overdue.
-  const old = putOff(dated(2026, 1, 3, '09:00'), 'month', now);
-  const oldAt = new Date(old.dueDate);
-  ok('something long overdue is put off from today',
-     oldAt.getMonth() === 10 && oldAt.getDate() === 5, oldAt.toDateString());
-  ok('and keeps the hour it had, because nobody asked to lose it',
-     old.dueTime === '09:00', old.dueTime);
+  // Deferring moves work away from you, never towards. A thing already due in
+  // December, put off to next week, must not come back in October.
+  const far = { id: 'x', title: 't', dueDate: new Date(2026, 11, 20).toISOString() };
+  for (const step of LATER.map(x => x.key)) {
+    ok(`${step} on a December task stays in December or later`,
+       new Date(put(step, mon, far)) > new Date(2026, 11, 19),
+       `${step} \u2192 ${put(step, mon, far)}`);
+  }
 
-  // Something already due in the future moves from its own date: putting off a
-  // December job should not drag it back to November.
-  const ahead = new Date(putOff(dated(2026, 11, 20), 'month', now).dueDate);
-  ok('something already ahead is put off from its own date',
-     ahead.getMonth() === 0 && ahead.getFullYear() === 2027, ahead.toDateString());
+  // The hour survives. A payroll run moved to November is still a nine
+  // o'clock job, and dropping the time would lose what nobody asked to lose.
+  const timed = { id: 'y', title: 't', dueDate: new Date(2026, 9, 5).toISOString(), dueTime: '09:00' };
+  ok('the hour it had is kept', putOff(timed, 'month', mon).dueTime === '09:00');
+  ok('and a task with no hour gains none',
+     putOff({ id: 'z', title: 't' }, 'week', mon).dueTime === '');
 
-  // A short month. The 31st put off by a month is the end of February, not a
-  // date in March that nobody chose.
-  const short = new Date(putOff(dated(2027, 0, 31), 'month', now).dueDate);
-  ok('the last of a long month lands on the last of a short one',
-     short.getMonth() === 1 && short.getDate() === 28, short.toDateString());
-
-  // No date at all is still a thing you can be not ready for.
-  const none = new Date(putOff({ id: 'y', title: 'Someday' }, 'month', now).dueDate);
-  ok('something with no date gets one, a month out',
-     none.getMonth() === 10 && none.getDate() === 5, none.toDateString());
-
-  ok('and nothing in is nothing out', putOff(null) === null);
+  ok('nothing in is nothing out', putOff(null) === null);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

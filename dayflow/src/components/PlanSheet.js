@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { clockOf, placeable, spanMinutes } from '../services/agenda';
+import LaterPicker from './LaterPicker';
 import { COLORS, SANS, SERIF, SHEET_MAX_WIDTH, typeSize } from '../utils/theme';
 
 // Putting something in the free time.
@@ -21,27 +22,37 @@ import { COLORS, SANS, SERIF, SHEET_MAX_WIDTH, typeSize } from '../utils/theme';
 const MOST = 40;
 
 export default function PlanSheet({
-  visible, gaps = [], tomorrow = false, chosen, tasks = [],
-  onPlace, onPutOff, onToMonth, onClose,
+  visible, gaps = [], tomorrow = false, chosen, tasks = [], onPlace, onPutOff, onClose,
 }) {
   const [gap, setGap] = useState(null);
   // What the last decision was, said in the sheet because the sheet stays open.
   // Going down a list of twenty is twenty taps, not twenty taps and twenty
   // reopenings, and a confirmation behind a modal is no confirmation at all.
-  const [said, setSaid] = useState(null);
   const here = gap || chosen || gaps[0] || null;
 
+  // Taken once, when the sheet opens, and held.
+  //
   // Everything open that is not already committed to an hour still ahead —
   // which includes anything overdue, because rescheduling those is most of
   // what anybody taps the strip for in the evening.
-  const free = useMemo(() => placeable(tasks), [tasks]);
+  //
+  // Held rather than recomputed, because a row acted on would otherwise vanish
+  // the instant it was dealt with, taking its undo with it. A triage pass is
+  // over a fixed list: the rows stay, they show what you decided, and you can
+  // see how far down you have got. Reopening the sheet takes a fresh one.
+  const [free, setFree] = useState([]);
+  useEffect(() => {
+    if (visible) setFree(placeable(tasks));
+    // Deliberately only on opening: see above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
   // A list of three hundred is a list nobody reads to the end of. The order
   // puts what is owed first, so the top of it is the part worth showing, and
   // the rest is counted rather than scrolled.
   const shown = free.slice(0, MOST);
   const rest = free.length - shown.length;
 
-  const close = () => { setGap(null); setSaid(null); onClose(); };
+  const close = () => { setGap(null); onClose(); };
 
   return (
     <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={close}>
@@ -55,33 +66,6 @@ export default function PlanSheet({
           </Text>
           <View style={s.balance} />
         </View>
-
-        {said ? (
-          <View style={s.said} dataSet={{ plansaid: 'true' }}>
-            <Text style={s.saidText} numberOfLines={2}>{said.text}</Text>
-            {/* The second step, offered rather than given a button of its own.
-                A week is what most things need; a month is the exception, and
-                an exception costs one more tap rather than a third control on
-                every row. */}
-            {said.more ? (
-              <TouchableOpacity
-                onPress={() => setSaid(said.more.run())}
-                accessibilityRole="button"
-                accessibilityLabel="Put it off by a month instead"
-                dataSet={{ putoffmore: 'true' }}
-              >
-                <Text style={s.saidUndo}>{said.more.label}</Text>
-              </TouchableOpacity>
-            ) : null}
-            <TouchableOpacity
-              onPress={() => { said.undo(); setSaid(null); }}
-              accessibilityRole="button"
-              accessibilityLabel="Undo that"
-            >
-              <Text style={[s.saidUndo, s.saidLast]}>Undo</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
 
         <ScrollView contentContainerStyle={s.body} keyboardShouldPersistTaps="handled">
           {gaps.length === 0 ? (
@@ -142,24 +126,12 @@ export default function PlanSheet({
                     >
                       <Text style={s.rowText} numberOfLines={2}>{task.title}</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity
-                      style={s.act}
-                      onPress={() => setSaid(onPutOff(task))}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Put ${task.title} off by a month`}
-                      dataSet={{ putoff: 'true' }}
-                    >
-                      <Text style={s.actText}>Put off</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={s.act}
-                      onPress={() => setSaid(onToMonth(task))}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Show ${task.title} under Month, keeping its date`}
-                      dataSet={{ tomonth: 'true' }}
-                    >
-                      <Text style={s.actText}>Month</Text>
-                    </TouchableOpacity>
+                    {/* One control, four named answers, and the result
+                        shown on the row it belongs to. "Month" is gone from
+                        here: moving a page and moving a date are different
+                        decisions, and the page one already lives in the
+                        task's own sheet under "Show under". */}
+                    <LaterPicker onPick={step => onPutOff(task, step)} />
                   </View>
                 ))
               )}
@@ -210,7 +182,7 @@ const s = StyleSheet.create({
   more: { fontFamily: SANS, fontSize: typeSize(12), color: COLORS.inkFaint, marginTop: 16 },
 
   row: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between',
     paddingVertical: 14,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COLORS.rule,
   },

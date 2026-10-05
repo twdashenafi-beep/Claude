@@ -737,32 +737,64 @@ export function tomorrowGaps(rawEvents, now = new Date()) {
 // Counted from today rather than from the date it carries. A thing eight months
 // overdue, put off by a month, is seven months overdue — which is arithmetic
 // doing the opposite of what was asked.
-// A week or a month. A week is the commoner nudge by far — most things are
-// not ready today and will be by Thursday — so it is what one tap gives, and
-// a month is a second tap on the line that confirms the first.
+// When, then.
 //
-// Named rather than numbered, and deliberately not called Week or Month in the
-// interface: those words already mean pages in this app, and a button called
-// Week inside a triage sheet reads as "move it to the Week page", which is a
-// different thing done for different reasons.
-export function putOff(task, step = 'month', now = new Date()) {
+// Named times rather than arithmetic. "Put off" meant plus seven days, and a
+// month was a second tap on a line that appeared at the top of the sheet while
+// your finger was on row nine — so the commonest decision in any list spoke a
+// language nobody thinks in, and reported itself somewhere nobody was looking.
+//
+// Nobody thinks "plus one week". They think tomorrow, the weekend, next week,
+// next month. The name is the decision, which is why every scheduler worth
+// using is built out of them rather than out of sums.
+//
+// One rule behind all four, so there is nothing to remember: each is the first
+// day of the period it names. Tomorrow is the next day, the weekend is
+// Saturday, next week is Monday, next month is the first.
+export const LATER = [
+  { key: 'tomorrow', label: 'Tomorrow' },
+  { key: 'weekend', label: 'Weekend' },
+  { key: 'week', label: 'Next week' },
+  { key: 'month', label: 'Next month' },
+];
+
+// The next of a given weekday, strictly after the day given. Strictly, because
+// "the weekend" said on a Saturday means the one coming and not the one you
+// are standing in: putting something off has to move it.
+function nextWeekday(from, weekday) {
+  const at = startOfDay(from);
+  const ahead = ((weekday - at.getDay()) + 7) % 7;
+  at.setDate(at.getDate() + (ahead === 0 ? 7 : ahead));
+  return at;
+}
+
+// Where a put-off is counted from: today, or the task's own date when that is
+// further out. A thing already due in December, put off to next week, must not
+// come back in October — deferring moves work away from you, never towards.
+function anchorFor(task, at) {
+  const had = asDate(task && task.dueDate);
+  return startOfDay(had && had > at ? had : at);
+}
+
+export function putOff(task, step = 'week', now = new Date()) {
   if (!task) return null;
   const at = asDate(now) || new Date();
-  const had = asDate(task.dueDate);
-  const from = startOfDay(had && had > at ? had : at);
+  const from = anchorFor(task, at);
 
-  const when = new Date(from);
-  if (step === 'week') {
-    when.setDate(when.getDate() + 7);
+  let when;
+  if (step === 'tomorrow') {
+    when = new Date(from);
+    when.setDate(when.getDate() + 1);
+  } else if (step === 'weekend') {
+    when = nextWeekday(from, 6);
+  } else if (step === 'month') {
+    when = new Date(from.getFullYear(), from.getMonth() + 1, 1);
   } else {
-    when.setMonth(when.getMonth() + 1);
-    // The last of a short month: 31 January put off by a month is the end of
-    // February, not the third of March.
-    if (when.getDate() !== from.getDate()) when.setDate(0);
+    when = nextWeekday(from, 1);
   }
 
-  // The hour is kept if it had one. A payroll run put off to November is still
-  // a nine o'clock job, and dropping the time would lose something nobody
-  // asked to lose.
+  // The hour is kept if it had one. A payroll run moved to November is still a
+  // nine o'clock job, and dropping the time would lose something nobody asked
+  // to lose.
   return { dueDate: when.toISOString(), dueTime: task.dueTime || '' };
 }

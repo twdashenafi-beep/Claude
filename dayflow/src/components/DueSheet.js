@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { alertBody } from '../services/alerts';
+import LaterPicker from './LaterPicker';
 import { COLORS, SANS, SERIF, SHEET_MAX_WIDTH, typeSize } from '../utils/theme';
 
 // Everything that is due, not the first of it.
@@ -20,8 +21,17 @@ import { COLORS, SANS, SERIF, SHEET_MAX_WIDTH, typeSize } from '../utils/theme';
 export default function DueSheet({
   visible, alerts = [], whereOf, onOpen, onDone, onPutOff, onClose,
 }) {
-  const [said, setSaid] = useState(null);
-  const close = () => { setSaid(null); onClose(); };
+  // Held from the moment it opens, for the same reason the planner holds its
+  // list: a row ticked or put off would otherwise disappear as you touched it,
+  // taking with it both the undo and any sense of how far down you had got.
+  const [held, setHeld] = useState([]);
+  useEffect(() => {
+    if (visible) setHeld(alerts);
+    // Deliberately only on opening: see above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
+
+  const close = () => onClose();
 
   return (
     <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={close}>
@@ -34,34 +44,11 @@ export default function DueSheet({
           <View style={s.balance} />
         </View>
 
-        {said ? (
-          <View style={s.said} dataSet={{ duesaid: 'true' }}>
-            <Text style={s.saidText} numberOfLines={2}>{said.text}</Text>
-            {said.more ? (
-              <TouchableOpacity
-                onPress={() => setSaid(said.more.run())}
-                accessibilityRole="button"
-                accessibilityLabel="Put it off by a month instead"
-                dataSet={{ duemore: 'true' }}
-              >
-                <Text style={s.saidUndo}>{said.more.label}</Text>
-              </TouchableOpacity>
-            ) : null}
-            <TouchableOpacity
-              onPress={() => { said.undo(); setSaid(null); }}
-              accessibilityRole="button"
-              accessibilityLabel="Undo that"
-            >
-              <Text style={s.saidUndo}>Undo</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
-
         <ScrollView contentContainerStyle={s.body}>
-          {alerts.length === 0 ? (
+          {held.length === 0 ? (
             <Text style={s.empty}>Nothing is due.</Text>
           ) : (
-            alerts.map(alert => {
+            held.map(alert => {
               const task = alert.task;
               const where = typeof whereOf === 'function' ? whereOf(task) || '' : '';
               return (
@@ -85,15 +72,7 @@ export default function DueSheet({
                     <Text style={s.rowText} numberOfLines={2}>{task.title}</Text>
                     <Text style={s.rowWhen}>{alertBody(alert, where)}</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    style={s.act}
-                    onPress={() => setSaid(onPutOff(task))}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Put ${task.title} off by a week`}
-                    dataSet={{ dueputoff: 'true' }}
-                  >
-                    <Text style={s.actText}>Put off</Text>
-                  </TouchableOpacity>
+                  <LaterPicker onPick={step => onPutOff(task, step)} />
                 </View>
               );
             })
@@ -124,7 +103,7 @@ const s = StyleSheet.create({
   saidUndo: { fontFamily: SANS, fontSize: typeSize(13.5), color: COLORS.accent, marginLeft: 14 },
 
   row: {
-    flexDirection: 'row', alignItems: 'center', paddingVertical: 14,
+    flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', paddingVertical: 14,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COLORS.rule,
   },
   box: {

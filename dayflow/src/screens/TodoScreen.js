@@ -696,23 +696,11 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
       // 2026", and a slashy 11/2/2026 is both off-voice and genuinely
       // ambiguous — the second of November or the eleventh of February
       // depending on which side of an ocean you read it.
+      // Two readings of the same fact. `when` is for the row the task is on,
+      // which already carries its name and does not need it twice; `text` is
+      // for anywhere that has to say which task it is talking about.
+      when: whenPreview(when.dueDate, when.dueTime) || 'put off',
       text: `${task.title} — ${whenPreview(when.dueDate, when.dueTime) || 'put off'}`,
-      undo: () => updateTask(task.id, was),
-      // Offered only after a week, and it reaches back to the task as it was.
-      more: step === 'week'
-        ? { label: 'a month instead', run: () => putTaskOff(task, 'month') }
-        : null,
-    };
-  }, [updateTask]);
-
-  // Off the day's page, with its date untouched. Still overdue if it was, and
-  // the page it lands on will still say so.
-  const sendToMonth = useCallback(task => {
-    if (!task) return null;
-    const was = { viewScope: task.viewScope || 'day', scopePinned: !!task.scopePinned };
-    updateTask(task.id, { viewScope: 'month', scopePinned: true });
-    return {
-      text: `${task.title} — on the Month page`,
       undo: () => updateTask(task.id, was),
     };
   }, [updateTask]);
@@ -1211,8 +1199,8 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
         whereOf={whereOf.current}
         onOpen={openDue}
         onDone={doneFromDue}
-        onPutOff={task => {
-          const note = putTaskOff(task);
+        onPutOff={(task, step) => {
+          const note = putTaskOff(task, step);
           setAlerts(prev => prev.filter(a => a.task.id !== task.id));
           return note;
         }}
@@ -1227,7 +1215,6 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
         tasks={tasks}
         onPlace={placeInGap}
         onPutOff={putTaskOff}
-        onToMonth={sendToMonth}
         onClose={closePlanning}
       />
 
