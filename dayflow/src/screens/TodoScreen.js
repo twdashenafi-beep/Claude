@@ -25,6 +25,7 @@ import SearchSheet from '../components/SearchSheet';
 import ViewToggle from '../components/ViewToggle';
 import DayBar from '../components/DayBar';
 import PlanSheet from '../components/PlanSheet';
+import DueSheet from '../components/DueSheet';
 import AddTaskModal from '../components/AddTaskModal';
 import TaskDetail from '../components/TaskDetail';
 import AIInput from '../components/AIInput';
@@ -751,16 +752,35 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
     setAlerts(prev => prev.filter(a => a.task.id !== id));
   }, [archived, openResult]);
 
+  // Everything that is due, rather than the first of it.
+  //
+  // This used to open the first task and then clear the rest. Not merely show
+  // one of four — discard three, which had already been marked as shown and so
+  // could never come back. Somebody looked up because four things were due and
+  // the app dealt with one and forgot the others for them.
+  const [showingDue, setShowingDue] = useState(false);
   const openAlerts = useCallback(() => {
-    const [first] = alerts;
-    if (!first) return;
-    // The task as it is now, not as it was when the alert was raised: it may
-    // have been moved to another project in between, and going to where it used
-    // to live would be worse than not going at all.
-    const live = liveTasks.current.find(t => t.id === first.task.id) || first.task;
+    if (alerts.length === 0) return;
+    setShowingDue(true);
+  }, [alerts.length]);
+
+  // The task as it is now, not as it was when the alert was raised: it may have
+  // been moved to another project in between, and going to where it used to
+  // live would be worse than not going at all.
+  const openDue = useCallback(task => {
+    const live = liveTasks.current.find(t => t.id === task.id) || task;
+    setShowingDue(false);
+    setAlerts(prev => prev.filter(a => a.task.id !== task.id));
     openResult(live);
-    setAlerts([]);
-  }, [alerts, openResult]);
+  }, [openResult]);
+
+  // Ticked from the sheet. The row goes, the sheet stays: most of what a
+  // reminder catches is already done or takes a moment, and closing after each
+  // one would make four reminders four round trips.
+  const doneFromDue = useCallback(task => {
+    toggleTask(task.id);
+    setAlerts(prev => prev.filter(a => a.task.id !== task.id));
+  }, [toggleTask]);
 
   // A reminder tapped on the home screen, or one tapped while the app was
   // closed and had to be started for it.
@@ -1122,7 +1142,10 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
             style={s.alertBody}
             onPress={() => openAlerts()}
             accessibilityRole="button"
-            accessibilityLabel={`${alertSummary(alerts, whereOf.current)}. Opens the task.`}
+            accessibilityLabel={
+              `${alertSummary(alerts, whereOf.current)}. `
+              + `Shows ${alerts.length === 1 ? 'it' : `all ${alerts.length}`}.`
+            }
           >
             <Text style={s.alertText} numberOfLines={2}>
               {alertSummary(alerts, whereOf.current)}
@@ -1181,6 +1204,20 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
         archived={archived}
       />
       <ConfettiOverlay visible={celebrating} onDone={() => setCelebrating(false)} />
+
+      <DueSheet
+        visible={showingDue}
+        alerts={alerts}
+        whereOf={whereOf.current}
+        onOpen={openDue}
+        onDone={doneFromDue}
+        onPutOff={task => {
+          const note = putTaskOff(task);
+          setAlerts(prev => prev.filter(a => a.task.id !== task.id));
+          return note;
+        }}
+        onClose={() => { setShowingDue(false); setAlerts([]); }}
+      />
 
       <PlanSheet
         visible={planning}

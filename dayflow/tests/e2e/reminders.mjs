@@ -321,7 +321,7 @@ ok('and carries the task it is about, so tapping it can open it',
 //
 // Asked for before it is clicked, so that losing it reads as one plain failure
 // rather than a timeout thirty seconds later with the rest of the file unrun.
-const tappable = page => page.getByLabel(/Opens the task/);
+const tappable = page => page.getByLabel(/Shows (it|all \d+)/);
 ok('the strip is something you can press',
    (await tappable(A.page).count()) > 0, (await body(A.page)).slice(0, 200));
 if ((await tappable(A.page).count()) === 0) {
@@ -332,8 +332,27 @@ if ((await tappable(A.page).count()) === 0) {
 }
 await tappable(A.page).click();
 await A.page.waitForTimeout(1200);
+
+// Everything that is due, not the first of it. This used to open the first
+// task and clear the rest — not merely show one of several, but discard the
+// others, which had already been marked as shown and so could never come back.
+const listed = await body(A.page);
+ok('tapping the strip shows what is due', /Due/.test(listed), listed.slice(0, 300));
+ok('and the task the reminder was about is on it',
+   listed.includes('Ring the surveyor'), listed.slice(0, 400));
+
+const dueRows = A.page.locator('[data-duerow]');
+ok('every reminder gets its own row', (await dueRows.count()) > 0, String(await dueRows.count()));
+// The two things anybody does with something that has just come due.
+ok('each one can be ticked off without leaving',
+   (await A.page.locator('[data-duedone]').count()) === (await dueRows.count()));
+ok('and each one can be put off',
+   (await A.page.locator('[data-dueputoff]').count()) === (await dueRows.count()));
+
+await A.page.locator('[data-dueopen]').first().click();
+await A.page.waitForTimeout(1200);
 const sheet = await body(A.page);
-ok('tapping the reminder opens the task', /Edit Task/i.test(sheet), sheet.slice(0, 200));
+ok('opening a row opens that task', /Edit Task/i.test(sheet), sheet.slice(0, 200));
 ok('and it is the task the reminder was about',
    sheet.includes('Ring the surveyor'), sheet.slice(0, 300));
 await A.page.getByText('Cancel', { exact: true }).last().click();
@@ -341,7 +360,7 @@ await A.page.waitForTimeout(800);
 ok('and it leaves you in the project the task lives in',
    (await body(A.page)).includes('Copper'), (await body(A.page)).slice(0, 200));
 ok('with the reminder answered rather than still shouting',
-   !/Opens the task/.test(await A.page.evaluate(() => document.body.innerHTML)));
+   !/Shows (it|all \d+)/.test(await A.page.evaluate(() => document.body.innerHTML)));
 
 // ── And from the notification itself ──
 //
