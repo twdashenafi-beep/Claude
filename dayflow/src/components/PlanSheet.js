@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { clockOf, placeable, spanMinutes } from '../services/agenda';
 import LaterPicker from './LaterPicker';
+import TickBox from './TickBox';
 import WhenSheet from './WhenSheet';
 import { COLORS, SANS, SERIF, SHEET_MAX_WIDTH, typeSize } from '../utils/theme';
 
@@ -23,7 +24,8 @@ import { COLORS, SANS, SERIF, SHEET_MAX_WIDTH, typeSize } from '../utils/theme';
 const MOST = 40;
 
 export default function PlanSheet({
-  visible, gaps = [], tomorrow = false, chosen, tasks = [], onPlace, onPutOff, onPutOffTo, onClose,
+  visible, gaps = [], tomorrow = false, chosen, tasks = [], onPlace, onPutOff, onPutOffTo,
+  onDone, onClose,
 }) {
   const [gap, setGap] = useState(null);
   // What the last decision was, said in the sheet because the sheet stays open.
@@ -43,10 +45,20 @@ export default function PlanSheet({
   // see how far down you have got. Reopening the sheet takes a fresh one.
   const [free, setFree] = useState([]);
   useEffect(() => {
-    if (visible) setFree(placeable(tasks));
+    if (!visible) return;
+    // Which day is being filled, so the list offers what is owed by the end of
+    // it and not everything that was ever pushed past it. Any gap will do: they
+    // are all on the same day.
+    const filling = chosen || gaps[0] || null;
+    setFree(placeable(tasks, new Date(), filling ? filling.start : null));
     // Deliberately only on opening: see above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
+
+  // Which rows have been ticked in this pass. Held here rather than read off the
+  // task, for the same reason the list is: a row that reported itself from the
+  // live task would contradict the held row it sits on.
+  const [ticked, setTicked] = useState({});
   // A list of three hundred is a list nobody reads to the end of. The order
   // puts what is owed first, so the top of it is the part worth showing, and
   // the rest is counted rather than scrolled.
@@ -62,7 +74,7 @@ export default function PlanSheet({
   // half-decided in it.
   const close = () => {
     if (exact) { setExact(null); return; }
-    setGap(null); onClose();
+    setGap(null); setTicked({}); onClose();
   };
 
   return (
@@ -128,6 +140,22 @@ export default function PlanSheet({
                         other two are the ones somebody going down a long list
                         actually needs, and they are different decisions: one
                         moves a promise, the other moves a page. */}
+                    {/* Going down a list of what is owed, a good share of it
+                        is already done or takes a moment — and saying so should
+                        not mean opening the task, finishing it and finding your
+                        way back to row nine. The same box as the Due sheet,
+                        because it is the same decision. */}
+                    {onDone ? (
+                      <TickBox
+                        on={!!ticked[task.id]}
+                        title={task.title}
+                        tag="plandone"
+                        onPress={() => {
+                          onDone(task);
+                          setTicked(was => ({ ...was, [task.id]: !was[task.id] }));
+                        }}
+                      />
+                    ) : null}
                     <TouchableOpacity
                       style={s.rowMain}
                       onPress={() => { onPlace(task, here); setGap(null); }}
@@ -135,7 +163,12 @@ export default function PlanSheet({
                       accessibilityLabel={`Do ${task.title} at ${here ? clockOf(here.start) : ''}`}
                       dataSet={{ plantask: 'true' }}
                     >
-                      <Text style={s.rowText} numberOfLines={2}>{task.title}</Text>
+                      <Text
+                        style={[s.rowText, ticked[task.id] && s.rowTextDone]}
+                        numberOfLines={2}
+                      >
+                        {task.title}
+                      </Text>
                     </TouchableOpacity>
                     {/* One control, four named answers, and the result
                         shown on the row it belongs to. "Month" is gone from
@@ -214,6 +247,7 @@ const s = StyleSheet.create({
   // The hour is the same for every row and is already in the line above, so
   // repeating it beside each one was noise where two decisions now live.
   rowText: { fontFamily: SANS, fontSize: typeSize(15), color: COLORS.ink },
+  rowTextDone: { color: COLORS.done, textDecorationLine: 'line-through' },
   act: { paddingVertical: 6, paddingHorizontal: 9, marginLeft: 4 },
   actText: { fontFamily: SANS, fontSize: typeSize(12.5), color: COLORS.accent },
 });

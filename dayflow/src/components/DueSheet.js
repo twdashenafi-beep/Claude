@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { alertBody } from '../services/alerts';
 import LaterPicker from './LaterPicker';
+import TickBox from './TickBox';
 import WhenSheet from './WhenSheet';
 import { COLORS, SANS, SERIF, SHEET_MAX_WIDTH, typeSize } from '../utils/theme';
 
@@ -76,25 +77,17 @@ export default function DueSheet({
               return (
                 <View key={task.id} style={s.row} dataSet={{ duerow: 'true' }}>
                   {/* The tick first, because most of what a reminder catches
-                      is already done or takes a moment. */}
-                  {/* The box you can see is nineteen pixels; the box you can
-                      hit is not. Tapping again takes it back, the same as the
-                      checkbox on the page behind this one. */}
-                  <TouchableOpacity
-                    style={s.boxHit}
-                    onPress={() => { onDone(task); setTicked(was => ({ ...was, [task.id]: !was[task.id] })); }}
-                    accessibilityRole="checkbox"
-                    aria-checked={!!ticked[task.id]}
-                    accessibilityLabel={ticked[task.id]
-                      ? `Mark ${task.title} as not done`
-                      : `Mark ${task.title} as done`}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 6 }}
-                    dataSet={{ duedone: 'true' }}
-                  >
-                    <View style={[s.box, ticked[task.id] && s.boxDone]}>
-                      {ticked[task.id] ? <Text style={s.tick}>✓</Text> : null}
-                    </View>
-                  </TouchableOpacity>
+                      is already done or takes a moment. Tapping again takes it
+                      back, the same as the checkbox on the page behind this. */}
+                  <TickBox
+                    on={!!ticked[task.id]}
+                    title={task.title}
+                    tag="duedone"
+                    onPress={() => {
+                      onDone(task);
+                      setTicked(was => ({ ...was, [task.id]: !was[task.id] }));
+                    }}
+                  />
                   <TouchableOpacity
                     style={s.rowMain}
                     onPress={() => onOpen(task)}
@@ -157,13 +150,6 @@ const s = StyleSheet.create({
     flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', paddingVertical: 14,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COLORS.rule,
   },
-  boxHit: { paddingVertical: 6, paddingRight: 13, paddingLeft: 2 },
-  box: {
-    width: 19, height: 19, borderWidth: 1.4, borderColor: COLORS.check,
-    borderRadius: 2, alignItems: 'center', justifyContent: 'center',
-  },
-  boxDone: { backgroundColor: COLORS.check, borderColor: COLORS.check },
-  tick: { fontSize: typeSize(10), color: COLORS.sheet, fontWeight: '700', marginTop: -1 },
   rowMain: { flex: 1, paddingRight: 10 },
   rowText: { fontFamily: SANS, fontSize: typeSize(15), color: COLORS.ink },
   rowTextDone: { color: COLORS.done, textDecorationLine: 'line-through' },

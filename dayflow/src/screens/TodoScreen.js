@@ -1240,6 +1240,7 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
         onPlace={placeInGap}
         onPutOff={putTaskOff}
         onPutOffTo={putTaskOffTo}
+        onDone={task => toggleTask(task.id)}
         onClose={closePlanning}
       />
 

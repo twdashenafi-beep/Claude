@@ -366,6 +366,7 @@ await page.waitForTimeout(1500);
     const mine = titles.findIndex(x => /quarterly note/i.test(x));
     ok('the task this block added is in the list', mine >= 0, titles.join(' | ').slice(0, 300));
 
+
     await later.nth(Math.max(0, mine)).click();
     await page.waitForTimeout(500);
 
@@ -481,6 +482,91 @@ await page.waitForTimeout(1500);
         await page.getByLabel('Undo that').first().click();
         await page.waitForTimeout(900);
       }
+    }
+
+
+    // ── And a box to tick ──
+    //
+    // A good share of what a triage pass turns up is already done or takes a
+    // moment, and saying so should not mean opening the task, finishing it and
+    // finding your way back to row nine.
+    //
+    // On a task of its own, added here and left finished. The first version of
+    // this ticked the quarterly note and tried to put it back through the
+    // list's own checkbox, which is not there to find once the task is done —
+    // and an assertion that needs a fixture restored is an assertion waiting to
+    // break the block after it.
+    {
+      const open = async () => {
+        const where = await page.locator('[data-daybar]').first().boundingBox();
+        await page.mouse.click(where.x + where.width * 0.5, where.y + 6);
+        await page.waitForTimeout(1100);
+      };
+      const shut = async () => {
+        await page.getByText('Done', { exact: true }).first().click();
+        await page.waitForTimeout(800);
+      };
+      const listed = async () => (await page.locator('[data-plantask]').allInnerTexts());
+      const rowOf = async () => (await listed()).findIndex(x => /tick me and see/i.test(x));
+
+      await shut();
+      await toDo('Tick me and see');
+      await open();
+
+      const at = await rowOf();
+      ok('a task added for this is in the list', at >= 0,
+         (await listed()).join(' | ').slice(0, 300));
+
+      const boxes = page.locator('[data-plandone]');
+      ok('and every row has a box to tick',
+         (await boxes.count()) === (await page.locator('[data-plantask]').count()),
+         `${await boxes.count()} boxes, ${await page.locator('[data-plantask]').count()} rows`);
+
+      const box = boxes.nth(Math.max(0, at));
+      ok('which starts empty', (await box.getAttribute('aria-checked')) === 'false',
+         String(await box.getAttribute('aria-checked')));
+      await box.click();
+      await page.waitForTimeout(700);
+
+      // Drawn, not merely announced. This control shipped once with no done
+      // state at all: it completed the task and changed nothing on screen.
+      const inked = await page.evaluate(() => {
+        const all = document.querySelectorAll('[data-plandone]');
+        const one = [...all].find(el => el.getAttribute('aria-checked') === 'true') || all[0];
+        const paint = el => getComputedStyle(el).backgroundColor;
+        const clear = c => /rgba\(0, 0, 0, 0\)|transparent/.test(c);
+        return {
+          filled: [...one.querySelectorAll('*')].map(paint).concat(paint(one))
+            .some(c => !clear(c)),
+          mark: one.innerText.trim(),
+        };
+      });
+      ok('ticking it fills the box in', inked.filled, JSON.stringify(inked));
+      ok('and puts a tick in it', inked.mark.length > 0, JSON.stringify(inked));
+      ok('and strikes the task through',
+         await page.evaluate(() => [...document.querySelectorAll('[data-plantask] *')]
+           .some(el => /line-through/.test(getComputedStyle(el).textDecorationLine))));
+
+      await box.click();
+      await page.waitForTimeout(700);
+      ok('and tapping again takes it back',
+         (await box.getAttribute('aria-checked')) === 'false',
+         String(await box.getAttribute('aria-checked')));
+
+      // ── And the tick is a real one ──
+      //
+      // Everything above reads the drawing, and the drawing comes from state the
+      // row keeps itself. All of it would pass just as well if the box lit up and
+      // the task was never touched — the same lie the box told when it had no
+      // done state, told the other way round. So: tick it, close the sheet, open
+      // it again. placeable does not offer finished work, so if it is still
+      // listed the tick was decoration.
+      await box.click();
+      await page.waitForTimeout(700);
+      await shut();
+      await open();
+      ok('a task ticked here is actually finished, not just drawn as finished',
+         (await rowOf()) < 0, (await listed()).join(' | ').slice(0, 300));
     }
 
     await page.getByText('Done', { exact: true }).first().click();
