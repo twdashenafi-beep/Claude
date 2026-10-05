@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { clockOf, placeable, spanMinutes } from '../services/agenda';
 import LaterPicker from './LaterPicker';
+import WhenSheet from './WhenSheet';
 import { COLORS, SANS, SERIF, SHEET_MAX_WIDTH, typeSize } from '../utils/theme';
 
 // Putting something in the free time.
@@ -22,7 +23,7 @@ import { COLORS, SANS, SERIF, SHEET_MAX_WIDTH, typeSize } from '../utils/theme';
 const MOST = 40;
 
 export default function PlanSheet({
-  visible, gaps = [], tomorrow = false, chosen, tasks = [], onPlace, onPutOff, onClose,
+  visible, gaps = [], tomorrow = false, chosen, tasks = [], onPlace, onPutOff, onPutOffTo, onClose,
 }) {
   const [gap, setGap] = useState(null);
   // What the last decision was, said in the sheet because the sheet stays open.
@@ -52,7 +53,17 @@ export default function PlanSheet({
   const shown = free.slice(0, MOST);
   const rest = free.length - shown.length;
 
-  const close = () => { setGap(null); onClose(); };
+  // Which row asked for a calendar, and where to report the answer back to.
+  // See DueSheet: the row's picker owns what it says afterwards.
+  const [exact, setExact] = useState(null);
+
+  // Android's back button closes one thing at a time. With the calendar
+  // open it is the calendar, not the sheet behind it and everything
+  // half-decided in it.
+  const close = () => {
+    if (exact) { setExact(null); return; }
+    setGap(null); onClose();
+  };
 
   return (
     <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={close}>
@@ -131,7 +142,10 @@ export default function PlanSheet({
                         here: moving a page and moving a date are different
                         decisions, and the page one already lives in the
                         task's own sheet under "Show under". */}
-                    <LaterPicker onPick={step => onPutOff(task, step)} />
+                    <LaterPicker
+                      onPick={step => onPutOff(task, step)}
+                      onExact={onPutOffTo ? report => setExact({ task, report }) : null}
+                    />
                   </View>
                 ))
               )}
@@ -143,6 +157,16 @@ export default function PlanSheet({
             </>
           )}
         </ScrollView>
+
+        <WhenSheet
+          visible={!!exact}
+          task={exact ? exact.task : null}
+          onSet={(day, time) => {
+            if (!exact) return;
+            exact.report(onPutOffTo(exact.task, day, time));
+          }}
+          onClose={() => setExact(null)}
+        />
       </View>
     </Modal>
   );

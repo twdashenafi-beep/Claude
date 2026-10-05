@@ -15,7 +15,7 @@
 import {
   barSegments, barNow, barDrawable, barCaption, loadSentence,
   spanLoad, dayLoad, BAR_GAP, BAR_LEAST, tomorrowLine,
-  barPlans, gapAt, planFor, placeable, clockOf, tomorrowGaps, putOff, LATER,
+  barPlans, gapAt, planFor, placeable, clockOf, tomorrowGaps, putOff, putOffTo, LATER,
 } from '../src/services/agenda.js';
 
 let pass = 0, fail = 0;
@@ -581,6 +581,60 @@ const near = (a, b, slack = 0.51) => Math.abs(a - b) <= slack;
      putOff({ id: 'z', title: 't' }, 'week', mon).dueTime === '');
 
   ok('nothing in is nothing out', putOff(null) === null);
+}
+
+// The fifth answer: the date the four names cannot reach.
+//
+// A payroll run is owed on the twenty-third, and reckoning forward in weeks to
+// land on a date you already know is arithmetic nobody should do in their head.
+// The four names stay because they are one tap; this takes the exact day.
+{
+  const iso = r => new Date(r.dueDate);
+
+  // Friday 23 October 2026, picked from a calendar.
+  const day = new Date(2026, 9, 23);
+  const task = { id: 'a', title: 't' };
+
+  const plain = putOffTo(task, day);
+  ok('the day picked is the day set',
+     iso(plain).getDate() === 23 && iso(plain).getMonth() === 9,
+     plain.dueDate);
+  // A date alone means "that day", not midnight-sharp-remind-me. The hour is
+  // empty so nothing fires at an hour nobody chose.
+  ok('a date with no time carries no hour', plain.dueTime === '', JSON.stringify(plain));
+  ok('and lands at the start of that day',
+     iso(plain).getHours() === 0 && iso(plain).getMinutes() === 0, plain.dueDate);
+
+  const timed = putOffTo(task, day, '14:30');
+  ok('a time given is a time kept', timed.dueTime === '14:30', JSON.stringify(timed));
+  ok('and is baked into the date as well',
+     iso(timed).getHours() === 14 && iso(timed).getMinutes() === 30, timed.dueDate);
+
+  // The hour a task already had is NOT inherited. Going to a calendar is saying
+  // the whole answer out loud; carrying nine o'clock across would put a
+  // reminder on the new date nobody asked for.
+  const had = { id: 'b', title: 't', dueDate: new Date(2026, 9, 5).toISOString(), dueTime: '09:00' };
+  ok('an old hour is not carried onto a date picked by hand',
+     putOffTo(had, day).dueTime === '', JSON.stringify(putOffTo(had, day)));
+  ok('unless the picker passed one', putOffTo(had, day, '09:00').dueTime === '09:00');
+
+  // Unlike the named four, this does not refuse to move work towards you: a
+  // date chosen by hand is deliberate, and silently landing somewhere else is
+  // the dead-control fault, not a safeguard.
+  const back = putOffTo(had, new Date(2026, 8, 1));
+  ok('a date in the past is taken as meant',
+     iso(back).getMonth() === 8 && iso(back).getDate() === 1, back.dueDate);
+
+  // Nonsense in, nothing out — never a record with an Invalid Date in it.
+  ok('no task is nothing', putOffTo(null, day) === null);
+  ok('no date is nothing', putOffTo(task, null) === null);
+  ok('rubbish for a date is nothing', putOffTo(task, 'not a date') === null);
+  ok('an impossible hour is nothing', putOffTo(task, day, '25:00') === null);
+  // A malformed time is not a reason to lose the date somebody chose.
+  ok('a malformed time leaves the date standing',
+     putOffTo(task, day, 'half four').dueTime === ''
+     && iso(putOffTo(task, day, 'half four')).getDate() === 23,
+     JSON.stringify(putOffTo(task, day, 'half four')));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -391,6 +391,98 @@ await page.waitForTimeout(1500);
     await page.getByLabel('Undo that').first().click();
     await page.waitForTimeout(900);
 
+    // ── And the fifth answer, for the date four names cannot reach ──
+    //
+    // "Not this week" is one tap and should stay one tap. "The twenty-third" is
+    // not reachable by any name, and a payroll run is owed on a date — so there
+    // is a calendar behind the names, not instead of them.
+    {
+      await later.nth(Math.max(0, mine)).click();
+      await page.waitForTimeout(500);
+
+      const names = await page.locator('[data-lateroption]').allInnerTexts();
+      ok('the four named times are still the first thing offered',
+         names.length === 4 && names.includes('Next week'), names.join(' | '));
+      ok('and a way to an exact date sits beside them, not in place of them',
+         (await page.locator('[data-laterexact]').count()) === 1,
+         String(await page.locator('[data-laterexact]').count()));
+
+      await page.locator('[data-laterexact]').first().click();
+      await page.waitForTimeout(900);
+
+      const until = await body();
+      ok('which opens a calendar', /Until/.test(until), until.slice(0, 300));
+      ok('naming the task it is about', /quarterly note/i.test(until), until.slice(0, 400));
+
+      // The calendar is the app's own, not a second one grown for this sheet.
+      // Its days are labelled in full, which is how this picks one without
+      // knowing what today is.
+      const days = await page.evaluate(() => [...document.querySelectorAll('[aria-label]')]
+        .map(el => el.getAttribute('aria-label'))
+        .filter(l => /^[A-Z][a-z]+ \d{1,2} [A-Z][a-z]+ \d{4}$/.test(l)));
+      ok('with a month of days to choose from', days.length >= 28, String(days.length));
+
+      const last = days[days.length - 1];
+      const dayNum = Number(last.split(' ')[1]);
+      await page.getByLabel(last, { exact: true }).click();
+      await page.waitForTimeout(600);
+
+      // What Set will do, in words, before you tap it — the sheet closes on
+      // Set, so this is the only chance to check the day is the day you meant.
+      const said1 = await page.locator('[data-whensaid]').first().innerText();
+      ok('the day you tap is said back to you in words',
+         new RegExp(`\\b${dayNum}\\b`).test(said1), `${said1} / wanted ${last}`);
+      ok('and said the way this app says dates, not as 23/10',
+         !/\d{1,2}\/\d{1,2}/.test(said1), said1);
+
+      // A date alone means "that day". An hour is what you add when something
+      // has to happen at one, and it is the app's own clock that adds it.
+      ok('a date on its own carries no hour', !/\d\d:\d\d/.test(said1), said1);
+      await page.locator('[data-whentime]').first().click();
+      await page.waitForTimeout(700);
+      await page.getByLabel('Hour 3', { exact: true }).click();
+      await page.getByLabel('Minute 30', { exact: true }).click();
+      await page.getByLabel('Afternoon', { exact: true }).click();
+      await page.waitForTimeout(300);
+      await page.getByLabel('Use this time', { exact: true }).click();
+      await page.waitForTimeout(700);
+
+      const said2 = await page.locator('[data-whensaid]').first().innerText();
+      ok('and an hour added shows up in the same line', /15:30/.test(said2), said2);
+      ok('on the day that was already chosen',
+         new RegExp(`\\b${dayNum}\\b`).test(said2), said2);
+
+      await page.locator('[data-whenset]').first().click();
+      await page.waitForTimeout(1100);
+
+      ok('the calendar closes once it is set', !/Until/.test(await body()),
+         (await body()).slice(0, 200));
+      // Reported on the row, exactly as the four named times report — a date
+      // chosen in a calendar should not vanish into the task.
+      // Counted before it is read. A row that was never told what happened has
+      // no [data-laterdone] at all, and reading text off nothing times out after
+      // thirty seconds and dies without a tally — which is a failure nobody can
+      // see the shape of. Ask whether it is there first, then what it says.
+      const toldCount = await page.locator('[data-laterdone]').count();
+      ok('the row is told what happened at all', toldCount > 0, String(toldCount));
+      const after = toldCount > 0
+        ? await page.locator('[data-laterdone]').first().innerText()
+        : '';
+      ok('and the row says what it did, the same as the named times',
+         /Undo/.test(await body()) && new RegExp(`\\b${dayNum}\\b`).test(after),
+         `${after} / wanted ${last}`);
+      ok('with the hour it was given', /15:30/.test(after), after);
+
+      // Put back: the rest of this suite was written against these tasks. Only
+      // if there is something to put back — otherwise a failure above becomes a
+      // thirty-second timeout here and the suite dies before saying what else
+      // is wrong.
+      if (toldCount > 0) {
+        await page.getByLabel('Undo that').first().click();
+        await page.waitForTimeout(900);
+      }
+    }
+
     await page.getByText('Done', { exact: true }).first().click();
     await page.waitForTimeout(600);
   }

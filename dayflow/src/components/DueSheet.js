@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { alertBody } from '../services/alerts';
 import LaterPicker from './LaterPicker';
+import WhenSheet from './WhenSheet';
 import { COLORS, SANS, SERIF, SHEET_MAX_WIDTH, typeSize } from '../utils/theme';
 
 // Everything that is due, not the first of it.
@@ -19,7 +20,7 @@ import { COLORS, SANS, SERIF, SHEET_MAX_WIDTH, typeSize } from '../utils/theme';
 // pretending. Opening the task is still there for the one that needs thought.
 
 export default function DueSheet({
-  visible, alerts = [], whereOf, onOpen, onDone, onPutOff, onClose,
+  visible, alerts = [], whereOf, onOpen, onDone, onPutOff, onPutOffTo, onClose,
 }) {
   // Held from the moment it opens, for the same reason the planner holds its
   // list: a row ticked or put off would otherwise disappear as you touched it,
@@ -40,7 +41,19 @@ export default function DueSheet({
   // itself from the live task would contradict the row it sits on.
   const [ticked, setTicked] = useState({});
 
-  const close = () => { setTicked({}); onClose(); };
+  // Which row asked for a calendar, and where to report the answer back to.
+  // The row's own picker holds the "→ Fri 23 Oct · Undo" state, so the sheet
+  // carries its setter across rather than growing a second place that says what
+  // just happened.
+  const [exact, setExact] = useState(null);
+
+  // Android's back button closes one thing at a time. With the calendar
+  // open it is the calendar, not the sheet behind it and everything
+  // half-decided in it.
+  const close = () => {
+    if (exact) { setExact(null); return; }
+    setTicked({}); onClose();
+  };
 
   return (
     <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={close}>
@@ -97,12 +110,25 @@ export default function DueSheet({
                     </Text>
                     <Text style={s.rowWhen}>{alertBody(alert, where)}</Text>
                   </TouchableOpacity>
-                  <LaterPicker onPick={step => onPutOff(task, step)} />
+                  <LaterPicker
+                    onPick={step => onPutOff(task, step)}
+                    onExact={onPutOffTo ? report => setExact({ task, report }) : null}
+                  />
                 </View>
               );
             })
           )}
         </ScrollView>
+
+        <WhenSheet
+          visible={!!exact}
+          task={exact ? exact.task : null}
+          onSet={(day, time) => {
+            if (!exact) return;
+            exact.report(onPutOffTo(exact.task, day, time));
+          }}
+          onClose={() => setExact(null)}
+        />
       </View>
     </Modal>
   );

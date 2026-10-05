@@ -14,8 +14,13 @@ import { COLORS, SANS, typeSize } from '../utils/theme';
 // Three states, in the same place on the row: closed, open, and done. Done
 // stays on the row it belongs to rather than floating to the top of the sheet,
 // because feedback belongs where the action was.
+//
+// Four names and then a fifth way out of them. A calendar instead of the names
+// would have made the commonest decision in the app cost five interactions to
+// save the rarest one four; a calendar after them costs nothing until you need
+// it.
 
-export default function LaterPicker({ onPick, label = 'Later' }) {
+export default function LaterPicker({ onPick, onExact, label = 'Later' }) {
   const [open, setOpen] = useState(false);
   const [said, setSaid] = useState(null);
 
@@ -64,6 +69,24 @@ export default function LaterPicker({ onPick, label = 'Later' }) {
           <Text style={s.optionText}>{when.label}</Text>
         </TouchableOpacity>
       ))}
+      {/* The fifth answer, for the date the four names cannot reach. It does
+          not replace them: "not this week" stays one tap, and "the
+          twenty-third" costs a sheet, which is the right way round because the
+          exact date is the rarer answer and the one worth checking. The result
+          comes back here, on this row, the same as the other four — so a date
+          chosen in a calendar reports itself where the decision was taken
+          rather than vanishing into the task. */}
+      {onExact ? (
+        <TouchableOpacity
+          style={s.option}
+          onPress={() => { setOpen(false); onExact(setSaid); }}
+          accessibilityRole="button"
+          accessibilityLabel="Put it off until a date you pick"
+          dataSet={{ laterexact: 'true' }}
+        >
+          <Text style={s.optionText}>Pick a date…</Text>
+        </TouchableOpacity>
+      ) : null}
       <TouchableOpacity
         style={s.option}
         onPress={() => setOpen(false)}

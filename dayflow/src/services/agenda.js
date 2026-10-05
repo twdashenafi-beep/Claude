@@ -798,3 +798,31 @@ export function putOff(task, step = 'week', now = new Date()) {
   // to lose.
   return { dueDate: when.toISOString(), dueTime: task.dueTime || '' };
 }
+
+// The same move, with the day named rather than reckoned.
+//
+// Four names cover the answer most of the time — "not this week", "after the
+// weekend" — and they cover it in one tap, which is the whole reason they are
+// there. What they cannot say is "the twenty-third", and a payroll run is owed
+// on a date, not in a direction. So the names keep the common answer cheap and
+// this takes the exact one, through the calendar and the clock the app already
+// has rather than a second pair grown here.
+//
+// A date and nothing else clears the hour deliberately: if you have gone to a
+// calendar to say which day, you have said everything you meant to say, and
+// inheriting nine o'clock from the old date would put a reminder on the new one
+// you never asked for. Passing a time keeps it.
+export function putOffTo(task, date, time = '') {
+  if (!task) return null;
+  const day = asDate(date);
+  if (!day) return null;
+
+  const clock = typeof time === 'string' && /^\d{1,2}:\d{2}$/.test(time) ? time : '';
+  const when = startOfDay(day);
+  if (clock) {
+    const [h, m] = clock.split(':').map(Number);
+    if (h > 23 || m > 59) return null;
+    when.setHours(h, m, 0, 0);
+  }
+  return { dueDate: when.toISOString(), dueTime: clock };
+}
