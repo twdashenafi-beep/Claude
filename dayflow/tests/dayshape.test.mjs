@@ -541,9 +541,27 @@ const near = (a, b, slack = 0.51) => Math.abs(a - b) <= slack;
     id: 'x', title: 'Pay Ambesso', dueDate: new Date(y, mo, d).toISOString(), dueTime: time,
   });
 
+  // A week on one tap, because most things are not ready today and will be by
+  // Thursday; a month is the second tap.
+  const aWeek = new Date(putOff(dated(2026, 1, 3, '09:00'), 'week', now).dueDate);
+  ok('a week is seven days from today, not from the date it carries',
+     aWeek.getMonth() === 9 && aWeek.getDate() === 12, aWeek.toDateString());
+
+  // The second tap works from where the task was, not from the week it has
+  // just been given — two taps mean a month, not five weeks.
+  const thenMonth = new Date(putOff(dated(2026, 1, 3, '09:00'), 'month', now).dueDate);
+  ok('and a month after it is still a month, not five weeks',
+     thenMonth.getMonth() === 10 && thenMonth.getDate() === 5, thenMonth.toDateString());
+
+  // A week never needs the short-month guard, and must not get it: the 29th
+  // of December plus seven days is the 5th of January.
+  const across = new Date(putOff(dated(2026, 11, 29), 'week', now).dueDate);
+  ok('a week crossing a year end is simply seven days on',
+     across.getFullYear() === 2027 && across.getDate() === 5, across.toDateString());
+
   // Counted from today, not from the date it carries. Eight months overdue,
   // put off by a month, must not come back seven months overdue.
-  const old = putOff(dated(2026, 1, 3, '09:00'), 1, now);
+  const old = putOff(dated(2026, 1, 3, '09:00'), 'month', now);
   const oldAt = new Date(old.dueDate);
   ok('something long overdue is put off from today',
      oldAt.getMonth() === 10 && oldAt.getDate() === 5, oldAt.toDateString());
@@ -552,18 +570,18 @@ const near = (a, b, slack = 0.51) => Math.abs(a - b) <= slack;
 
   // Something already due in the future moves from its own date: putting off a
   // December job should not drag it back to November.
-  const ahead = new Date(putOff(dated(2026, 11, 20), 1, now).dueDate);
+  const ahead = new Date(putOff(dated(2026, 11, 20), 'month', now).dueDate);
   ok('something already ahead is put off from its own date',
      ahead.getMonth() === 0 && ahead.getFullYear() === 2027, ahead.toDateString());
 
   // A short month. The 31st put off by a month is the end of February, not a
   // date in March that nobody chose.
-  const short = new Date(putOff(dated(2027, 0, 31), 1, now).dueDate);
+  const short = new Date(putOff(dated(2027, 0, 31), 'month', now).dueDate);
   ok('the last of a long month lands on the last of a short one',
      short.getMonth() === 1 && short.getDate() === 28, short.toDateString());
 
   // No date at all is still a thing you can be not ready for.
-  const none = new Date(putOff({ id: 'y', title: 'Someday' }, 1, now).dueDate);
+  const none = new Date(putOff({ id: 'y', title: 'Someday' }, 'month', now).dueDate);
   ok('something with no date gets one, a month out',
      none.getMonth() === 10 && none.getDate() === 5, none.toDateString());
 

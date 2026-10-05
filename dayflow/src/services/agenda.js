@@ -737,17 +737,29 @@ export function tomorrowGaps(rawEvents, now = new Date()) {
 // Counted from today rather than from the date it carries. A thing eight months
 // overdue, put off by a month, is seven months overdue — which is arithmetic
 // doing the opposite of what was asked.
-export function putOff(task, months = 1, now = new Date()) {
+// A week or a month. A week is the commoner nudge by far — most things are
+// not ready today and will be by Thursday — so it is what one tap gives, and
+// a month is a second tap on the line that confirms the first.
+//
+// Named rather than numbered, and deliberately not called Week or Month in the
+// interface: those words already mean pages in this app, and a button called
+// Week inside a triage sheet reads as "move it to the Week page", which is a
+// different thing done for different reasons.
+export function putOff(task, step = 'month', now = new Date()) {
   if (!task) return null;
   const at = asDate(now) || new Date();
   const had = asDate(task.dueDate);
   const from = startOfDay(had && had > at ? had : at);
 
   const when = new Date(from);
-  when.setMonth(when.getMonth() + months);
-  // The last of a short month: 31 January put off by a month is the end of
-  // February, not the third of March.
-  if (when.getDate() !== from.getDate()) when.setDate(0);
+  if (step === 'week') {
+    when.setDate(when.getDate() + 7);
+  } else {
+    when.setMonth(when.getMonth() + 1);
+    // The last of a short month: 31 January put off by a month is the end of
+    // February, not the third of March.
+    if (when.getDate() !== from.getDate()) when.setDate(0);
+  }
 
   // The hour is kept if it had one. A payroll run put off to November is still
   // a nine o'clock job, and dropping the time would lose something nobody

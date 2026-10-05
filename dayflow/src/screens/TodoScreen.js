@@ -676,8 +676,17 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
   // Says what it did rather than banners it: the undo bar lives behind the
   // sheet, where it can be neither seen nor reached, and closing the sheet
   // after every one would make going down a long list ten taps instead of ten.
-  const putTaskOff = useCallback(task => {
-    const when = putOff(task);
+  //
+  // A week on one tap, because most things are not ready today and will be by
+  // Thursday. A month is a second tap, offered on the line that confirms the
+  // first — and worked out from where the task was rather than from the week
+  // it has just been given, so two taps mean a month and not five weeks.
+  //
+  // Not two buttons. This app already calls its pages Week and Month, and a
+  // button called Week inside a triage sheet reads as "move it to the Week
+  // page", which is a different decision taken for different reasons.
+  const putTaskOff = useCallback((task, step = 'week') => {
+    const when = putOff(task, step);
     if (!task || !when) return null;
     const was = { dueDate: task.dueDate || '', dueTime: task.dueTime || '' };
     updateTask(task.id, when);
@@ -688,6 +697,10 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
       // depending on which side of an ocean you read it.
       text: `${task.title} — ${whenPreview(when.dueDate, when.dueTime) || 'put off'}`,
       undo: () => updateTask(task.id, was),
+      // Offered only after a week, and it reaches back to the task as it was.
+      more: step === 'week'
+        ? { label: 'a month instead', run: () => putTaskOff(task, 'month') }
+        : null,
     };
   }, [updateTask]);
 

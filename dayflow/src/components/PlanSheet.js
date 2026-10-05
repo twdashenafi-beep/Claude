@@ -59,12 +59,26 @@ export default function PlanSheet({
         {said ? (
           <View style={s.said} dataSet={{ plansaid: 'true' }}>
             <Text style={s.saidText} numberOfLines={2}>{said.text}</Text>
+            {/* The second step, offered rather than given a button of its own.
+                A week is what most things need; a month is the exception, and
+                an exception costs one more tap rather than a third control on
+                every row. */}
+            {said.more ? (
+              <TouchableOpacity
+                onPress={() => setSaid(said.more.run())}
+                accessibilityRole="button"
+                accessibilityLabel="Put it off by a month instead"
+                dataSet={{ putoffmore: 'true' }}
+              >
+                <Text style={s.saidUndo}>{said.more.label}</Text>
+              </TouchableOpacity>
+            ) : null}
             <TouchableOpacity
               onPress={() => { said.undo(); setSaid(null); }}
               accessibilityRole="button"
               accessibilityLabel="Undo that"
             >
-              <Text style={s.saidUndo}>Undo</Text>
+              <Text style={[s.saidUndo, s.saidLast]}>Undo</Text>
             </TouchableOpacity>
           </View>
         ) : null}
@@ -179,7 +193,8 @@ const s = StyleSheet.create({
     paddingHorizontal: 20, paddingVertical: 11, backgroundColor: COLORS.desk,
   },
   saidText: { flex: 1, fontFamily: SANS, fontSize: typeSize(13), color: COLORS.inkSoft, paddingRight: 12 },
-  saidUndo: { fontFamily: SANS, fontSize: typeSize(13.5), color: COLORS.accent },
+  saidUndo: { fontFamily: SANS, fontSize: typeSize(13.5), color: COLORS.accent, marginLeft: 14 },
+  saidLast: { marginLeft: 14 },
 
   gaps: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 18 },
   gap: {
