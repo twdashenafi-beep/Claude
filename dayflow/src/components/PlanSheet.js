@@ -21,9 +21,14 @@ import { COLORS, SANS, SERIF, SHEET_MAX_WIDTH, typeSize } from '../utils/theme';
 const MOST = 40;
 
 export default function PlanSheet({
-  visible, gaps = [], tomorrow = false, chosen, tasks = [], onPlace, onClose,
+  visible, gaps = [], tomorrow = false, chosen, tasks = [],
+  onPlace, onPutOff, onToMonth, onClose,
 }) {
   const [gap, setGap] = useState(null);
+  // What the last decision was, said in the sheet because the sheet stays open.
+  // Going down a list of twenty is twenty taps, not twenty taps and twenty
+  // reopenings, and a confirmation behind a modal is no confirmation at all.
+  const [said, setSaid] = useState(null);
   const here = gap || chosen || gaps[0] || null;
 
   // Everything open that is not already committed to an hour still ahead —
@@ -36,7 +41,7 @@ export default function PlanSheet({
   const shown = free.slice(0, MOST);
   const rest = free.length - shown.length;
 
-  const close = () => { setGap(null); onClose(); };
+  const close = () => { setGap(null); setSaid(null); onClose(); };
 
   return (
     <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={close}>
@@ -50,6 +55,19 @@ export default function PlanSheet({
           </Text>
           <View style={s.balance} />
         </View>
+
+        {said ? (
+          <View style={s.said} dataSet={{ plansaid: 'true' }}>
+            <Text style={s.saidText} numberOfLines={2}>{said.text}</Text>
+            <TouchableOpacity
+              onPress={() => { said.undo(); setSaid(null); }}
+              accessibilityRole="button"
+              accessibilityLabel="Undo that"
+            >
+              <Text style={s.saidUndo}>Undo</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
 
         <ScrollView contentContainerStyle={s.body} keyboardShouldPersistTaps="handled">
           {gaps.length === 0 ? (
@@ -95,17 +113,40 @@ export default function PlanSheet({
                 </Text>
               ) : (
                 shown.map(task => (
-                  <TouchableOpacity
-                    key={task.id}
-                    style={s.row}
-                    onPress={() => { onPlace(task, here); setGap(null); }}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Do ${task.title} at ${here ? clockOf(here.start) : ''}`}
-                    dataSet={{ plantask: 'true' }}
-                  >
-                    <Text style={s.rowText} numberOfLines={2}>{task.title}</Text>
-                    <Text style={s.rowAt}>{here ? clockOf(here.start) : ''}</Text>
-                  </TouchableOpacity>
+                  <View key={task.id} style={s.row}>
+                    {/* The question this sheet asks is "shall I do this
+                        tomorrow", and it used to take only one answer. The
+                        other two are the ones somebody going down a long list
+                        actually needs, and they are different decisions: one
+                        moves a promise, the other moves a page. */}
+                    <TouchableOpacity
+                      style={s.rowMain}
+                      onPress={() => { onPlace(task, here); setGap(null); }}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Do ${task.title} at ${here ? clockOf(here.start) : ''}`}
+                      dataSet={{ plantask: 'true' }}
+                    >
+                      <Text style={s.rowText} numberOfLines={2}>{task.title}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={s.act}
+                      onPress={() => setSaid(onPutOff(task))}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Put ${task.title} off by a month`}
+                      dataSet={{ putoff: 'true' }}
+                    >
+                      <Text style={s.actText}>Put off</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={s.act}
+                      onPress={() => setSaid(onToMonth(task))}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Show ${task.title} under Month, keeping its date`}
+                      dataSet={{ tomonth: 'true' }}
+                    >
+                      <Text style={s.actText}>Month</Text>
+                    </TouchableOpacity>
+                  </View>
                 ))
               )}
               {rest > 0 ? (
@@ -133,6 +174,13 @@ const s = StyleSheet.create({
   balance: { width: 44 },
   body: { paddingHorizontal: 20, paddingBottom: 40, maxWidth: SHEET_MAX_WIDTH, width: '100%', alignSelf: 'center' },
 
+  said: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 20, paddingVertical: 11, backgroundColor: COLORS.desk,
+  },
+  saidText: { flex: 1, fontFamily: SANS, fontSize: typeSize(13), color: COLORS.inkSoft, paddingRight: 12 },
+  saidUndo: { fontFamily: SANS, fontSize: typeSize(13.5), color: COLORS.accent },
+
   gaps: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 18 },
   gap: {
     borderWidth: 1, borderColor: COLORS.rule, borderRadius: 3,
@@ -151,6 +199,10 @@ const s = StyleSheet.create({
     paddingVertical: 14,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COLORS.rule,
   },
-  rowText: { flex: 1, fontFamily: SANS, fontSize: typeSize(15), color: COLORS.ink, paddingRight: 12 },
-  rowAt: { fontFamily: SANS, fontSize: typeSize(13), color: COLORS.inkFaint },
+  rowMain: { flex: 1, paddingRight: 10 },
+  // The hour is the same for every row and is already in the line above, so
+  // repeating it beside each one was noise where two decisions now live.
+  rowText: { fontFamily: SANS, fontSize: typeSize(15), color: COLORS.ink },
+  act: { paddingVertical: 6, paddingHorizontal: 9, marginLeft: 4 },
+  actText: { fontFamily: SANS, fontSize: typeSize(12.5), color: COLORS.accent },
 });

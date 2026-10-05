@@ -347,6 +347,43 @@ await page.waitForTimeout(1500);
     ok('with something to put in it', (await forTomorrow.count()) > 0,
        String(await forTomorrow.count()));
 
+    // ── The two other answers ──
+    //
+    // The sheet asks "shall I do this tomorrow" and used to take only one
+    // answer. These are different decisions and must stay different: one moves
+    // when a thing is due, the other moves which page it sits on and touches
+    // no promise at all.
+    const offRow = page.locator('[data-putoff]');
+    const monthRow = page.locator('[data-tomonth]');
+    ok('a row offers to put the task off', (await offRow.count()) > 0,
+       String(await offRow.count()));
+    ok('and to move it to the month, which is not the same thing',
+       (await monthRow.count()) > 0, String(await monthRow.count()));
+
+    // The one added for this block, not whatever sorts first: putting off a
+    // task the briefing assertions are written against breaks them for a
+    // reason that has nothing to do with what they check. That happened.
+    const titles = await page.locator('[data-plantask]').allInnerTexts();
+    const mine = titles.findIndex(x => /quarterly note/i.test(x));
+    ok('the task this block added is in the list', mine >= 0, titles.join(' | ').slice(0, 300));
+
+    await offRow.nth(Math.max(0, mine)).click();
+    await page.waitForTimeout(1000);
+    const put = await body();
+    ok('putting it off says when it is due now, with a way back',
+       /due /i.test(put) && /Undo/i.test(put), put.slice(0, 400));
+    ok('and it is a month out, not today',
+       !/due 0?2\/10\/2026|due 02 October 2026/i.test(put), put.slice(0, 400));
+
+    // Put back, because the rest of this suite was written against these tasks
+    // and a test that quietly reschedules one of them breaks the next for a
+    // reason that has nothing to do with what it is checking. Undo is also the
+    // thing being tested: a decision this quick has to be reversible.
+    await page.getByText('Undo', { exact: true }).first().click();
+    await page.waitForTimeout(900);
+    ok('and undoing puts it back where it was',
+       !/due /i.test((await body()).slice(0, 200)), (await body()).slice(0, 300));
+
     await page.getByText('Done', { exact: true }).first().click();
     await page.waitForTimeout(600);
   }

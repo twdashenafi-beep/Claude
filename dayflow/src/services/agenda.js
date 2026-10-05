@@ -720,3 +720,37 @@ export function tomorrowGaps(rawEvents, now = new Date()) {
   start.setMinutes(1);
   return spanLoad([], rawEvents, start, 'day').gaps;
 }
+
+// Putting something off.
+//
+// The free-time sheet asks one question — shall I do this tomorrow — and
+// accepted only one answer. Going down a list of things you are not ready for
+// and having no way to say so is the sheet asking a question it will not let
+// you answer.
+//
+// Two answers, because they are two different decisions and merging them would
+// quietly do the wrong one. Putting a task off changes when it is due, which is
+// a promise being moved. Filing it under the month changes which page it sits
+// on and touches no promise at all — it is still overdue if it was overdue, and
+// the page will still say so.
+//
+// Counted from today rather than from the date it carries. A thing eight months
+// overdue, put off by a month, is seven months overdue — which is arithmetic
+// doing the opposite of what was asked.
+export function putOff(task, months = 1, now = new Date()) {
+  if (!task) return null;
+  const at = asDate(now) || new Date();
+  const had = asDate(task.dueDate);
+  const from = startOfDay(had && had > at ? had : at);
+
+  const when = new Date(from);
+  when.setMonth(when.getMonth() + months);
+  // The last of a short month: 31 January put off by a month is the end of
+  // February, not the third of March.
+  if (when.getDate() !== from.getDate()) when.setDate(0);
+
+  // The hour is kept if it had one. A payroll run put off to November is still
+  // a nine o'clock job, and dropping the time would lose something nobody
+  // asked to lose.
+  return { dueDate: when.toISOString(), dueTime: task.dueTime || '' };
+}

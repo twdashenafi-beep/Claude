@@ -15,7 +15,7 @@
 import {
   barSegments, barNow, barDrawable, barCaption, loadSentence,
   spanLoad, dayLoad, BAR_GAP, BAR_LEAST, tomorrowLine,
-  barPlans, gapAt, planFor, placeable, clockOf, tomorrowGaps,
+  barPlans, gapAt, planFor, placeable, clockOf, tomorrowGaps, putOff,
 } from '../src/services/agenda.js';
 
 let pass = 0, fail = 0;
@@ -523,6 +523,51 @@ const near = (a, b, slack = 0.51) => Math.abs(a - b) <= slack;
   ok('a tomorrow with no room in it offers nothing',
      tomorrowGaps(packed, evening).length === 0,
      String(tomorrowGaps(packed, evening).length));
+}
+
+// ── Not ready for it ────────────────────────────────────────────────────────
+//
+// The sheet asks "shall I do this tomorrow" and took only one answer. Going
+// down a list of things you are not ready for, with no way to say so, is the
+// sheet asking a question it will not let you answer.
+//
+// Putting a task off moves when it is due — a promise being moved. Filing it
+// under the month moves which page it sits on and touches no promise: it is
+// still overdue if it was, and the page will still say so. Two decisions, kept
+// apart, because merging them would quietly do the wrong one.
+{
+  const now = new Date(2026, 9, 5, 20, 18);
+  const dated = (y, mo, d, time = '') => ({
+    id: 'x', title: 'Pay Ambesso', dueDate: new Date(y, mo, d).toISOString(), dueTime: time,
+  });
+
+  // Counted from today, not from the date it carries. Eight months overdue,
+  // put off by a month, must not come back seven months overdue.
+  const old = putOff(dated(2026, 1, 3, '09:00'), 1, now);
+  const oldAt = new Date(old.dueDate);
+  ok('something long overdue is put off from today',
+     oldAt.getMonth() === 10 && oldAt.getDate() === 5, oldAt.toDateString());
+  ok('and keeps the hour it had, because nobody asked to lose it',
+     old.dueTime === '09:00', old.dueTime);
+
+  // Something already due in the future moves from its own date: putting off a
+  // December job should not drag it back to November.
+  const ahead = new Date(putOff(dated(2026, 11, 20), 1, now).dueDate);
+  ok('something already ahead is put off from its own date',
+     ahead.getMonth() === 0 && ahead.getFullYear() === 2027, ahead.toDateString());
+
+  // A short month. The 31st put off by a month is the end of February, not a
+  // date in March that nobody chose.
+  const short = new Date(putOff(dated(2027, 0, 31), 1, now).dueDate);
+  ok('the last of a long month lands on the last of a short one',
+     short.getMonth() === 1 && short.getDate() === 28, short.toDateString());
+
+  // No date at all is still a thing you can be not ready for.
+  const none = new Date(putOff({ id: 'y', title: 'Someday' }, 1, now).dueDate);
+  ok('something with no date gets one, a month out',
+     none.getMonth() === 10 && none.getDate() === 5, none.toDateString());
+
+  ok('and nothing in is nothing out', putOff(null) === null);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
