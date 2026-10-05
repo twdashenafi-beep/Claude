@@ -302,6 +302,61 @@ await page.waitForTimeout(1500);
      /—\s*\d\d:\d\d/.test(after), after.slice(0, 500));
 }
 
+// ── A day with nothing free still answers ───────────────────────────────────
+//
+// Past the end of a working day there is no free time left to tap, and the
+// first version of this did nothing at all — no sheet, no word. A control that
+// is silently dead looks exactly like one that is broken, which is the fault
+// this app has spent two days taking out of everything else, shipped straight
+// back in by the feature that took it out of the diary.
+{
+  const back = async () => page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+
+  // Something to put in it. The only untimed task went into a gap further up,
+  // so without this the sheet would correctly offer nothing and the assertion
+  // below would be proving that rather than what it claims.
+  await toDo('Write the quarterly note');
+
+  // Seven in the evening: the day closed at six and nothing is left of it.
+  await page.clock.setFixedTime(new Date('2026-10-02T19:00:00'));
+  await back();
+  await page.waitForTimeout(1200);
+
+  const evening = page.locator('[data-daybar]').first();
+  if (await evening.count()) {
+    const where = await evening.boundingBox();
+    await page.mouse.click(where.x + where.width * 0.5, where.y + 6);
+    await page.waitForTimeout(900);
+    const said = await body();
+    ok('a tap with nothing free still opens, rather than doing nothing',
+       /Tomorrow|Free time/i.test(said), said.slice(0, 300));
+    // Honest and useless would be "nothing free is left today". The page is
+    // already saying what tomorrow opens with two lines above the strip, so
+    // tomorrow is what somebody reaching for it at seven actually wants.
+    ok('and offers tomorrow, rather than shrugging about today',
+       /free tomorrow from \d\d:\d\d/i.test(said), said.slice(0, 400));
+    ok('naming it as tomorrow so no hour is mistaken for tonight',
+       /Tomorrow/.test(said), said.slice(0, 300));
+
+    const forTomorrow = page.locator('[data-plantask]');
+    ok('with something to put in it', (await forTomorrow.count()) > 0,
+       String(await forTomorrow.count()));
+
+    await page.getByText('Done', { exact: true }).first().click();
+    await page.waitForTimeout(600);
+  }
+
+  // Put the morning back, because everything after this was written against it.
+  await page.clock.setFixedTime(new Date('2026-10-02T08:30:00'));
+  await back();
+  await page.waitForTimeout(1200);
+}
+
 // ── And in the briefing ─────────────────────────────────────────────────────
 {
   await page.getByLabel('Open the daily briefing').click();

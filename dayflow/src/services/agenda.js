@@ -669,3 +669,21 @@ export function barPlans(load, tasks, width, minutes = ASSUMED_MINUTES,
   const placed = placeSpans(spans, load.window, width, gap, least);
   return placed.map((seg, i) => ({ ...seg, title: spans[i] && spans[i].title }));
 }
+
+// Tomorrow's free time, for the hours when today has none.
+//
+// From the close of a working day until nine in the evening, tapping the strip
+// had nothing to offer: today is spent, and the page has not yet handed over.
+// Answering "nothing free is left today" is honest and no use — the page is
+// already saying what tomorrow opens with, two lines above, so the thing
+// somebody is reaching for when they tap at seven is tomorrow.
+//
+// Built from the same spanLoad as any other day, asked at a minute past
+// midnight so the whole of it is still ahead and every gap is offered.
+export function tomorrowGaps(rawEvents, now = new Date()) {
+  const at = asDate(now) || new Date();
+  const start = startOfDay(at);
+  start.setDate(start.getDate() + 1);
+  start.setMinutes(1);
+  return spanLoad([], rawEvents, start, 'day').gaps;
+}
