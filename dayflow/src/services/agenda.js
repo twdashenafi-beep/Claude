@@ -428,21 +428,16 @@ export const BAR_GAP = 2;
 // an end a pixel out is better than a meeting that is missing.
 export const BAR_LEAST = 2;
 
-// Where the ink goes: one { left, width } per stretch of booked time, in
-// pixels across a track of the given width.
-export function barSegments(load, width, gap = BAR_GAP, least = BAR_LEAST) {
-  if (!load || load.span !== 'day' || !load.window) return [];
-  if (!(width > 0)) return [];
-  const total = load.window.to - load.window.from;
-  if (!(total > 0)) return [];
-
-  const across = when => ((when - load.window.from) / total) * width;
+// Pixels for a list of spans already cut to the window. Shared, because a
+// planned hour and a booked one are drawn by the same rules and differ only in
+// how dark the ink is.
+function placeSpans(spans, window, width, gap, least) {
+  const total = window.to - window.from;
+  if (!(total > 0) || !(width > 0)) return [];
+  const across = when => ((when - window.from) / total) * width;
   const out = [];
 
-  // mergeBusy has already cut every span to the window, so nothing here can
-  // start before the day or run past the end of it. The two adjustments below
-  // are the only things that move an edge, and both stay inside the track.
-  for (const span of mergeBusy(load.events, load.window)) {
+  for (const span of spans) {
     let left = across(span.start);
     let right = across(span.end);
     if (right - left < least) right = Math.min(width, left + least);
@@ -467,6 +462,15 @@ export function barSegments(load, width, gap = BAR_GAP, least = BAR_LEAST) {
     out.push({ left, width: right - left });
   }
   return out;
+}
+
+// Where the ink goes: one { left, width } per stretch of booked time, in
+// pixels across a track of the given width.
+export function barSegments(load, width, gap = BAR_GAP, least = BAR_LEAST) {
+  if (!load || load.span !== 'day' || !load.window) return [];
+  // mergeBusy has already cut every span to the window, so nothing here can
+  // start before the day or run past the end of it.
+  return placeSpans(mergeBusy(load.events, load.window), load.window, width, gap, least);
 }
 
 // Where you are standing on the day, or null when now is outside it. One tick,
@@ -576,4 +580,92 @@ export function tomorrowLine(load, rawEvents, now = new Date()) {
   const [first] = eventsWithin(rawEvents, { from, to }).filter(e => !e.allDay);
   if (!first) return null;
   return `Tomorrow starts ${clockOf(first.start)} — ${first.title}`;
+}
+
+// ── Putting work into the free time ─────────────────────────────────────────
+//
+// Everything above this line reports. The app could say three hours were
+// booked and the afternoon was free, and say which twelve things were open,
+// and the one move that joins those two facts — putting a thing into the free
+// time — happened in somebody's head and then, if they remembered, in a form.
+//
+// It needs no new idea. A task with a date and a time is already a placed
+// task: it clashes with meetings, it carries a reminder, it sorts into the
+// day. All that was missing was a way to say it in one tap, and a drawing that
+// shows the result next to what caused it.
+//
+// Still no invented durations. An hour is assumed for the slot, which is what
+// this app has always booked for a task with a time on it — an assumption
+// about the appointment, not about the work, which is the difference between
+// this and pretending to know how long anything takes.
+
+// The tasks a gap could hold: open, and not already somewhere.
+//
+// A task that already has a time is placed, and offering it again would be
+// offering to move it, which is a different question asked in a different
+// place.
+export function placeable(tasks) {
+  return (tasks || []).filter(t => t && !t.completed && !t.archivedAt && !t.dueTime);
+}
+
+// Which gap a tap landed on.
+//
+// Forgiving on purpose: a gap can be twenty pixels wide on a phone, and a
+// finger is wider than that. A tap that misses falls forward to the next gap,
+// because the next free time is almost always what was meant — and tapping the
+// middle of a meeting to mean "after this" is a reasonable thing to do.
+export function gapAt(load, width, x) {
+  if (!load || load.span !== 'day' || !load.window) return null;
+  if (!(width > 0) || !load.gaps || load.gaps.length === 0) return null;
+  const total = load.window.to - load.window.from;
+  if (!(total > 0)) return null;
+
+  const at = new Date(load.window.from.getTime()
+    + (Math.max(0, Math.min(width, x)) / width) * total);
+  return load.gaps.find(g => at >= g.start && at < g.end)
+    || load.gaps.find(g => g.start >= at)
+    || load.gaps[load.gaps.length - 1];
+}
+
+// What to write on a task to put it in a gap.
+//
+// The start of the gap rather than the middle of it: a thing you have decided
+// to do at two o'clock is a thing you do at two o'clock.
+export function planFor(gap) {
+  if (!gap || !gap.start) return null;
+  const at = asDate(gap.start);
+  if (!at) return null;
+  return {
+    dueDate: at.toISOString(),
+    dueTime: `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`,
+  };
+}
+
+// Where the planned hours sit on the strip.
+//
+// Drawn from the tasks rather than the diary, and in a lighter ink by the
+// component, because a plan and an appointment are not the same promise. One
+// is where you have to be; the other is where you said you would be, to
+// yourself, and the day will tell you which of those it believed.
+export function barPlans(load, tasks, width, minutes = ASSUMED_MINUTES,
+  gap = BAR_GAP, least = BAR_LEAST) {
+  if (!load || load.span !== 'day' || !load.window) return [];
+  if (!(width > 0)) return [];
+
+  const spans = [];
+  for (const task of tasks || []) {
+    if (!task || task.completed || task.archivedAt) continue;
+    const at = momentOf(task.dueDate, task.dueTime);
+    if (!at) continue;
+    const start = new Date(Math.max(at, load.window.from));
+    const end = new Date(Math.min(at.getTime() + minutes * MINUTE, load.window.to));
+    if (end <= start) continue;
+    spans.push({ start, end, title: task.title, id: task.id });
+  }
+  spans.sort((a, b) => a.start - b.start);
+
+  // Positioned by the same rule as the meetings, so a plan at two and a
+  // meeting at two line up rather than each being a pixel out in its own way.
+  const placed = placeSpans(spans, load.window, width, gap, least);
+  return placed.map((seg, i) => ({ ...seg, title: spans[i] && spans[i].title }));
 }

@@ -15,6 +15,7 @@
 import {
   barSegments, barNow, barDrawable, barCaption, loadSentence,
   spanLoad, dayLoad, BAR_GAP, BAR_LEAST, tomorrowLine,
+  barPlans, gapAt, planFor, placeable, clockOf,
 } from '../src/services/agenda.js';
 
 let pass = 0, fail = 0;
@@ -358,6 +359,87 @@ const near = (a, b, slack = 0.51) => Math.abs(a - b) <= slack;
   ok('the week page says nothing of the kind',
      tomorrowLine(spanLoad([], diary, at(4, 18, 30), 'week'), diary, at(4, 18, 30)) === null);
   ok('and nothing at all is survived', tomorrowLine(null, diary, at(4, 18, 30)) === null);
+}
+
+// ── Putting work into the free time ─────────────────────────────────────────
+//
+// The one move the app could describe and never make. It could say the
+// afternoon was free and say what was open, and joining those two facts
+// happened in somebody's head.
+//
+// It needs no new idea underneath: a task with a date and a time is already a
+// placed task. What is new is a tap that writes one, and a drawing that shows
+// the result beside what caused it.
+{
+  const load = dayLoad([], [ev('Board call', on(11), on(12, 30))], on(9));
+  ok('the day has two stretches of free time', load.gaps.length === 2,
+     load.gaps.map(g => clockOf(g.start)).join(', '));
+
+  // ── Which gap a finger landed on ──
+  //
+  // Read through a helper that survives a null, because the interesting
+  // failure here is a tap that finds nothing — and a test that throws on it
+  // reports no failure at all, which is the same as not testing it.
+  const tapAt = x => { const g = gapAt(load, W, x); return g ? clockOf(g.start) : 'nothing'; };
+
+  ok('a tap at the start of the day finds the morning', tapAt(0) === '09:00', tapAt(0));
+  ok('a tap in the afternoon finds the afternoon', tapAt(pxAt(14)) === '12:30', tapAt(pxAt(14)));
+  // A gap can be twenty pixels wide on a phone and a finger is wider, so a
+  // miss has to land somewhere sensible rather than nowhere.
+  ok('a tap in the middle of a meeting falls forward to the next free time',
+     tapAt(pxAt(11, 45)) === '12:30', tapAt(pxAt(11, 45)));
+  ok('a tap past the end of the day still lands on free time',
+     gapAt(load, W, W + 200) !== null);
+  ok('a day with nothing free offers nothing',
+     gapAt(dayLoad([], [ev('All of it', on(8), on(18))], on(9)), W, 100) === null);
+  ok('and no width means no tap', gapAt(load, 0, 10) === null);
+
+  // ── What gets written on the task ──
+  const when = planFor(load.gaps[1]) || {};
+  ok('a task put in a gap takes the hour the gap starts', when.dueTime === '12:30', when.dueTime);
+  ok('and the day it is on', new Date(when.dueDate).getDate() === 2, when.dueDate);
+  ok('nothing in, nothing out', planFor(null) === null && planFor({}) === null);
+
+  // ── Which tasks can be placed ──
+  const tasks = [
+    { id: 'a', title: 'Draft the paper' },
+    { id: 'b', title: 'Already at nine', dueTime: '09:00' },
+    { id: 'c', title: 'Done', completed: true },
+    { id: 'd', title: 'Filed away', archivedAt: '2026-10-01T00:00:00.000Z' },
+  ];
+  const free = placeable(tasks);
+  ok('only what is open and not already somewhere is offered',
+     free.length === 1 && free[0].id === 'a', free.map(x => x.id).join(', '));
+  ok('a broken list is survived', placeable(null).length === 0);
+
+  // ── And it is drawn ──
+  const placed = [{ id: 'a', title: 'Draft the paper', dueDate: on(14).toISOString(), dueTime: '14:00' }];
+  const [mark = {}] = barPlans(load, placed, W);
+  ok('a planned hour appears on the strip', mark.width > 0, JSON.stringify(mark));
+  ok('at the hour it was planned for', near(mark.left, pxAt(14)), String(mark.left));
+  ok('and an hour long, which is what this app has always booked',
+     near(mark.width, HOUR), String(mark.width));
+  ok('and it carries its title, for anything that needs to say what it is',
+     mark.title === 'Draft the paper', String(mark.title));
+
+  // A plan is not a meeting. Drawing a finished task would be drawing a
+  // commitment that no longer exists.
+  ok('a finished task is not still blocking out an hour',
+     barPlans(load, [{ ...placed[0], completed: true }], W).length === 0);
+  ok('nor is an archived one',
+     barPlans(load, [{ ...placed[0], archivedAt: 'x' }], W).length === 0);
+  ok('and a task with no time is not on the strip at all',
+     barPlans(load, [{ id: 'z', title: 'Someday' }], W).length === 0);
+
+  // Clipped to the day like everything else: an hour booked at half five does
+  // not hang off the end of a day that closes at six.
+  const late = [{ id: 'l', title: 'Late one', dueDate: on(17, 30).toISOString(), dueTime: '17:30' }];
+  const [edge = {}] = barPlans(load, late, W);
+  ok('an hour planned at half five is cut at the end of the day',
+     near(edge.left + edge.width, W), JSON.stringify(edge));
+
+  ok('a week has no slots to fill',
+     barPlans(spanLoad([], [], on(9), 'week'), placed, W).length === 0);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

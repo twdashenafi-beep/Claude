@@ -10,7 +10,7 @@ import { recordChase } from '../services/chase';
 import { isReckoningDay } from '../services/reckoning';
 import { eventsFor } from '../services/calendarFeed';
 import { scopeNow, horizonStamp } from '../services/scope';
-import { spanLoad, tomorrowLine } from '../services/agenda';
+import { spanLoad, tomorrowLine, planFor } from '../services/agenda';
 import { EVERYTHING, projectOf, projectName } from '../services/projects';
 import { moveTick } from '../services/haptics';
 import { ARCHIVE, deletionOf } from '../services/archive';
@@ -23,6 +23,7 @@ import ArchiveSheet from '../components/ArchiveSheet';
 import SearchSheet from '../components/SearchSheet';
 import ViewToggle from '../components/ViewToggle';
 import DayBar from '../components/DayBar';
+import PlanSheet from '../components/PlanSheet';
 import AddTaskModal from '../components/AddTaskModal';
 import TaskDetail from '../components/TaskDetail';
 import AIInput from '../components/AIInput';
@@ -636,6 +637,23 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
   // no page: today is spent, this week may be over, and the month counts
   // meetings without saying when they are. One line closes that, and says
   // nothing at all outside it.
+  // Putting work into the free time: the one move the diary could describe and
+  // never make. Only on the day's page — a gap in a week is not a slot.
+  const [gapPicked, setGapPicked] = useState(null);
+  const openGap = useCallback(gap => setGapPicked(gap || null), []);
+  const placeInGap = useCallback((task, gap) => {
+    const when = planFor(gap);
+    setGapPicked(null);
+    if (!task || !when) return;
+    updateTask(task.id, when);
+    setBanner({
+      text: `${task.title} — ${when.dueTime}`,
+      action: 'Undo',
+      label: 'Undo putting it in the free time',
+      run: () => updateTask(task.id, { dueDate: task.dueDate || '', dueTime: task.dueTime || '' }),
+    });
+  }, [updateTask]);
+
   const tomorrow = useMemo(
     () => (showDiary && diary ? tomorrowLine(load, diary.events, load.at) : null),
     [showDiary, diary, load],
@@ -822,7 +840,14 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
           {/* The hours that are already spoken for. A line rather than a
               panel: it is context for the list underneath, not a thing to
               look at on its own. */}
-          {showDiary ? <DayBar load={load} now={load.at} /> : null}
+          {showDiary ? (
+            <DayBar
+              load={load}
+              now={load.at}
+              plans={inView}
+              onPickGap={viewMode === 'day' ? openGap : undefined}
+            />
+          ) : null}
           {tomorrow ? (
             <Text style={s.tomorrow} dataSet={{ tomorrowline: 'true' }}>{tomorrow}</Text>
           ) : null}
@@ -1094,6 +1119,15 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
         archived={archived}
       />
       <ConfettiOverlay visible={celebrating} onDone={() => setCelebrating(false)} />
+
+      <PlanSheet
+        visible={!!gapPicked}
+        gaps={load && load.span === 'day' ? load.gaps : []}
+        chosen={gapPicked}
+        tasks={inView}
+        onPlace={placeInGap}
+        onClose={() => setGapPicked(null)}
+      />
 
       <AccountSheet
         onCalendar={() => setDiaryAt(n => n + 1)}

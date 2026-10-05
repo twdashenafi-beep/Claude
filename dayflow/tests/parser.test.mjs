@@ -388,8 +388,13 @@ ok('and neither is a quantity with a month-ish word', (() => {
     const at = new Date(r.dueDate);
     const midnight = d => { const c = new Date(d); c.setHours(0, 0, 0, 0); return c; };
     const daysOut = Math.round((midnight(at) - midnight(new Date())) / 86400000);
+    // Nought included, and that is not slack. Said on a Monday, "Monday" is
+    // today — which is the parser being right, and which made this fail every
+    // Monday for a reason that had nothing to do with clock times. The second
+    // time a test in this project has been written against the day it was
+    // written on; the first was an hour rather than a weekday.
     ok('a clock time is not a day of the month',
-       at.getDate() !== 12 && daysOut > 0 && daysOut <= 7,
+       at.getDate() !== 12 && daysOut >= 0 && daysOut <= 7,
        `${at.toDateString()} — ${daysOut} days out`);
   }
   ok('it is a time', r.dueTime === '12:30', String(r.dueTime));
