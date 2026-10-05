@@ -31,7 +31,16 @@ export default function DueSheet({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
-  const close = () => onClose();
+  // Which rows have been ticked in this pass.
+  //
+  // The box was a bordered square with no done state: tapping it completed the
+  // task and drew nothing, so the one action anybody takes on a reminder
+  // looked broken. Kept here rather than read back off the task, because the
+  // list is held from the moment the sheet opens and a row that reported
+  // itself from the live task would contradict the row it sits on.
+  const [ticked, setTicked] = useState({});
+
+  const close = () => { setTicked({}); onClose(); };
 
   return (
     <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={close}>
@@ -55,13 +64,24 @@ export default function DueSheet({
                 <View key={task.id} style={s.row} dataSet={{ duerow: 'true' }}>
                   {/* The tick first, because most of what a reminder catches
                       is already done or takes a moment. */}
+                  {/* The box you can see is nineteen pixels; the box you can
+                      hit is not. Tapping again takes it back, the same as the
+                      checkbox on the page behind this one. */}
                   <TouchableOpacity
-                    style={s.box}
-                    onPress={() => onDone(task)}
+                    style={s.boxHit}
+                    onPress={() => { onDone(task); setTicked(was => ({ ...was, [task.id]: !was[task.id] })); }}
                     accessibilityRole="checkbox"
-                    accessibilityLabel={`Mark ${task.title} as done`}
+                    aria-checked={!!ticked[task.id]}
+                    accessibilityLabel={ticked[task.id]
+                      ? `Mark ${task.title} as not done`
+                      : `Mark ${task.title} as done`}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 6 }}
                     dataSet={{ duedone: 'true' }}
-                  />
+                  >
+                    <View style={[s.box, ticked[task.id] && s.boxDone]}>
+                      {ticked[task.id] ? <Text style={s.tick}>✓</Text> : null}
+                    </View>
+                  </TouchableOpacity>
                   <TouchableOpacity
                     style={s.rowMain}
                     onPress={() => onOpen(task)}
@@ -69,7 +89,12 @@ export default function DueSheet({
                     accessibilityLabel={`Open ${task.title}`}
                     dataSet={{ dueopen: 'true' }}
                   >
-                    <Text style={s.rowText} numberOfLines={2}>{task.title}</Text>
+                    <Text
+                      style={[s.rowText, ticked[task.id] && s.rowTextDone]}
+                      numberOfLines={2}
+                    >
+                      {task.title}
+                    </Text>
                     <Text style={s.rowWhen}>{alertBody(alert, where)}</Text>
                   </TouchableOpacity>
                   <LaterPicker onPick={step => onPutOff(task, step)} />
@@ -106,12 +131,16 @@ const s = StyleSheet.create({
     flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', paddingVertical: 14,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COLORS.rule,
   },
+  boxHit: { paddingVertical: 6, paddingRight: 13, paddingLeft: 2 },
   box: {
     width: 19, height: 19, borderWidth: 1.4, borderColor: COLORS.check,
-    borderRadius: 2, marginRight: 13,
+    borderRadius: 2, alignItems: 'center', justifyContent: 'center',
   },
+  boxDone: { backgroundColor: COLORS.check, borderColor: COLORS.check },
+  tick: { fontSize: typeSize(10), color: COLORS.sheet, fontWeight: '700', marginTop: -1 },
   rowMain: { flex: 1, paddingRight: 10 },
   rowText: { fontFamily: SANS, fontSize: typeSize(15), color: COLORS.ink },
+  rowTextDone: { color: COLORS.done, textDecorationLine: 'line-through' },
   rowWhen: { fontFamily: SERIF, fontStyle: 'italic', fontSize: typeSize(12), color: COLORS.inkFaint, marginTop: 3 },
   act: { paddingVertical: 6, paddingHorizontal: 9 },
   actText: { fontFamily: SANS, fontSize: typeSize(12.5), color: COLORS.accent },
