@@ -347,18 +347,17 @@ await page.waitForTimeout(1500);
     ok('with something to put in it', (await forTomorrow.count()) > 0,
        String(await forTomorrow.count()));
 
-    // ── The two other answers ──
+    // ── When, then ──
     //
-    // The sheet asks "shall I do this tomorrow" and used to take only one
-    // answer. These are different decisions and must stay different: one moves
-    // when a thing is due, the other moves which page it sits on and touches
-    // no promise at all.
-    const offRow = page.locator('[data-putoff]');
-    const monthRow = page.locator('[data-tomonth]');
-    ok('a row offers to put the task off', (await offRow.count()) > 0,
-       String(await offRow.count()));
-    ok('and to move it to the month, which is not the same thing',
-       (await monthRow.count()) > 0, String(await monthRow.count()));
+    // One control with four named answers, and the result shown on the row it
+    // belongs to. It used to be two buttons meaning different things — one
+    // moved a date, the other moved a page — with the confirmation appearing
+    // at the top of the sheet while your finger was on row nine.
+    const later = page.locator('[data-laterbutton]');
+    ok('every row offers to put the task off', (await later.count()) > 0,
+       String(await later.count()));
+    ok('and the page-move button is gone from the row',
+       (await page.locator('[data-tomonth]').count()) === 0);
 
     // The one added for this block, not whatever sorts first: putting off a
     // task the briefing assertions are written against breaks them for a
@@ -367,22 +366,30 @@ await page.waitForTimeout(1500);
     const mine = titles.findIndex(x => /quarterly note/i.test(x));
     ok('the task this block added is in the list', mine >= 0, titles.join(' | ').slice(0, 300));
 
-    await offRow.nth(Math.max(0, mine)).click();
-    await page.waitForTimeout(1000);
-    const put = await body();
-    ok('putting it off says when it is due now, with a way back',
-       /due /i.test(put) && /Undo/i.test(put), put.slice(0, 400));
-    ok('and it is a month out, not today',
-       !/due 0?2\/10\/2026|due 02 October 2026/i.test(put), put.slice(0, 400));
+    await later.nth(Math.max(0, mine)).click();
+    await page.waitForTimeout(500);
 
-    // Put back, because the rest of this suite was written against these tasks
-    // and a test that quietly reschedules one of them breaks the next for a
-    // reason that has nothing to do with what it is checking. Undo is also the
-    // thing being tested: a decision this quick has to be reversible.
-    await page.getByText('Undo', { exact: true }).first().click();
+    const choices = await page.locator('[data-lateroption]').allInnerTexts();
+    ok('it opens into named times rather than arithmetic',
+       ['Tomorrow', 'Weekend', 'Next week', 'Next month'].every(x => choices.includes(x)),
+       choices.join(' | '));
+
+    await page.locator('[data-lateroption]').nth(3).click();
     await page.waitForTimeout(900);
-    ok('and undoing puts it back where it was',
-       !/due /i.test((await body()).slice(0, 200)), (await body()).slice(0, 300));
+
+    const done = await body();
+    ok('choosing one says what it did', /Undo/i.test(done), done.slice(0, 400));
+    // On the row, not at the top of the sheet: feedback belongs where the
+    // action was.
+    ok('and says it on the row it belongs to',
+       (await page.locator('[data-laterdone]').count()) === 1,
+       String(await page.locator('[data-laterdone]').count()));
+    ok('and it is a month out, not today',
+       !/\u2014 Fri 2 Oct/.test(done), done.slice(0, 400));
+
+    // Put back, because the rest of this suite was written against these tasks.
+    await page.getByLabel('Undo that').first().click();
+    await page.waitForTimeout(900);
 
     await page.getByText('Done', { exact: true }).first().click();
     await page.waitForTimeout(600);
