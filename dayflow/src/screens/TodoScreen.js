@@ -10,7 +10,7 @@ import { recordChase } from '../services/chase';
 import { isReckoningDay } from '../services/reckoning';
 import { eventsFor } from '../services/calendarFeed';
 import { scopeNow, horizonStamp } from '../services/scope';
-import { spanLoad, tomorrowLine, planFor, tomorrowGaps, putOff } from '../services/agenda';
+import { spanLoad, tomorrowLine, planFor, tomorrowGaps, putOff, putOffTo } from '../services/agenda';
 import { whenPreview } from '../services/due';
 import { EVERYTHING, projectOf, projectName } from '../services/projects';
 import { moveTick } from '../services/haptics';
@@ -705,6 +705,25 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
     };
   }, [updateTask]);
 
+  // The same, with the day named rather than reckoned.
+  //
+  // Four names could not say "the twenty-third", and reckoning forward in weeks
+  // to land on a date you already know is arithmetic nobody should be doing in
+  // their head beside a payroll run. This takes the date straight from the
+  // calendar and reports itself exactly as the named four do, so the row says
+  // the same kind of thing either way and Undo works the same.
+  const putTaskOffTo = useCallback((task, day, time) => {
+    const when = putOffTo(task, day, time);
+    if (!task || !when) return null;
+    const was = { dueDate: task.dueDate || '', dueTime: task.dueTime || '' };
+    updateTask(task.id, when);
+    return {
+      when: whenPreview(when.dueDate, when.dueTime) || 'put off',
+      text: `${task.title} — ${whenPreview(when.dueDate, when.dueTime) || 'put off'}`,
+      undo: () => updateTask(task.id, was),
+    };
+  }, [updateTask]);
+
   const tomorrow = useMemo(
     () => (showDiary && diary ? tomorrowLine(load, diary.events, load.at) : null),
     [showDiary, diary, load],
@@ -1204,6 +1223,11 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
           setAlerts(prev => prev.filter(a => a.task.id !== task.id));
           return note;
         }}
+        onPutOffTo={(task, day, time) => {
+          const note = putTaskOffTo(task, day, time);
+          setAlerts(prev => prev.filter(a => a.task.id !== task.id));
+          return note;
+        }}
         onClose={() => { setShowingDue(false); setAlerts([]); }}
       />
 
@@ -1215,6 +1239,7 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
         tasks={tasks}
         onPlace={placeInGap}
         onPutOff={putTaskOff}
+        onPutOffTo={putTaskOffTo}
         onClose={closePlanning}
       />
 

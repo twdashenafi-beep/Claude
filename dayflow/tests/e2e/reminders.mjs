@@ -346,6 +346,39 @@ ok('every reminder gets its own row', (await dueRows.count()) > 0, String(await 
 // The two things anybody does with something that has just come due.
 ok('each one can be ticked off without leaving',
    (await A.page.locator('[data-duedone]').count()) === (await dueRows.count()));
+
+// The box used to be a bordered square with no done state: tapping it
+// completed the task and drew nothing at all, so the one action anybody takes
+// on a reminder looked broken.
+const firstBox = A.page.locator('[data-duedone]').first();
+ok('and the box starts empty', (await firstBox.getAttribute('aria-checked')) === 'false',
+   String(await firstBox.getAttribute('aria-checked')));
+await firstBox.click();
+await A.page.waitForTimeout(700);
+ok('ticking it shows as ticked', (await firstBox.getAttribute('aria-checked')) === 'true',
+   String(await firstBox.getAttribute('aria-checked')));
+
+// Seen, not merely announced. The complaint was that tapping drew nothing,
+// and aria-checked is not drawing: the first version of this assertion passed
+// with the tick removed, which is the test agreeing with the bug.
+const drawn = await A.page.evaluate(() => {
+  const box = document.querySelector('[data-duedone]');
+  const paint = el => getComputedStyle(el).backgroundColor;
+  const inked = [...box.querySelectorAll('*')].map(paint).concat(paint(box));
+  const clear = s => /rgba\(0, 0, 0, 0\)|transparent/.test(s);
+  return { filled: inked.some(s => !clear(s)), mark: box.innerText.trim() };
+});
+ok('the box is filled in, not merely announced', drawn.filled, JSON.stringify(drawn));
+ok('and carries a tick', drawn.mark.length > 0, JSON.stringify(drawn));
+ok('and says so, so a screen reader is told too',
+   /not done/i.test(await firstBox.getAttribute('aria-label')),
+   String(await firstBox.getAttribute('aria-label')));
+// Tapping again takes it back, the same as the checkbox on the page behind.
+await firstBox.click();
+await A.page.waitForTimeout(700);
+ok('and tapping again takes it back',
+   (await firstBox.getAttribute('aria-checked')) === 'false',
+   String(await firstBox.getAttribute('aria-checked')));
 ok('and each one can be put off',
    (await A.page.locator('[data-laterbutton]').count()) === (await dueRows.count()),
    String(await A.page.locator('[data-laterbutton]').count()));

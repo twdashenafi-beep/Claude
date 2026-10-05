@@ -13,6 +13,12 @@ import { COLORS, typeSize } from '../utils/theme';
 // Both the add sheet and the task sheet need these, and when the task sheet
 // only displayed them a task's time could be set once and never changed. Two
 // copies of a calendar and a clock would drift; one cannot.
+//
+// Which is why the calendar and the clock are exported as well as used here.
+// Putting a task off until an exact date needs the same two controls, and the
+// sheet that does it borrows these rather than drawing its own — a second
+// calendar would be a second set of edge cases around leap years, week starts
+// and what "today" is ringed in.
 
 // Hide the scrollbars on the drum columns.
 if (Platform.OS === 'web' && typeof document !== 'undefined') {
@@ -30,7 +36,7 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const DAY_HEADERS = ['Su','Mo','Tu','We','Th','Fr','Sa'];
 
-function InlineCalendar({ selectedDate, onSelectDate }) {
+export function InlineCalendar({ selectedDate, onSelectDate }) {
   const [viewMonth, setViewMonth] = useState(startOfMonth(selectedDate));
   const year = viewMonth.getFullYear();
   const month = viewMonth.getMonth();
@@ -216,7 +222,7 @@ function Drum({ label, values, value, format, onChange, nameOf }) {
 }
 
 
-function TimePickerModal({ visible, hour24, minute, onConfirm, onCancel, onClear }) {
+export function TimePickerModal({ visible, hour24, minute, onConfirm, onCancel, onClear }) {
   const h = parseInt(hour24, 10);
   const [hour, setHour] = React.useState(h === 0 ? 12 : h > 12 ? h - 12 : h);
   const [min, setMin] = React.useState(parseInt(minute, 10));
@@ -401,7 +407,7 @@ const CHIP = StyleSheet.create({
   chipLabelOn: { color: COLORS.sheet, fontWeight: '600' },
 });
 
-function splitTime(dueTime) {
+export function splitTime(dueTime) {
   const [h, m] = String(dueTime || '').split(':');
   const hour = parseInt(h, 10);
   const minute = parseInt(m, 10);
