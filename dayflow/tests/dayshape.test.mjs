@@ -401,16 +401,55 @@ const near = (a, b, slack = 0.51) => Math.abs(a - b) <= slack;
   ok('nothing in, nothing out', planFor(null) === null && planFor({}) === null);
 
   // ── Which tasks can be placed ──
+  // 'b' carries a date as well as an hour, because an hour without a day is
+  // not a moment and this app cannot place it against anything. The first
+  // version of this fixture had the hour alone, which made the assertion pass
+  // for a reason that had nothing to do with what it claimed.
   const tasks = [
     { id: 'a', title: 'Draft the paper' },
-    { id: 'b', title: 'Already at nine', dueTime: '09:00' },
+    { id: 'b', title: 'Already at eleven', dueDate: on(11).toISOString(), dueTime: '11:00' },
     { id: 'c', title: 'Done', completed: true },
     { id: 'd', title: 'Filed away', archivedAt: '2026-10-01T00:00:00.000Z' },
   ];
-  const free = placeable(tasks);
+  const free = placeable(tasks, on(9));
   ok('only what is open and not already somewhere is offered',
      free.length === 1 && free[0].id === 'a', free.map(x => x.id).join(', '));
   ok('a broken list is survived', placeable(null).length === 0);
+
+  // ── What "already somewhere" means ──
+  //
+  // This was too strict in a way that made the whole feature useless: it
+  // excluded anything with a time, so a phone showing one overdue task and
+  // three hundred undated ones offered nothing at all. An hour still ahead is
+  // a commitment; an hour that has gone is a question, and the question is
+  // "when, then" — which is most of what anybody taps the strip for at seven
+  // in the evening.
+  const evening = new Date(2026, 9, 2, 19, 42);
+  const timed = (id, day, hh) => ({
+    id, title: id, dueDate: new Date(2026, 9, day, hh).toISOString(),
+    dueTime: `${String(hh).padStart(2, '0')}:00`,
+  });
+  const mixed = [
+    { id: 'undated', title: 'undated' },
+    timed('overdue', 2, 9),
+    timed('ahead', 3, 11),
+    { id: 'dated', title: 'dated', dueDate: new Date(2026, 9, 3).toISOString() },
+    timed('older', 1, 9),
+    { id: 'done', title: 'done', completed: true },
+  ];
+  const offered = placeable(mixed, evening).map(x => x.id);
+
+  ok('an hour that has gone is offered again', offered.includes('overdue'), offered.join(', '));
+  ok('and an hour still ahead is left alone', !offered.includes('ahead'), offered.join(', '));
+  ok('finished work is not offered', !offered.includes('done'), offered.join(', '));
+
+  // Ordered by how much the answer is owed, because the top of the list is
+  // the part anybody reads.
+  ok('the longest overdue comes first', offered[0] === 'older', offered.join(', '));
+  ok('then the rest of what is overdue', offered[1] === 'overdue', offered.join(', '));
+  ok('then what has a day but no hour', offered[2] === 'dated', offered.join(', '));
+  ok('and the undated last, having no claim on any day', offered[3] === 'undated',
+     offered.join(', '));
 
   // ── And it is drawn ──
   const placed = [{ id: 'a', title: 'Draft the paper', dueDate: on(14).toISOString(), dueTime: '14:00' }];

@@ -15,16 +15,26 @@ import { COLORS, SANS, SERIF, SHEET_MAX_WIDTH, typeSize } from '../utils/theme';
 // ordinary task that happens to know when it is — it clashes, it reminds, it
 // sorts into the day like everything else.
 
+// Enough to choose from, few enough to read. The order does the work: what is
+// owed is at the top, so a longer list would be more scrolling rather than
+// more choice.
+const MOST = 40;
+
 export default function PlanSheet({
   visible, gaps = [], tomorrow = false, chosen, tasks = [], onPlace, onClose,
 }) {
   const [gap, setGap] = useState(null);
   const here = gap || chosen || gaps[0] || null;
 
-  // Open and not already somewhere. A task that has a time is placed, and
-  // offering it again would be offering to move it — a different question,
-  // asked in the task's own sheet.
+  // Everything open that is not already committed to an hour still ahead —
+  // which includes anything overdue, because rescheduling those is most of
+  // what anybody taps the strip for in the evening.
   const free = useMemo(() => placeable(tasks), [tasks]);
+  // A list of three hundred is a list nobody reads to the end of. The order
+  // puts what is owed first, so the top of it is the part worth showing, and
+  // the rest is counted rather than scrolled.
+  const shown = free.slice(0, MOST);
+  const rest = free.length - shown.length;
 
   const close = () => { setGap(null); onClose(); };
 
@@ -80,10 +90,11 @@ export default function PlanSheet({
 
               {free.length === 0 ? (
                 <Text style={s.empty}>
-                  Everything open already has a time on it, so there is nothing left to place.
+                  Everything open is already committed to an hour still ahead, so there is
+                  nothing left to place.
                 </Text>
               ) : (
-                free.map(task => (
+                shown.map(task => (
                   <TouchableOpacity
                     key={task.id}
                     style={s.row}
@@ -97,6 +108,11 @@ export default function PlanSheet({
                   </TouchableOpacity>
                 ))
               )}
+              {rest > 0 ? (
+                <Text style={s.more}>
+                  {`and ${rest} more — anything not here can be given a time from the task itself`}
+                </Text>
+              ) : null}
             </>
           )}
         </ScrollView>
@@ -128,6 +144,7 @@ const s = StyleSheet.create({
 
   blurb: { fontFamily: SANS, fontSize: typeSize(13), color: COLORS.inkSoft, marginTop: 10, marginBottom: 16 },
   empty: { fontFamily: SERIF, fontStyle: 'italic', fontSize: typeSize(14), color: COLORS.inkFaint },
+  more: { fontFamily: SANS, fontSize: typeSize(12), color: COLORS.inkFaint, marginTop: 16 },
 
   row: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',

@@ -599,13 +599,46 @@ export function tomorrowLine(load, rawEvents, now = new Date()) {
 // about the appointment, not about the work, which is the difference between
 // this and pretending to know how long anything takes.
 
-// The tasks a gap could hold: open, and not already somewhere.
+// The tasks a gap could hold.
 //
-// A task that already has a time is placed, and offering it again would be
-// offering to move it, which is a different question asked in a different
-// place.
-export function placeable(tasks) {
-  return (tasks || []).filter(t => t && !t.completed && !t.archivedAt && !t.dueTime);
+// This was too strict in a way that made the whole thing useless. It excluded
+// anything with a time on it, on the reasoning that a placed task is placed
+// and offering it again is offering to move it. True of a task at eleven
+// tomorrow. Not true of one that was due at nine this morning and was not
+// done — and at seven in the evening, rescheduling exactly those is most of
+// what anybody is tapping the strip for.
+//
+// So: an hour still ahead of you is a commitment and stays out of the list. An
+// hour that has gone is a question, and the question is "when, then".
+//
+// Ordered by how much the answer is owed. Overdue first and oldest first
+// within that, because a thing missed twice is worse than a thing missed once;
+// then dated but untimed, nearest first; then everything else, which has no
+// claim on any particular day and sits in the order it was written.
+export function placeable(tasks, now = new Date()) {
+  const at = asDate(now) || new Date();
+
+  const open = (tasks || []).filter(task => {
+    if (!task || task.completed || task.archivedAt) return false;
+    const when = momentOf(task.dueDate, task.dueTime);
+    // Already somewhere, and that somewhere has not happened yet.
+    return !when || when <= at;
+  });
+
+  const rank = task => {
+    const when = momentOf(task.dueDate, task.dueTime);
+    if (when) return 0;
+    return asDate(task.dueDate) ? 1 : 2;
+  };
+  const by = task => {
+    const when = momentOf(task.dueDate, task.dueTime) || asDate(task.dueDate);
+    return when ? when.getTime() : 0;
+  };
+
+  return open
+    .map((task, i) => ({ task, i }))
+    .sort((a, b) => rank(a.task) - rank(b.task) || by(a.task) - by(b.task) || a.i - b.i)
+    .map(x => x.task);
 }
 
 // Which gap a tap landed on.
