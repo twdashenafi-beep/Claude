@@ -10,7 +10,8 @@ import { recordChase } from '../services/chase';
 import { isReckoningDay } from '../services/reckoning';
 import { eventsFor } from '../services/calendarFeed';
 import { scopeNow, horizonStamp } from '../services/scope';
-import { spanLoad, tomorrowLine, planFor, tomorrowGaps } from '../services/agenda';
+import { spanLoad, tomorrowLine, planFor, tomorrowGaps, putOff } from '../services/agenda';
+import { whenPreview } from '../services/due';
 import { EVERYTHING, projectOf, projectName } from '../services/projects';
 import { moveTick } from '../services/haptics';
 import { ARCHIVE, deletionOf } from '../services/archive';
@@ -669,6 +670,52 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
     return { gaps: tomorrowGaps(diary.events, load.at), tomorrow: true };
   }, [load, diary]);
 
+  // Not ready for it. Moves when it is due, counted from today so a thing long
+  // overdue does not stay overdue after being put off.
+  //
+  // Says what it did rather than banners it: the undo bar lives behind the
+  // sheet, where it can be neither seen nor reached, and closing the sheet
+  // after every one would make going down a long list ten taps instead of ten.
+  //
+  // A week on one tap, because most things are not ready today and will be by
+  // Thursday. A month is a second tap, offered on the line that confirms the
+  // first — and worked out from where the task was rather than from the week
+  // it has just been given, so two taps mean a month and not five weeks.
+  //
+  // Not two buttons. This app already calls its pages Week and Month, and a
+  // button called Week inside a triage sheet reads as "move it to the Week
+  // page", which is a different decision taken for different reasons.
+  const putTaskOff = useCallback((task, step = 'week') => {
+    const when = putOff(task, step);
+    if (!task || !when) return null;
+    const was = { dueDate: task.dueDate || '', dueTime: task.dueTime || '' };
+    updateTask(task.id, when);
+    return {
+      // whenPreview, not toLocaleDateString: this app writes "Friday, 2 October
+      // 2026", and a slashy 11/2/2026 is both off-voice and genuinely
+      // ambiguous — the second of November or the eleventh of February
+      // depending on which side of an ocean you read it.
+      text: `${task.title} — ${whenPreview(when.dueDate, when.dueTime) || 'put off'}`,
+      undo: () => updateTask(task.id, was),
+      // Offered only after a week, and it reaches back to the task as it was.
+      more: step === 'week'
+        ? { label: 'a month instead', run: () => putTaskOff(task, 'month') }
+        : null,
+    };
+  }, [updateTask]);
+
+  // Off the day's page, with its date untouched. Still overdue if it was, and
+  // the page it lands on will still say so.
+  const sendToMonth = useCallback(task => {
+    if (!task) return null;
+    const was = { viewScope: task.viewScope || 'day', scopePinned: !!task.scopePinned };
+    updateTask(task.id, { viewScope: 'month', scopePinned: true });
+    return {
+      text: `${task.title} — on the Month page`,
+      undo: () => updateTask(task.id, was),
+    };
+  }, [updateTask]);
+
   const tomorrow = useMemo(
     () => (showDiary && diary ? tomorrowLine(load, diary.events, load.at) : null),
     [showDiary, diary, load],
@@ -1142,6 +1189,8 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
         chosen={gapPicked}
         tasks={tasks}
         onPlace={placeInGap}
+        onPutOff={putTaskOff}
+        onToMonth={sendToMonth}
         onClose={closePlanning}
       />
 
