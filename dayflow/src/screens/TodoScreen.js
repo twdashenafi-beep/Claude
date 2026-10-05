@@ -1140,7 +1140,7 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
         gaps={planWhen.gaps}
         tomorrow={planWhen.tomorrow}
         chosen={gapPicked}
-        tasks={inView}
+        tasks={tasks}
         onPlace={placeInGap}
         onClose={closePlanning}
       />
