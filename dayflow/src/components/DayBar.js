@@ -1,8 +1,8 @@
 import React, { useCallback, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { COLORS, SANS, typeSize } from '../utils/theme';
 import {
-  barCaption, barDrawable, barNow, barSegments, clockOf, loadSentence,
+  barCaption, barDrawable, barNow, barPlans, barSegments, clockOf, gapAt, loadSentence,
 } from '../services/agenda';
 
 // The day, drawn.
@@ -25,7 +25,7 @@ const TRACK = 4;
 // above the column headings.
 const TICK = 10;
 
-export default function DayBar({ load, now, style }) {
+export default function DayBar({ load, now, plans = [], onPickGap, style }) {
   const [width, setWidth] = useState(0);
 
   const measure = useCallback(event => {
@@ -35,10 +35,24 @@ export default function DayBar({ load, now, style }) {
 
   const sentence = loadSentence(load, now);
   const segments = barDrawable(load) ? barSegments(load, width) : [];
+  // Drawn for plans as well as meetings. A day with one thing you have decided
+  // to do and nothing anybody else has booked still has a shape, and it is the
+  // shape you made.
+  const planned = barPlans(load, plans, width);
+
+  // Which gap a finger landed on. Forgiving: a gap is twenty pixels wide on a
+  // phone and a finger is wider, so a tap that misses falls forward to the
+  // next free time, which is almost always what was meant.
+  const tapped = event => {
+    if (!onPickGap) return;
+    const x = event && event.nativeEvent ? event.nativeEvent.locationX : 0;
+    const gap = gapAt(load, width, x);
+    if (gap) onPickGap(gap);
+  };
 
   // The sentence holds the place until there is a width to draw into, and
   // keeps it on anything that never reports one.
-  if (segments.length === 0) {
+  if (segments.length === 0 && planned.length === 0) {
     if (!sentence) return null;
     return (
       <View onLayout={measure} style={style}>
@@ -57,7 +71,16 @@ export default function DayBar({ load, now, style }) {
       accessibilityRole="image"
       accessibilityLabel={sentence}
     >
-      <View style={s.strip}>
+      <Pressable
+        onPress={tapped}
+        disabled={!onPickGap}
+        // The hit area is the row, not the four-pixel line in the middle of it.
+        hitSlop={{ top: 8, bottom: 8 }}
+        accessibilityRole={onPickGap ? 'button' : undefined}
+        accessibilityLabel={onPickGap ? 'Put a task in the free time' : undefined}
+        dataSet={{ striptap: 'true' }}
+        style={s.strip}
+      >
         <View style={s.track}>
           {segments.map(segment => (
             <View
@@ -67,6 +90,17 @@ export default function DayBar({ load, now, style }) {
             />
           ))}
         </View>
+        {/* Lighter than a meeting, because a plan and an appointment are not
+            the same promise: one is where you have to be, the other is where
+            you told yourself you would be. Drawn under the now tick and over
+            the track, in the same ink family a step up. */}
+        {planned.map(seg => (
+          <View
+            key={`plan-${seg.left}-${seg.width}`}
+            style={[s.planned, { left: seg.left, width: seg.width }]}
+            dataSet={{ planned: 'true' }}
+          />
+        ))}
         {tick === null ? null : (
           // Carried in a sliver of the surface colour so it stays visible
           // where it crosses an inked block, which is most of the time.
@@ -78,10 +112,12 @@ export default function DayBar({ load, now, style }) {
             <View style={s.now} />
           </View>
         )}
-      </View>
+      </Pressable>
       <View style={s.ends}>
         <Text style={s.bound}>{clockOf(load.window.from)}</Text>
-        <Text style={s.caption}>{barCaption(load)}</Text>
+        <Text style={s.caption}>
+          {barCaption(load) || (planned.length ? 'nothing booked' : '')}
+        </Text>
         <Text style={[s.bound, s.boundEnd]}>{clockOf(load.window.to)}</Text>
       </View>
     </View>
@@ -112,6 +148,15 @@ const s = StyleSheet.create({
     bottom: 0,
     borderRadius: TRACK / 2,
     backgroundColor: COLORS.pencil,
+  },
+  // A plan sits on the track like a meeting does, a step lighter. Same height,
+  // because it takes the same hour out of the day whatever it is called.
+  planned: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    borderRadius: TRACK / 2,
+    backgroundColor: COLORS.inkFaint,
   },
   nowCarrier: {
     position: 'absolute',

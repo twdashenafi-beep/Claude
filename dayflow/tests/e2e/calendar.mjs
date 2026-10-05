@@ -244,6 +244,64 @@ await page.waitForTimeout(1500);
      JSON.stringify(tick));
 }
 
+// ── Putting something in the free time ──────────────────────────────────────
+//
+// The one move the diary could describe and never make. The strip knows the
+// afternoon is free and the list knows what is open, and until now joining
+// those two facts happened in somebody's head.
+{
+  const bar = page.locator('[data-daybar]').first();
+  const box = await bar.boundingBox();
+  ok('the strip is there to be tapped', !!box, String(box));
+
+  // Three quarters along the day, which is the late afternoon.
+  await page.mouse.click(box.x + box.width * 0.75, box.y + 6);
+  await page.waitForTimeout(900);
+
+  const sheet = await body();
+  ok('tapping the strip offers the free time', /Free time/i.test(sheet), sheet.slice(0, 300));
+  ok('and says how much of it there is, and from when',
+     /free from \d\d:\d\d/i.test(sheet), sheet.slice(0, 400));
+
+  const offered = page.locator('[data-plantask]');
+  ok('with something to put in it', (await offered.count()) > 0,
+     String(await offered.count()));
+
+  // A task that already has a time is placed; offering it again would be
+  // offering to move it, which is a different question.
+  const names = await offered.allInnerTexts();
+  ok('and not the task that already has an hour',
+     !names.some(n => /Approve the budget at/i.test(n)), names.join(' | '));
+
+  await offered.first().click();
+  await page.waitForTimeout(1200);
+
+  const after = await body();
+  ok('the sheet closes once something is placed',
+     !/Pick something to do in it/i.test(after), after.slice(0, 300));
+  ok('and it says what it did, with a way back', /Undo/i.test(after), after.slice(0, 400));
+
+  const marks = page.locator('[data-planned]');
+  ok('the plan is drawn on the strip', (await marks.count()) === 1,
+     String(await marks.count()));
+
+  // Lighter than a meeting on purpose: one is where you have to be, the other
+  // is where you told yourself you would be.
+  const shades = await page.evaluate(() => {
+    const ink = document.querySelector('[data-booked]');
+    const plan = document.querySelector('[data-planned]');
+    const of = el => (el ? getComputedStyle(el).backgroundColor : '');
+    return { ink: of(ink), plan: of(plan) };
+  });
+  ok('and in a different ink from the meetings', shades.ink !== shades.plan,
+     JSON.stringify(shades));
+
+  // The whole point: it is an ordinary task now, with an hour on it — which
+  // the undo bar quotes back, naming the task and the time together.
+  ok('and the task it came from now has a time',
+     /—\s*\d\d:\d\d/.test(after), after.slice(0, 500));
+}
+
 // ── And in the briefing ─────────────────────────────────────────────────────
 {
   await page.getByLabel('Open the daily briefing').click();
