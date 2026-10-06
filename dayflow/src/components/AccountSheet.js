@@ -19,6 +19,7 @@ import { loadCopy, saveCopy } from '../services/copyStore';
 import { readBackup, planRestore, recordsOf, describePlan } from '../services/restore';
 import { saveTextFile, pickTextFile } from '../services/saveFile';
 import { saveFeed, saveFeedLink, readFeed, clearFeed, feedAge, FEED_KEY } from '../services/calendarFeed';
+import { feedSummary } from '../services/calendarLink';
 import Store from '../services/store';
 import { STORAGE_KEY } from '../context/TaskContext';
 import { decryptTask } from '../services/encryption';
@@ -555,10 +556,14 @@ export default function AccountSheet({
                   onPress={chooseCalendar}
                 />
               ) : null}
+              {/* Any connected calendar, not only a linked one. One read from
+                  a file has the same two numbers and the same question behind
+                  them; it just went on showing the invitation to connect one,
+                  as though nothing were. */}
               <Row
                 label="Calendar link"
-                detail={feed && feed.url
-                  ? `${feed.name || 'Linked'} · ${typeof feed.ahead === 'number' ? `${feed.ahead} ahead · ` : ''}${feedAge({ source: 'file', at: feed.at }) || ''}`
+                detail={feed
+                  ? feedSummary(feed, feedAge({ source: 'file', at: feed.at }) || '')
                   : 'Proton, Google or any calendar — paste its subscription link'}
                 onPress={() => { setError(''); setDone(''); setView('calendar'); }}
               />

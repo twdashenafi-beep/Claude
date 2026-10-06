@@ -43,3 +43,37 @@ export function mergeEvents(fromDevice = [], fromFeed = []) {
     return true;
   });
 }
+
+// What a connected calendar is actually giving you.
+//
+// The line used to say "TA · 1 ahead · read today", and that one number cannot
+// be acted on: a calendar holding four hundred meetings of which one falls in
+// the next three weeks, and a calendar holding one meeting, read identically —
+// and they need opposite fixes. The first means the link points somewhere with
+// nothing coming up; the second means it points at an empty calendar.
+//
+// Both numbers are already worked out when the file is read. Only one of them
+// was ever shown. saveFeed's own comment says why this matters: "a file of 363
+// events that yields none for the next three weeks has parsed perfectly and is
+// still useless, and 'read 363 events' says nothing about which of those two
+// you have."
+export function feedSummary(feed, age = '') {
+  if (!feed) return '';
+  const held = Math.max(0, Number(feed.events) || 0);
+  const ahead = Math.max(0, Number(feed.ahead) || 0);
+
+  const parts = [feed.name || 'Linked'];
+  if (held === 0) {
+    parts.push('nothing was read from it');
+  } else {
+    // Two different things, so they get two different words. The first counts
+    // entries in the file; the second counts occurrences in the next three
+    // weeks, and one weekly meeting is a single entry that comes up three
+    // times. Writing it as a share of the whole — "7 of 5" — was the first
+    // draft, and it is arithmetic that cannot happen saying something that can.
+    parts.push(`${held} ${held === 1 ? 'entry' : 'entries'}`);
+    parts.push(ahead === 0 ? 'none coming up' : `${ahead} coming up`);
+  }
+  if (age) parts.push(age);
+  return parts.join(' · ');
+}

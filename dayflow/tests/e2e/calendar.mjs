@@ -184,6 +184,29 @@ ok('and how much of it is ahead of you',
 ok('and offers to forget it again',
    (await page.getByText('Forget the calendar', { exact: true }).count()) === 1);
 
+// ── And the row itself says both numbers, afterwards ──
+//
+// The confirmation above is a sentence about the last two seconds. The row is
+// what somebody reads a week later wondering why their day looks empty, and it
+// used to say "TA · 1 ahead · read today" — which cannot be acted on, because a
+// calendar of four hundred meetings with one coming up and a calendar holding
+// one meeting read exactly the same and need opposite fixes.
+{
+  // Back out to the list the row lives on: reading a file leaves the sheet on
+  // the calendar page, and the row is on the page behind it.
+  await page.getByLabel('Close account settings').click();
+  await page.waitForTimeout(900);
+  await page.getByLabel('Account settings').click();
+  await page.waitForTimeout(1100);
+
+  const row = await body();
+  ok('the calendar row says how much is written down',
+     /\d+ entr(y|ies)/.test(row), row.slice(0, 900));
+  ok('and how much of it is coming up, as a separate number',
+     /\d+ coming up|none coming up/.test(row), row.slice(0, 900));
+  ok('and when it last read it', /read (today|yesterday|\d)/i.test(row), row.slice(0, 900));
+}
+
 await page.getByLabel('Close account settings').click();
 await page.waitForTimeout(1500);
 

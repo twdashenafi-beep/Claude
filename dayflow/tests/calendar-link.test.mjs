@@ -1,6 +1,6 @@
 // Calendar links — what a pasted link becomes, and how two diaries become one.
 // Run with `npm test`.
-import { feedUrl, linkName, mergeEvents } from '../src/services/calendarLink.js';
+import { feedUrl, linkName, mergeEvents, feedSummary } from '../src/services/calendarLink.js';
 
 let pass = 0, fail = 0;
 const ok = (label, cond, extra = '') => {
@@ -35,6 +35,54 @@ ok('the phone and the link become one diary', both.length === 3, JSON.stringify(
 ok('with a meeting in both booked once', both.filter(e => /standup/i.test(e.title)).length === 1);
 ok('and nothing from either lost', both.some(e => e.title === 'Dentist') && both.some(e => e.title === 'Copper NDA call'));
 ok('a link alone is the link', mergeEvents([], feed).length === 2);
+
+// ── What a connected calendar is actually giving you ────────────────────────
+//
+// "TA · 1 ahead · read today" cannot be acted on. A calendar holding four
+// hundred meetings of which one falls in the next three weeks, and a calendar
+// holding one meeting, read identically — and they need opposite fixes.
+{
+  const line = (feed, age) => feedSummary(feed, age);
+
+  ok('a full calendar with nothing coming up says both numbers',
+     line({ name: 'TA', events: 412, ahead: 1 }, 'read today')
+       === 'TA · 412 entries · 1 coming up · read today',
+     line({ name: 'TA', events: 412, ahead: 1 }, 'read today'));
+
+  // The one the screenshot showed: one entry, one coming up. An empty calendar.
+  ok('a calendar that is simply empty reads as one entry, not as a shortfall',
+     line({ name: 'TA', events: 1, ahead: 1 }, 'read today')
+       === 'TA · 1 entry · 1 coming up · read today',
+     line({ name: 'TA', events: 1, ahead: 1 }, 'read today'));
+
+  // The two numbers count different things, and the first draft wrote them as
+  // a share of the whole — "7 of 5 in the next three weeks". One weekly meeting
+  // is a single entry in the file that comes up three times in three weeks, so
+  // the second number can exceed the first and the phrasing has to survive it.
+  ok('a repeating meeting can come up more often than it is written down',
+     line({ name: 'TA', events: 5, ahead: 7 }) === 'TA · 5 entries · 7 coming up',
+     line({ name: 'TA', events: 5, ahead: 7 }));
+
+  ok('a file nothing was read from is named as that, not as zero ahead',
+     /nothing was read from it/.test(line({ name: 'TA', events: 0, ahead: 0 })),
+     line({ name: 'TA', events: 0, ahead: 0 }));
+
+  // A calendar of nothing but past meetings is the case the old line hid
+  // completely: it read "0 ahead" and looked the same as a broken link.
+  ok('a calendar of nothing but past meetings is distinguishable from a broken one',
+     line({ name: 'TA', events: 300, ahead: 0 }) === 'TA · 300 entries · none coming up',
+     line({ name: 'TA', events: 300, ahead: 0 }));
+
+  ok('a calendar with no name still says the numbers',
+     /^Linked · 9 entries · 2 coming up/.test(line({ events: 9, ahead: 2 })),
+     line({ events: 9, ahead: 2 }));
+  ok('and the age is left off when there is none',
+     !/ · $/.test(line({ name: 'TA', events: 9, ahead: 2 })), line({ name: 'TA', events: 9, ahead: 2 }));
+  ok('no feed is an empty line, not the word undefined', feedSummary(null) === '');
+  ok('and rubbish counts do not become NaN',
+     !/NaN/.test(line({ name: 'TA', events: 'lots', ahead: null }, 'read today')),
+     line({ name: 'TA', events: 'lots', ahead: null }, 'read today'));
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
