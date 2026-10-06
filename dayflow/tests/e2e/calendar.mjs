@@ -969,6 +969,86 @@ ok('forgetting it puts the page back as it was', (await diaryLine()) === null,
      (await diaryLine()) === null, String(await diaryLine()));
 }
 
+// ── A meeting added while the app was locked ────────────────────────────────
+//
+// Reported from a phone: "the new meetings I put in are not in. The calendar
+// should update each time I lock and open app." The app did ask for the diary
+// every time it came forward — and the fetch was refused unless the stored copy
+// was half an hour old, so locking, adding a meeting and unlocking showed the
+// diary from before, with nothing said about why.
+//
+// Served from a route that can change under the app, which is the only way to
+// tell a re-read from a re-render.
+{
+  const FEED = 'https://calendar.example.test/share/abc.ics';
+  const one = [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'X-WR-CALNAME:Linked',
+    'BEGIN:VEVENT', 'UID:first@x', 'SUMMARY:Planning call',
+    'DTSTART;TZID=Europe/London:20261002T100000', 'DURATION:PT1H', 'END:VEVENT',
+    'END:VCALENDAR',
+  ].join('\r\n');
+  const two = one.replace('END:VCALENDAR', [
+    'BEGIN:VEVENT', 'UID:second@x', 'SUMMARY:Added while locked',
+    'DTSTART;TZID=Europe/London:20261002T150000', 'DURATION:PT1H', 'END:VEVENT',
+    'END:VCALENDAR',
+  ].join('\r\n'));
+
+  let serving = one;
+  let fetches = 0;
+  await page.route(u => u.hostname === 'calendar.example.test', r => {
+    fetches += 1;
+    r.fulfill({
+      status: 200,
+      contentType: 'text/calendar',
+      headers: { 'Access-Control-Allow-Origin': '*' },
+      body: serving,
+    });
+  });
+
+  await page.clock.setFixedTime(new Date('2026-10-02T09:00:00'));
+  await page.getByLabel('Account settings').click();
+  await page.waitForTimeout(900);
+  await page.getByText('Calendar link', { exact: true }).click();
+  await page.waitForTimeout(700);
+  await page.getByRole('textbox', { name: 'Calendar link' }).fill(FEED);
+  await page.getByLabel('Connect this calendar link').click();
+  await page.waitForTimeout(2000);
+  ok('a calendar can be connected by its link', fetches > 0, String(fetches));
+  // The link lives on a page of its own inside the sheet, so it is Back first
+  // and then out.
+  await page.getByText('Back', { exact: true }).first().click();
+  await page.waitForTimeout(700);
+  await page.getByLabel('Close account settings').click();
+  await page.waitForTimeout(1500);
+
+  const first = await body();
+  ok('and what it holds is on the day', /Planning call/.test(first) || (await diaryLine()) !== null,
+     String(await diaryLine()));
+
+  // The meeting is added elsewhere while the app is in the background. Nothing
+  // tells the app; the calendar simply answers differently next time.
+  serving = two;
+  const before = fetches;
+
+  // Locked and opened. The clock moves because this suite pins time, and a
+  // pinned clock makes every elapsed check read zero however long it waits.
+  await page.clock.setFixedTime(new Date('2026-10-02T09:02:00'));
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await page.waitForTimeout(2500);
+
+  ok('coming back two minutes later asks the calendar again',
+     fetches > before, `${before} then ${fetches}`);
+
+  const now = await body();
+  ok('and the meeting added while it was locked is there',
+     /Added while locked/.test(now) || /2h booked|2h/.test(now), now.slice(0, 600));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();
 server.close();

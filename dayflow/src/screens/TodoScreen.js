@@ -316,8 +316,9 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
   // Coming back to the app is when somebody looks at the day again, and a phone
   // keeps an app alive in the background for days. Without this a meeting added
   // in Proton this morning waited for the next cold start; now it waits for the
-  // next time DayFlow is brought forward. A linked calendar is only fetched when
-  // its copy is half an hour old, so this costs nothing most of the time.
+  // next time DayFlow is brought forward, and the calendar is actually fetched
+  // when it does — it used to be refused unless the copy was half an hour old,
+  // which made lock, add a meeting, unlock show the diary from before.
   useEffect(() => {
     const sub = AppState.addEventListener('change', state => {
       if (state === 'active') setDiaryAt(n => n + 1);

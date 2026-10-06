@@ -1,6 +1,7 @@
 // Calendar links — what a pasted link becomes, and how two diaries become one.
 // Run with `npm test`.
-import { feedUrl, linkName, mergeEvents, feedSummary } from '../src/services/calendarLink.js';
+import { feedUrl, linkName, mergeEvents, feedSummary, shouldRefetch, LINK_SETTLE_MS }
+  from '../src/services/calendarLink.js';
 
 let pass = 0, fail = 0;
 const ok = (label, cond, extra = '') => {
@@ -82,6 +83,51 @@ ok('a link alone is the link', mergeEvents([], feed).length === 2);
   ok('and rubbish counts do not become NaN',
      !/NaN/.test(line({ name: 'TA', events: 'lots', ahead: null }, 'read today')),
      line({ name: 'TA', events: 'lots', ahead: null }, 'read today'));
+}
+
+// ── When a linked calendar is worth reading again ───────────────────────────
+//
+// The app re-reads whenever it comes forward, and it refused to fetch unless
+// the copy was half an hour old. So lock the phone, add a meeting on the
+// laptop, unlock: yesterday's diary, and nothing said about why. Reported
+// exactly that way — "the new meetings I put in are not in".
+{
+  const NOW = new Date(2026, 9, 6, 14, 0, 0);
+  const ago = ms => ({ url: 'https://calendar.proton.me/x.ics', at: new Date(+NOW - ms).toISOString() });
+
+  ok('a copy from a moment ago is not fetched again',
+     shouldRefetch(ago(2000), NOW) === false);
+  // The case that was broken: a lock and an unlock, a minute apart.
+  ok('a copy from a minute ago is', shouldRefetch(ago(60 * 1000), NOW) === true);
+  ok('and so is one from five minutes ago', shouldRefetch(ago(5 * 60 * 1000), NOW) === true);
+  ok('and one from half an hour ago, as before',
+     shouldRefetch(ago(30 * 60 * 1000), NOW) === true);
+
+  // The guard is against a stampede, not against staleness: a phone can fire
+  // several "came forward" events in one breath.
+  ok('the settle window is seconds, not minutes', LINK_SETTLE_MS <= 15000, String(LINK_SETTLE_MS));
+  ok('right on the boundary it fetches',
+     shouldRefetch(ago(LINK_SETTLE_MS), NOW) === true);
+  ok('and just inside it does not',
+     shouldRefetch(ago(LINK_SETTLE_MS - 1), NOW) === false);
+
+  ok('force overrides the guard entirely',
+     shouldRefetch(ago(0), NOW, { force: true }) === true);
+
+  // Nothing to fetch from.
+  ok('a calendar read from a file is never fetched',
+     shouldRefetch({ at: new Date(NOW).toISOString() }, NOW) === false);
+  ok('and no calendar at all is not fetched', shouldRefetch(null, NOW) === false);
+
+  // Unknown beats assumed: a copy with no readable stamp is a copy nothing is
+  // known about, and the honest answer is to go and look.
+  ok('a copy with no stamp is fetched',
+     shouldRefetch({ url: 'https://x/y.ics' }, NOW) === true);
+  ok('and one with a stamp nothing can read',
+     shouldRefetch({ url: 'https://x/y.ics', at: 'whenever' }, NOW) === true);
+  // A clock that moved backwards made the copy look fresh for hours.
+  ok('a copy stamped in the future is fetched rather than trusted',
+     shouldRefetch(ago(-6 * 60 * 60 * 1000), NOW) === true);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
