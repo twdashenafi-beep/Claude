@@ -308,16 +308,20 @@ export default function ProjectBar({
           ))}
 
           {/* Not a project: a place finished work is kept. Sitting at the end
-              and set apart, so it is not mistaken for somewhere to work. */}
+              and set apart, so it is not mistaken for somewhere to work.
+              Called Finished rather than Archive — it holds what you finished,
+              and Archive was the last piece of filing-cabinet vocabulary in an
+              app that otherwise says Later and "what's next". Not Done, which
+              already closes every sheet and counts the ticks in a column. */}
           <View style={s.spacer} />
           <TouchableOpacity
             onPress={() => onSelect(ARCHIVE)}
             style={[s.tab, s.archiveTab, active === ARCHIVE && s.tabOn]}
             accessibilityRole="tab"
             aria-selected={active === ARCHIVE}
-            accessibilityLabel="Archive"
+            accessibilityLabel="Finished"
           >
-            <Text style={[s.tabText, active === ARCHIVE && s.tabTextOn]}>Archive</Text>
+            <Text style={[s.tabText, active === ARCHIVE && s.tabTextOn]}>Finished</Text>
           </TouchableOpacity>
 
           {adding ? (

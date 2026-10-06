@@ -102,7 +102,7 @@ ok('no project adds nothing',
   locationOf({ viewScope: 'day', taskType: 'todo' }, '') === 'Day  ·  To Do');
 ok('the archive replaces the scope',
   locationOf({ archivedAt: '2026-01-01', viewScope: 'week', taskType: 'todo' })
-    === 'Archive  ·  To Do');
+    === 'Finished  ·  To Do');
 ok('finished work on the page is marked done',
   locationOf({ viewScope: 'day', taskType: 'todo', completed: true }).endsWith('done'));
 ok('archived work is not also marked done',

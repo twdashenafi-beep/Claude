@@ -93,7 +93,7 @@ export function searchTasks(tasks, rawQuery) {
 }
 
 // A result is only useful if it says where the thing is. "Sign the lease" on
-// its own leaves you back where you started; "Sign the lease — Archive · Owe
+// its own leaves you back where you started; "Sign the lease — Finished · Owe
 // Me" is an answer.
 const SCOPES = { day: 'Day', week: 'Week', month: 'Month' };
 
@@ -103,7 +103,7 @@ export function locationOf(task, projectLabel) {
 
   // The archive is a different place, not a different scope, so it replaces
   // the scope rather than sitting beside it.
-  if (task.archivedAt) parts.push('Archive');
+  if (task.archivedAt) parts.push('Finished');
   // Where it is showing now, not where it was filed: a search result says how
   // to find the thing again, and following it to the Week page to discover it
   // has come forward to Day is the one answer that is worse than none.

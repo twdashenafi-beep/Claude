@@ -467,7 +467,7 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
     if (deletionOf(task) === 'archive') {
       archiveTask(id);
       setBanner({
-        text: `Archived “${task.title}”`,
+        text: `Filed “${task.title}”`,
         action: 'UNDO',
         label: `Put ${task.title} back on the page`,
         run: () => unarchiveTask(id),
@@ -490,9 +490,9 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
     if (done.length === 0) return;
     archiveTasks(done.map(t => t.id));
     setBanner({
-      text: `Archived ${done.length} finished ${done.length === 1 ? 'task' : 'tasks'}`,
+      text: `Filed ${done.length} finished ${done.length === 1 ? 'task' : 'tasks'}`,
       action: 'VIEW',
-      label: 'Open the archive',
+      label: 'Open what you have finished',
       run: () => { setProject(ARCHIVE); setShowProjects(true); },
     });
   }, [inView, archiveTasks]);
@@ -623,7 +623,7 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
 
   const tally = useMemo(() => {
     if (searching) return 'Search';
-    if (project === ARCHIVE) return 'Archive';
+    if (project === ARCHIVE) return 'Finished';
     const where = project !== EVERYTHING ? `${projectName(projects, project)}  ·  ` : '';
     const count = inView.length === 0
       ? 'Nothing on the page yet'
@@ -1014,8 +1014,8 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
               <Text style={s.storageText}>{storageError}</Text>
               <Text style={s.storageHint}>
                 {syncState === 'off'
-                  ? 'Connect this device to your other devices, or empty the archive, to make room.'
-                  : 'Your other devices still have everything. Emptying the archive here makes room.'}
+                  ? 'Connect this device to your other devices, or delete what you have finished, to make room.'
+                  : 'Your other devices still have everything. Deleting what you have finished here makes room.'}
               </Text>
             </View>
           ) : null}
@@ -1085,9 +1085,9 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
                 const all = [...archived];
                 deleteTasks(all.map(t => t.id));
                 setBanner({
-                  text: `Emptied the archive — ${all.length} deleted`,
+                  text: `Deleted everything finished — ${all.length} gone`,
                   action: 'UNDO',
-                  label: 'Put the archive back',
+                  label: 'Put all of it back',
                   run: () => restoreTasks(all),
                 });
               }}

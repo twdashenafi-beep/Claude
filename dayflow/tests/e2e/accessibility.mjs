@@ -247,7 +247,7 @@ if (await naming.count()) {
   await page.waitForTimeout(600);
 }
 
-const archive = page.getByLabel('Archive', { exact: true });
+const archive = page.getByLabel('Finished', { exact: true });
 if (await archive.count()) {
   await archive.click();
   await page.waitForTimeout(900);
