@@ -12,6 +12,8 @@ import { eventsFor } from '../services/calendarFeed';
 import { scopeNow, horizonStamp } from '../services/scope';
 import { spanLoad, tomorrowLine, planFor, tomorrowGaps, putOff, putOffTo } from '../services/agenda';
 import { whenPreview } from '../services/due';
+import { keptLine } from '../services/keeping';
+import { loadCopy } from '../services/copyStore';
 import { EVERYTHING, projectOf, projectName } from '../services/projects';
 import { moveTick } from '../services/haptics';
 import { ARCHIVE, deletionOf } from '../services/archive';
@@ -338,6 +340,19 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
   const [celebrating, setCelebrating] = useState(false);
   const [showAccount, setShowAccount] = useState(false);
 
+  // When a copy of everything was last taken off this phone.
+  //
+  // Read on opening, and again whenever the account sheet closes, because that
+  // is where a copy gets taken. Anything more live than that is polling the
+  // disk to tell somebody something that changes once a fortnight.
+  const [lastCopy, setLastCopy] = useState(null);
+  const [copyAsked, setCopyAsked] = useState(0);
+  useEffect(() => {
+    let gone = false;
+    loadCopy().then(found => { if (!gone) setLastCopy(found); });
+    return () => { gone = true; };
+  }, [copyAsked]);
+
   // Where the horizon is, as a string, changed by the same timer that raises
   // reminders. It turns over at midnight and again at nine in the evening.
   //
@@ -452,7 +467,7 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
     if (deletionOf(task) === 'archive') {
       archiveTask(id);
       setBanner({
-        text: `Archived “${task.title}”`,
+        text: `Filed “${task.title}”`,
         action: 'UNDO',
         label: `Put ${task.title} back on the page`,
         run: () => unarchiveTask(id),
@@ -475,9 +490,9 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
     if (done.length === 0) return;
     archiveTasks(done.map(t => t.id));
     setBanner({
-      text: `Archived ${done.length} finished ${done.length === 1 ? 'task' : 'tasks'}`,
+      text: `Filed ${done.length} finished ${done.length === 1 ? 'task' : 'tasks'}`,
       action: 'VIEW',
-      label: 'Open the archive',
+      label: 'Open what you have finished',
       run: () => { setProject(ARCHIVE); setShowProjects(true); },
     });
   }, [inView, archiveTasks]);
@@ -608,7 +623,7 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
 
   const tally = useMemo(() => {
     if (searching) return 'Search';
-    if (project === ARCHIVE) return 'Archive';
+    if (project === ARCHIVE) return 'Finished';
     const where = project !== EVERYTHING ? `${projectName(projects, project)}  ·  ` : '';
     const count = inView.length === 0
       ? 'Nothing on the page yet'
@@ -648,6 +663,7 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
   // said in the sheet rather than by the sheet refusing to appear.
   const openGap = useCallback(gap => { setGapPicked(gap || null); setPlanning(true); }, []);
   const closePlanning = useCallback(() => { setPlanning(false); setGapPicked(null); }, []);
+
   const placeInGap = useCallback((task, gap) => {
     const when = planFor(gap);
     closePlanning();
@@ -724,6 +740,21 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
     };
   }, [updateTask]);
 
+  // One line about whether this phone is the only place the list exists.
+  //
+  // Silent while sync is working, because then it is not — and a warning that
+  // ignores the thing already protecting you teaches people to ignore it back.
+  // Silent most of the rest of the time too: see keeping.js for what it takes
+  // to earn a mention.
+  const keeping = useMemo(
+    () => keptLine({
+      copy: lastCopy,
+      count: tasks.length + archived.length,
+      synced: syncState === 'ok',
+    }),
+    [lastCopy, tasks.length, archived.length, syncState],
+  );
+
   const tomorrow = useMemo(
     () => (showDiary && diary ? tomorrowLine(load, diary.events, load.at) : null),
     [showDiary, diary, load],
@@ -780,6 +811,17 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
     setAlerts(prev => prev.filter(a => a.task.id !== task.id));
     openResult(live);
   }, [openResult]);
+
+  // Opened from the planner, the same way a reminder opens from the Due sheet.
+  //
+  // The live task rather than the held one: the sheet keeps its list from the
+  // moment it opened, so a row could be a minute out of date by the time it is
+  // tapped, and opening a stale copy would show the task as it was.
+  const openFromPlan = useCallback(task => {
+    const live = liveTasks.current.find(t => t.id === task.id) || task;
+    closePlanning();
+    openResult(live);
+  }, [closePlanning, openResult]);
 
   // Ticked from the sheet. The row goes, the sheet stays: most of what a
   // reminder catches is already done or takes a moment, and closing after each
@@ -972,10 +1014,27 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
               <Text style={s.storageText}>{storageError}</Text>
               <Text style={s.storageHint}>
                 {syncState === 'off'
-                  ? 'Connect this device to your other devices, or empty the archive, to make room.'
-                  : 'Your other devices still have everything. Emptying the archive here makes room.'}
+                  ? 'Connect this device to your other devices, or delete what you have finished, to make room.'
+                  : 'Your other devices still have everything. Deleting what you have finished here makes room.'}
               </Text>
             </View>
+          ) : null}
+
+          {/* Not an alert. Nothing is wrong yet — the point is to say so before
+              it is, and a red box every morning is furniture within a week.
+              Tappable, because the sentence is useless without the one control
+              that answers it. */}
+          {keeping ? (
+            <TouchableOpacity
+              style={s.keepBar}
+              onPress={() => setShowAccount(true)}
+              accessibilityRole="button"
+              accessibilityLabel={`${keeping}. Open settings to export a copy.`}
+              dataSet={{ keepbar: 'true' }}
+            >
+              <Text style={s.keepText}>{keeping}</Text>
+              <Text style={s.keepAct}>Export a copy</Text>
+            </TouchableOpacity>
           ) : null}
 
           {/* The archive answers a different question from the rest of the app —
@@ -1026,9 +1085,9 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
                 const all = [...archived];
                 deleteTasks(all.map(t => t.id));
                 setBanner({
-                  text: `Emptied the archive — ${all.length} deleted`,
+                  text: `Deleted everything finished — ${all.length} gone`,
                   action: 'UNDO',
-                  label: 'Put the archive back',
+                  label: 'Put all of it back',
                   run: () => restoreTasks(all),
                 });
               }}
@@ -1241,6 +1300,7 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
         onPutOff={putTaskOff}
         onPutOffTo={putTaskOffTo}
         onDone={task => toggleTask(task.id)}
+        onOpen={openFromPlan}
         onClose={closePlanning}
       />
 
@@ -1257,7 +1317,7 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
         syncState={syncState}
         syncFault={syncFault}
         onImport={importTasks}
-        onClose={() => setShowAccount(false)}
+        onClose={() => { setShowAccount(false); setCopyAsked(n => n + 1); }}
         onLock={onLock}
         onDeleted={onDeleted}
       />
@@ -1272,6 +1332,16 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: COLORS.accent, borderRadius: 4,
   },
   storageText: { fontFamily: SANS, fontSize: typeSize(13), fontWeight: '600', color: COLORS.accent },
+  // Quieter than the bars above it on purpose: a rule and some ink, no border
+  // and no colour. It is a fact about the future, not a problem now.
+  keepBar: {
+    marginTop: 12, paddingVertical: 10,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: COLORS.rule,
+    flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline',
+    justifyContent: 'space-between',
+  },
+  keepText: { fontFamily: SERIF, fontSize: typeSize(12.5), color: COLORS.inkSoft, flexShrink: 1 },
+  keepAct: { fontFamily: SANS, fontSize: typeSize(12.5), color: COLORS.accent, marginLeft: 10 },
   storageHint: {
     fontFamily: SERIF, fontSize: typeSize(12.5), fontStyle: 'italic',
     color: COLORS.inkSoft, marginTop: 4,

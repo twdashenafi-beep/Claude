@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { format, parseISO, isToday, isYesterday } from 'date-fns';
 import { VoicePlayButton } from './VoiceRecorder';
 import { latestNote } from '../services/voiceNotes';
-import { groupByDay } from '../services/archive';
+import { groupByDay, byAge, foldedLine } from '../services/archive';
 import { projectName } from '../services/projects';
 import { COLORS, SANS, SERIF, typeSize } from '../utils/theme';
 
@@ -30,7 +30,19 @@ function dayLabel(day) {
 const LONG_NOTE = 140;
 
 export default function ArchiveSheet({ tasks, projects, onRestore, onDelete, onEmpty }) {
-  const groups = useMemo(() => groupByDay(tasks, dayLabel), [tasks]);
+  // Anything over a year old folds behind one line until asked for.
+  //
+  // Not hidden: kept, searched, backed up, one tap away. Just not what the page
+  // opens with. This place had one way out and it was a cliff — EMPTY, all of
+  // it, for ever — so on the day three thousand records filled the storage the
+  // only tool was the one nobody wants to use.
+  const [showOld, setShowOld] = useState(false);
+  const { recent, older } = useMemo(() => byAge(tasks), [tasks]);
+  const groups = useMemo(
+    () => groupByDay(showOld ? tasks : recent, dayLabel),
+    [showOld, tasks, recent],
+  );
+  const folded = foldedLine(older);
   const [opened, setOpened] = useState(() => new Set());
 
   const toggleNote = id => setOpened(prev => {
@@ -44,7 +56,7 @@ export default function ArchiveSheet({ tasks, projects, onRestore, onDelete, onE
     return (
       <View style={s.wrap}>
         <Text style={s.empty}>
-          Nothing archived yet. Finish a task, then remove it from the page —
+          Nothing finished yet. Finish a task, then remove it from the page —
           it will be kept here rather than lost.
         </Text>
       </View>
@@ -57,13 +69,26 @@ export default function ArchiveSheet({ tasks, projects, onRestore, onDelete, onE
         <TouchableOpacity
           onPress={onEmpty}
           accessibilityRole="button"
-          accessibilityLabel="Empty the archive permanently"
+          accessibilityLabel="Delete everything finished, permanently"
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
           <Text style={s.emptyAction}>EMPTY</Text>
         </TouchableOpacity>
       </View>
       <View style={s.rule} />
+
+      {folded ? (
+        <TouchableOpacity
+          style={s.fold}
+          onPress={() => setShowOld(v => !v)}
+          accessibilityRole="button"
+          accessibilityLabel={showOld ? `Fold away ${folded}` : `Show ${folded}`}
+          dataSet={{ archivefold: 'true' }}
+        >
+          <Text style={s.foldText}>{folded}</Text>
+          <Text style={s.foldAct}>{showOld ? 'Fold away' : 'Show'}</Text>
+        </TouchableOpacity>
+      ) : null}
 
       {groups.map(group => (
         <View key={group.day} style={s.group}>
@@ -181,6 +206,15 @@ const s = StyleSheet.create({
     color: COLORS.inkSoft, marginTop: 3,
   },
   danger: { color: COLORS.accent, fontSize: typeSize(13), letterSpacing: 0 },
+  // A line, not a section: the point is that it takes up almost nothing until
+  // somebody wants it.
+  fold: {
+    flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between',
+    paddingVertical: 11,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COLORS.rule,
+  },
+  foldText: { fontFamily: SERIF, fontStyle: 'italic', fontSize: typeSize(12.5), color: COLORS.inkFaint },
+  foldAct: { fontFamily: SANS, fontSize: typeSize(12.5), color: COLORS.accent, marginLeft: 12 },
   empty: {
     fontFamily: SERIF, fontSize: typeSize(13.5), fontStyle: 'italic', lineHeight: typeSize(20),
     color: COLORS.inkFaint,

@@ -240,7 +240,7 @@ ok('it counts what it found', /\d+ results/.test(found), found.slice(0, 200));
 // ── And says where each one lives ──
 ok('a result in another scope says which', /Week/.test(found), found.slice(0, 400));
 ok('a result in a project names it', /Flat/.test(found), found.slice(0, 400));
-ok('a result in the archive says so', /Archive/.test(found), found.slice(0, 400));
+ok('a result in the archive says so', /Finished/.test(found), found.slice(0, 400));
 
 // ── Notes and people, not just titles ──
 await type('stopcock');

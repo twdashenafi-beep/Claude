@@ -14,6 +14,8 @@ import { playChime, chimeAvailable } from '../services/chime';
 import { pullTasks } from '../services/sync';
 import { inspectRows } from '../services/leak';
 import { buildBackup, backupText, backupFilename, describe } from '../services/backup';
+import { keptNote } from '../services/keeping';
+import { loadCopy, saveCopy } from '../services/copyStore';
 import { readBackup, planRestore, recordsOf, describePlan } from '../services/restore';
 import { saveTextFile, pickTextFile } from '../services/saveFile';
 import { saveFeed, saveFeedLink, readFeed, clearFeed, feedAge, FEED_KEY } from '../services/calendarFeed';
@@ -87,6 +89,23 @@ export default function AccountSheet({
   const [exposed, setExposed] = useState(false);
   // What happened the last time a copy was asked for.
   const [saved, setSaved] = useState('');
+
+  // When a copy was last taken, and how much was in it.
+  //
+  // Read rather than assumed: somebody standing in front of the Export button is
+  // asking exactly this, and the row used to answer with a line about how cheap
+  // making a copy is.
+  const [copy, setCopy] = useState(null);
+  useEffect(() => {
+    if (!visible) return undefined;
+    let gone = false;
+    // Last session's "Saved · 3 tasks" is a sentence about thirty seconds that
+    // have long passed. Cleared on opening so the row goes back to saying what
+    // the last copy was, which is the part that stays true.
+    setSaved('');
+    loadCopy().then(found => { if (!gone) setCopy(found); });
+    return () => { gone = true; };
+  }, [visible]);
   // A copy that has been read and understood but not yet applied, and what
   // applying it would do.
   const [pending, setPending] = useState(null);
@@ -233,9 +252,15 @@ export default function AccountSheet({
       const backup = buildBackup({ tasks, archived, projects, email });
       const text = backupText(backup);
       const result = await saveTextFile(backupFilename(), text);
-      setSaved(result === 'saved'
-        ? `Saved · ${describe(backup, text)}`
-        : SAVE_RESULT[result] || 'Could not save it');
+      if (result === 'saved') {
+        setSaved(`Saved · ${describe(backup, text)}`);
+        // Recorded here and only here. Marking a copy as taken when the share
+        // sheet was cancelled would say the list is safe when it is not, which
+        // is the one thing this whole line exists to stop doing.
+        setCopy(await saveCopy(backup.counts.total));
+      } else {
+        setSaved(SAVE_RESULT[result] || 'Could not save it');
+      }
     } catch (e) {
       setSaved(`Could not save it: ${String(e.message || e)}`);
     }
@@ -490,9 +515,13 @@ export default function AccountSheet({
                   you back into the account; this is what you would have left if
                   the vault itself were gone. It sits with the password and the
                   code because all three are the same worry. */}
+              {/* The detail says what the last copy was, rather than a line
+                  about how cheap making one is. The question anybody has in
+                  front of this button is whether they need to press it, and
+                  "Every task, in one file you keep" does not answer it. */}
               <Row
                 label="Export a copy"
-                detail={saved || 'Every task, in one file you keep'}
+                detail={saved || keptNote(copy, tasks.length + archived.length)}
                 onPress={exportCopy}
               />
               {/* The other half of it. A copy you cannot read back is a copy of

@@ -4,7 +4,7 @@
 // keep it, and on something unfinished should not. Pure logic. Run with
 // `npm test`.
 
-import { ARCHIVE, isArchived, deletionOf, sortArchive, groupByDay }
+import { ARCHIVE, isArchived, deletionOf, sortArchive, groupByDay, byAge, foldedLine }
   from '../src/services/archive.js';
 
 let pass = 0, fail = 0;
@@ -59,6 +59,59 @@ ok('nothing is removed rather than kept', deletionOf(undefined) === 'delete');
 ok('grouping an empty archive gives no groups', groupByDay([]).length === 0);
 ok('the archive has a reserved name so a project cannot take it',
    ARCHIVE.startsWith('__'));
+
+// ── A year is where a record stops being read and starts being stored ───────
+//
+// Nothing has ever left the archive, and the only way out was a cliff: EMPTY,
+// all of it, for ever. Three hundred records become three thousand, and on the
+// day the storage runs out the only tool is the one nobody wants to use.
+//
+// So a slope. Over a year old folds behind a line; still kept, still searched,
+// still in the backup, still one tap away.
+{
+  const NOW = new Date(2026, 9, 6, 9, 0);
+  const filed = days => {
+    const d = new Date(NOW);
+    d.setDate(d.getDate() - days);
+    return { id: `d${days}`, title: `${days} days ago`, completed: true, archivedAt: d.toISOString() };
+  };
+
+  const { recent, older } = byAge([filed(1), filed(200), filed(364), filed(366), filed(900)], NOW);
+  ok('this year stays on the page',
+     recent.map(t => t.id).sort().join(',') === 'd1,d200,d364',
+     recent.map(t => t.id).join(','));
+  ok('and anything past a year folds away',
+     older.map(t => t.id).sort().join(',') === 'd366,d900',
+     older.map(t => t.id).join(','));
+
+  // The boundary, both sides of it. A year less a day is this year.
+  ok('a year less a day is not folded', byAge([filed(364)], NOW).older.length === 0);
+  ok('and a year and a day is', byAge([filed(366)], NOW).older.length === 1);
+
+  // Nothing is thrown away by splitting: the two halves are the whole.
+  const all = [filed(1), filed(366), filed(900), filed(10)];
+  const split = byAge(all, NOW);
+  ok('the two halves account for everything',
+     split.recent.length + split.older.length === all.length,
+     `${split.recent.length} + ${split.older.length} of ${all.length}`);
+
+  // A record with no date is more likely a bug in whatever wrote it than a task
+  // from 2019, and folding it would hide the evidence.
+  ok('a record with no date stays visible',
+     byAge([{ id: 'x', title: 'x', completed: true }], NOW).recent.length === 1);
+  ok('and so does one with a date nothing can read',
+     byAge([{ id: 'y', title: 'y', completed: true, archivedAt: 'whenever' }], NOW).recent.length === 1);
+
+  ok('a broken list is survived',
+     byAge(null).recent.length === 0 && byAge([null, undefined]).recent.length === 0);
+
+  // Said as a sentence, because a bare number beside a fold is not a reason to
+  // open it.
+  ok('the fold says how much is behind it',
+     foldedLine(older) === '2 finished more than a year ago', String(foldedLine(older)));
+  ok('and says nothing when there is nothing behind it', foldedLine([]) === null);
+  ok('nor when asked about nothing at all', foldedLine(null) === null);
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

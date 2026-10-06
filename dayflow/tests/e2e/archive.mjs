@@ -180,7 +180,7 @@ const openArchive = async () => {
     await A.page.getByLabel('Projects').click();
     await A.page.waitForTimeout(500);
   }
-  await A.page.getByLabel('Archive', { exact: true }).click();
+  await A.page.getByLabel('Finished', { exact: true }).click();
   await A.page.waitForTimeout(800);
 };
 
@@ -191,14 +191,14 @@ await add('Cancel the gym');
 await A.page.getByLabel('Delete Cancel the gym').click();
 await A.page.waitForTimeout(700);
 let text = await body(A.page);
-ok('an unfinished task is deleted, not kept', /Deleted/.test(text) && !/Archived/.test(text),
+ok('an unfinished task is deleted, not kept', /Deleted/.test(text) && !/Filed/.test(text),
    text.slice(0, 200));
 
 await openArchive();
 ok('and it is not in the archive', !(await shows('Cancel the gym')),
    (await body(A.page)).slice(0, 200));
 ok('an empty archive says what it is for',
-   /Nothing archived yet/.test(await body(A.page)));
+   /Nothing finished yet/.test(await body(A.page)));
 
 // ── Finished: delete keeps it ──
 await A.page.getByLabel('All tasks not in a project').click();
@@ -211,7 +211,7 @@ await A.page.getByLabel('Delete Write the report').click();
 await A.page.waitForTimeout(700);
 
 text = await body(A.page);
-ok('a finished task is archived rather than deleted', /Archived/.test(text), text.slice(0, 200));
+ok('a finished task is kept rather than deleted', /Filed/.test(text), text.slice(0, 200));
 ok('the word deleted is not used for it', !/Deleted “Write the report”/.test(text));
 ok('it leaves the page', !(await shows('Write the report')));
 
@@ -244,7 +244,7 @@ ok('and the other is gone from it', !(await shows('Second thing')));
 await A.page.getByLabel(/^Put Write the report back/).click();
 await A.page.waitForTimeout(800);
 ok('the archive empties when its last task is restored',
-   /Nothing archived yet/.test(await body(A.page)));
+   /Nothing finished yet/.test(await body(A.page)));
 await A.page.getByLabel('All tasks not in a project').click();
 await A.page.waitForTimeout(700);
 ok('and the task is on the page again', await shows('Write the report'));
@@ -300,7 +300,7 @@ await A.page.waitForTimeout(900);
 text = await body(A.page);
 console.log('AFTER CLEAR:', JSON.stringify(text.replace(/\n+/g, ' | ').slice(0, 400)));
 ok('clearing a column says the work was kept, not destroyed',
-   /Archived \d+ finished tasks/.test(text), text.slice(0, 220));
+   /Filed \d+ finished tasks/.test(text), text.slice(0, 220));
 ok('and the tasks leave the page',
    !(await shows('First job')) && !(await shows('Second job')));
 
@@ -313,17 +313,17 @@ ok('and no count is shown for them', !/tasks? kept/i.test(await page()),
 await openArchive();
 ok('the archive holds something to empty', await shows('First job'), (await page()).slice(0, 160));
 
-await A.page.getByLabel('Empty the archive permanently').click();
+await A.page.getByLabel('Delete everything finished, permanently').click();
 await A.page.waitForTimeout(1200);
 
 text = await body(A.page);
-ok('emptying says how many went', /Emptied the archive — \d+ deleted/.test(text), text.slice(0, 200));
-ok('and the archive is empty', /Nothing archived yet/.test(await page()));
+ok('emptying says how many went', /Deleted everything finished — \d+ gone/.test(text), text.slice(0, 200));
+ok('and the archive is empty', /Nothing finished yet/.test(await page()));
 
-await A.page.getByLabel('Put the archive back').click();
+await A.page.getByLabel('Put all of it back').click();
 await A.page.waitForTimeout(1200);
 ok('undo brings the whole archive back',
-   !/Nothing archived yet/.test(await page()), (await page()).slice(0, 200));
+   !/Nothing finished yet/.test(await page()), (await page()).slice(0, 200));
 ok('and the tasks themselves', (await shows('First job')) && (await shows('Second job')));
 
 // It has to stick, not just look right until the next sync.
@@ -407,6 +407,64 @@ await A.page.waitForTimeout(900);
 // reading innerText here would find nothing and prove nothing.
 const restoredNote = await A.page.getByPlaceholder('Add notes...').inputValue();
 ok('a restored task keeps its note', restoredNote === SHORT, JSON.stringify(restoredNote));
+
+// ── A year folds away ───────────────────────────────────────────────────────
+//
+// This place had one way out and it was a cliff: EMPTY, all of it, for ever. So
+// on the day three thousand records fill the storage, the only tool is the one
+// nobody wants to use. A slope instead — over a year old folds behind a line.
+//
+// The clock moves rather than the records: aging a task by four hundred days
+// through the interface is not possible, and rewriting archivedAt behind the
+// app's back would be testing a fixture rather than the app.
+{
+  // The block above left a task's sheet open, and an open sheet swallows every
+  // tap meant for the page behind it.
+  await A.page.getByText('Cancel', { exact: true }).last().click();
+  await A.page.waitForTimeout(800);
+  await A.page.getByLabel('All tasks not in a project').click();
+  await A.page.waitForTimeout(600);
+  await add('Finished long ago');
+  await A.page.getByLabel('Mark Finished long ago as done').click();
+  await A.page.waitForTimeout(500);
+  await A.page.getByLabel('Delete Finished long ago').click();
+  await A.page.waitForTimeout(700);
+
+  await openArchive();
+  ok('nothing is folded away while it is all recent',
+     (await A.page.locator('[data-archivefold]').count()) === 0,
+     (await body(A.page)).slice(0, 300));
+  ok('and the task just filed is on the page', await shows('Finished long ago'),
+     (await body(A.page)).slice(0, 300));
+
+  // Four hundred days later. The sheet is left and re-entered, which is what
+  // remounts it — the split is worked out as the page is drawn, so a sheet left
+  // open across the boundary day stays a day stale, which costs nothing.
+  await A.page.clock.setFixedTime(new Date(Date.now() + 400 * 86400000));
+  await A.page.getByLabel('All tasks not in a project').click();
+  await A.page.waitForTimeout(700);
+  await openArchive();
+
+  const fold = A.page.locator('[data-archivefold]');
+  ok('once it is over a year old it folds behind a line',
+     (await fold.count()) === 1, String(await fold.count()));
+  ok('and the page no longer opens with it',
+     !(await shows('Finished long ago')), (await body(A.page)).slice(0, 400));
+
+  const said = await fold.first().innerText();
+  ok('the line says how much is behind it, not just that something is',
+     /\d+ finished more than a year ago/.test(said), said);
+  ok('and offers to show it', /Show/.test(said), said);
+
+  // Folded, not gone. Still kept, still one tap away.
+  await fold.first().click();
+  await A.page.waitForTimeout(800);
+  ok('tapping it brings the old work back into view',
+     await shows('Finished long ago'), (await body(A.page)).slice(0, 400));
+  ok('and offers to fold it away again',
+     /Fold away/.test(await fold.first().innerText()),
+     await fold.first().innerText());
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();

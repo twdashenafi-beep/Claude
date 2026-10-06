@@ -273,12 +273,45 @@ await page.waitForTimeout(1500);
   ok('and not the task that already has an hour',
      !names.some(n => /Approve the budget at/i.test(n)), names.join(' | '));
 
+  // ── Tapping the title opens the task ──
+  //
+  // It used to place the task in the gap, so a list of titles was a list where
+  // tapping a title did something other than open it, and the only sign of what
+  // had happened was a banner at the far end of the screen with Undo in it.
+  // Everywhere else in this app, and on the Due sheet this one is modelled on, a
+  // title opens.
   await offered.first().click();
+  await page.waitForTimeout(1300);
+  const opened = await body();
+  ok('tapping a title opens that task in full', /Edit Task/i.test(opened),
+     opened.slice(0, 300));
+  ok('and nothing was quietly given an hour instead',
+     !/Undo/i.test(opened), opened.slice(0, 400));
+  await page.getByText('Cancel', { exact: true }).last().click();
+  await page.waitForTimeout(900);
+
+  // Back to the strip, and this time the control that places it — which says
+  // the hour it would use, because that is the sheet's whole purpose.
+  {
+    const where = await page.locator('[data-daybar]').first().boundingBox();
+    await page.mouse.click(where.x + where.width * 0.5, where.y + 6);
+    await page.waitForTimeout(1100);
+  }
+  const at = page.locator('[data-planat]');
+  ok('every row offers an hour to put the task at', (await at.count()) > 0,
+     String(await at.count()));
+  ok('and the hour is named on it, not hidden in a label',
+     /^\d\d:\d\d$/.test((await at.first().innerText()).trim()),
+     await at.first().innerText());
+  ok('and the sheet says to tap it',
+     /Tap the time beside something/i.test(await body()), (await body()).slice(0, 400));
+
+  await at.first().click();
   await page.waitForTimeout(1200);
 
   const after = await body();
   ok('the sheet closes once something is placed',
-     !/Pick something to do in it/i.test(after), after.slice(0, 300));
+     !/Tap the time beside something/i.test(after), after.slice(0, 300));
   ok('and it says what it did, with a way back', /Undo/i.test(after), after.slice(0, 400));
 
   const marks = page.locator('[data-planned]');

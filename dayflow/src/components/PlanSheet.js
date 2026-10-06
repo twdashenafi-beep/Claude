@@ -25,7 +25,7 @@ const MOST = 40;
 
 export default function PlanSheet({
   visible, gaps = [], tomorrow = false, chosen, tasks = [], onPlace, onPutOff, onPutOffTo,
-  onDone, onClose,
+  onDone, onOpen, onClose,
 }) {
   const [gap, setGap] = useState(null);
   // What the last decision was, said in the sheet because the sheet stays open.
@@ -123,7 +123,7 @@ export default function PlanSheet({
                 {here
                   ? `${spanMinutes(Math.round((here.end - here.start) / 60000))} free `
                     + `${tomorrow ? 'tomorrow ' : ''}from ${clockOf(here.start)}. `
-                    + 'Pick something to do in it.'
+                    + 'Tap the time beside something to put it there.'
                   : 'Pick a stretch of free time.'}
               </Text>
 
@@ -156,11 +156,18 @@ export default function PlanSheet({
                         }}
                       />
                     ) : null}
+                    {/* The title opens the task, the way a title does
+                        everywhere else in this app and on the sheet this one is
+                        modelled on. It used to place the task in the gap, which
+                        meant a list of titles where tapping a title did
+                        something other than open it — and the only sign of what
+                        had happened was a banner at the far end of the screen
+                        with Undo in it. */}
                     <TouchableOpacity
                       style={s.rowMain}
-                      onPress={() => { onPlace(task, here); setGap(null); }}
+                      onPress={() => onOpen(task)}
                       accessibilityRole="button"
-                      accessibilityLabel={`Do ${task.title} at ${here ? clockOf(here.start) : ''}`}
+                      accessibilityLabel={`Open ${task.title}`}
                       dataSet={{ plantask: 'true' }}
                     >
                       <Text
@@ -170,6 +177,22 @@ export default function PlanSheet({
                         {task.title}
                       </Text>
                     </TouchableOpacity>
+                    {/* Placing it is now a control of its own, and it says the
+                        hour it would use. That is the sheet's whole purpose, so
+                        it reads as the answer to the line above: two hours free
+                        from 09:00, and here is 09:00 beside everything you
+                        could put there. */}
+                    {here ? (
+                      <TouchableOpacity
+                        style={s.at}
+                        onPress={() => { onPlace(task, here); setGap(null); }}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Do ${task.title} at ${clockOf(here.start)}`}
+                        dataSet={{ planat: 'true' }}
+                      >
+                        <Text style={s.atText}>{clockOf(here.start)}</Text>
+                      </TouchableOpacity>
+                    ) : null}
                     {/* One control, four named answers, and the result
                         shown on the row it belongs to. "Month" is gone from
                         here: moving a page and moving a date are different
@@ -247,6 +270,13 @@ const s = StyleSheet.create({
   // The hour is the same for every row and is already in the line above, so
   // repeating it beside each one was noise where two decisions now live.
   rowText: { fontFamily: SANS, fontSize: typeSize(15), color: COLORS.ink },
+  // The hour, as a control. Bordered like the gap chips above it, because it
+  // does the same kind of thing: it names a time and puts something at it.
+  at: {
+    borderWidth: 1, borderColor: COLORS.rule, borderRadius: 3,
+    paddingVertical: 6, paddingHorizontal: 9, marginLeft: 4,
+  },
+  atText: { fontFamily: SANS, fontSize: typeSize(12.5), color: COLORS.accent },
   rowTextDone: { color: COLORS.done, textDecorationLine: 'line-through' },
   act: { paddingVertical: 6, paddingHorizontal: 9, marginLeft: 4 },
   actText: { fontFamily: SANS, fontSize: typeSize(12.5), color: COLORS.accent },

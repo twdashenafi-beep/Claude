@@ -139,6 +139,15 @@ await page.waitForTimeout(800);
 ok('the account sheet offers a copy', await (async () => (await body()).includes('Export a copy'))(),
    (await body()).slice(0, 400));
 
+// ── Before: it admits there is no copy ──
+//
+// The row used to read "Every task, in one file you keep", which is a line about
+// how cheap a copy is and not an answer to the question anybody has in front of
+// the button. Somebody lost their list to this app once, after deleting and
+// reinstalling it, and nothing anywhere had ever said whether a copy existed.
+ok('and says there is no copy yet, rather than advertising the file',
+   /No copy has been taken on this phone/.test(await body()), (await body()).slice(0, 600));
+
 const waitForDownload = page.waitForEvent('download', { timeout: 15000 });
 await page.getByText('Export a copy', { exact: true }).click();
 let download = null;
@@ -200,6 +209,35 @@ if (download) {
      (await body()).slice(0, 400));
 }
 
+// ── After: the copy is remembered ──
+//
+// "Saved · 3 tasks" is a sentence about the last thirty seconds. The thing worth
+// keeping is the record of it, which has to go to disk and come back — the whole
+// point is a line that can still say "three weeks ago" in three weeks.
+//
+// Closed and reopened rather than relaunched. Reopening re-reads the store, so a
+// record that never got written reads as "No copy" again. A full relaunch would
+// need the unlock flow, and reaching for one without checking it existed is how
+// this block first called a helper nobody had written.
+if (download) {
+  await page.getByText('Done', { exact: true }).first().click();
+  await page.waitForTimeout(700);
+  await page.getByLabel('Account settings').click();
+  await page.waitForTimeout(900);
+
+  const after = await body();
+  ok('reopening the sheet still knows a copy was taken',
+     !/No copy has been taken/.test(after) && /Last copy/.test(after), after.slice(0, 600));
+  ok('and says it was today, not nought days ago',
+     /Last copy today/.test(after), after.slice(0, 600));
+  ok('and how much was in it', /\d+ things? in it/.test(after), after.slice(0, 600));
+  ok('with nothing written since, because nothing has been',
+     !/written since/.test(after), after.slice(0, 600));
+  // Left open. The share-sheet block below presses Export a copy again and was
+  // written against a sheet that was already up — closing it here is what made
+  // that block wait thirty seconds for a button on a page it could not see.
+}
+
 // ── The route an iPhone actually takes ──
 //
 // Everything above went through a download, because that is what a headless
@@ -242,6 +280,24 @@ if (shared) {
      (await body()).slice(0, 300));
 }
 
+// ── A cancelled share must not claim a copy was taken ──
+//
+// The one lie this whole line exists to stop telling. Saying "Last copy today"
+// after somebody backed out of the share sheet is worse than saying nothing: it
+// is the app assuring you the list is safe at the exact moment it is not.
+//
+// One task added first, so the two outcomes can be told apart at all. Without
+// it the stored copy and a wrongly-stored one would both say "nothing written
+// since" and the assertion would pass either way — which is what it did when
+// this was first falsified.
+await page.getByText('Done', { exact: true }).first().click();
+await page.waitForTimeout(700);
+await add('Written after the copy was taken');
+await page.getByLabel('Account settings').click();
+await page.waitForTimeout(900);
+ok('a task added after the copy shows as missing from it',
+   /1 written since/.test(await body()), (await body()).slice(0, 600));
+
 // Dismissing the share sheet is not a failure and must not be reported as one.
 await page.evaluate(() => {
   const err = new Error('dismissed');
@@ -255,6 +311,15 @@ await page.waitForTimeout(1200);
 ok('cancelling the share sheet says so rather than claiming a failure',
    /Cancelled/.test(await body()) && !/Could not/.test(await body()),
    (await body()).slice(0, 300));
+
+// And the record is untouched by it: the copy on disk is still the older one,
+// which still misses the task written after it.
+await page.getByText('Done', { exact: true }).first().click();
+await page.waitForTimeout(700);
+await page.getByLabel('Account settings').click();
+await page.waitForTimeout(900);
+ok('and a cancelled share does not record a copy that was never made',
+   /1 written since/.test(await body()), (await body()).slice(0, 600));
 
 if (process.env.SHOT) {
   // The sheet is currently showing a cancelled share, which is not what a
