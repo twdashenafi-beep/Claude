@@ -321,7 +321,7 @@ await page.waitForTimeout(1500);
   // the hour it would use, because that is the sheet's whole purpose.
   {
     const where = await page.locator('[data-daybar]').first().boundingBox();
-    await page.mouse.click(where.x + where.width * 0.5, where.y + 6);
+    await page.mouse.click(where.x + where.width * 0.6, where.y + 6);
     await page.waitForTimeout(1100);
   }
   // The long stretch rather than whichever the tap landed on: 16:30-18:00 holds
@@ -431,7 +431,7 @@ await page.waitForTimeout(1500);
   const evening = page.locator('[data-daybar]').first();
   if (await evening.count()) {
     const where = await evening.boundingBox();
-    await page.mouse.click(where.x + where.width * 0.5, where.y + 6);
+    await page.mouse.click(where.x + where.width * 0.6, where.y + 6);
     await page.waitForTimeout(900);
     const said = await body();
     ok('a tap with nothing free still opens, rather than doing nothing',
@@ -600,7 +600,7 @@ await page.waitForTimeout(1500);
     {
       const open = async () => {
         const where = await page.locator('[data-daybar]').first().boundingBox();
-        await page.mouse.click(where.x + where.width * 0.5, where.y + 6);
+        await page.mouse.click(where.x + where.width * 0.6, where.y + 6);
         await page.waitForTimeout(1100);
       };
       const shut = async () => {
@@ -1048,6 +1048,52 @@ ok('forgetting it puts the page back as it was', (await diaryLine()) === null,
   ok('and the meeting added while it was locked is there',
      /Added while locked/.test(now) || /2h booked|2h/.test(now), now.slice(0, 600));
 }
+
+// ── Asking the strip what a block is ────────────────────────────────────────
+//
+// Reported from a phone: "the actual appointments are not in the strip but I
+// see it in Briefing." The strip said 07:00, 2h booked, 18:00 — how much and
+// when, never what — and a tap on a meeting fell forward to the next free
+// stretch and opened the planner for an hour nobody had pointed at.
+{
+  const caption = page.locator('[data-barcaption]').first();
+  ok('the strip says how much of the day is spoken for',
+     /booked/.test(await caption.innerText()), await caption.innerText());
+  ok('and not what any of it is', !/Planning call/.test(await caption.innerText()),
+     await caption.innerText());
+
+  // The planning call runs 10:00 to 11:00 and the one added while the phone was
+  // locked runs 15:00 to 16:00. The strip spans 08:00 to 18:00.
+  const strip = page.locator('[data-striptap]').first();
+  const box = await strip.boundingBox();
+  const atHour = h => box.x + box.width * ((h - 8) / 10);
+  await page.mouse.click(atHour(10.5), box.y + box.height / 2);
+  await page.waitForTimeout(800);
+
+  ok('tapping a meeting says which meeting it is',
+     /Planning call/.test(await caption.innerText()), await caption.innerText());
+  ok('and the hours it runs',
+     /10:00–11:00/.test(await caption.innerText()), await caption.innerText());
+  ok('and it does not open the free-time sheet instead',
+     !/Tap the time beside something/i.test(await body()), (await body()).slice(0, 300));
+
+  // The earlier one is its own meeting, not the same answer again.
+  await page.mouse.click(atHour(15.5), box.y + box.height / 2);
+  await page.waitForTimeout(800);
+  ok('a different block is a different meeting',
+     /Added while locked/.test(await caption.innerText()), await caption.innerText());
+
+  // And free time still opens the planner, which is what it was always for.
+  await page.mouse.click(atHour(12.5), box.y + box.height / 2);
+  await page.waitForTimeout(1100);
+  ok('free time still opens the free-time sheet',
+     /Tap the time beside something/i.test(await body()), (await body()).slice(0, 400));
+  await page.getByText('Done', { exact: true }).first().click();
+  await page.waitForTimeout(800);
+  ok('and the caption goes back to the whole day',
+     /booked/.test(await caption.innerText()), await caption.innerText());
+}
+
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();
