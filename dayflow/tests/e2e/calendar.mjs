@@ -290,6 +290,10 @@ await page.waitForTimeout(1500);
   await page.getByText('Cancel', { exact: true }).last().click();
   await page.waitForTimeout(900);
 
+  // One more to place, because an afternoon that holds three hours proves
+  // nothing with a single task in the list.
+  await toDo('Second thing to place');
+
   // Back to the strip, and this time the control that places it — which says
   // the hour it would use, because that is the sheet's whole purpose.
   {
@@ -297,6 +301,12 @@ await page.waitForTimeout(1500);
     await page.mouse.click(where.x + where.width * 0.5, where.y + 6);
     await page.waitForTimeout(1100);
   }
+  // The long stretch rather than whichever the tap landed on: 16:30-18:00 holds
+  // exactly one hour, and a gap with room for one cannot show that the second
+  // task is offered a different hour from the first.
+  await page.getByLabel('Free 13:00 to 16:00').click();
+  await page.waitForTimeout(800);
+
   const at = page.locator('[data-planat]');
   ok('every row offers an hour to put the task at', (await at.count()) > 0,
      String(await at.count()));
@@ -306,13 +316,48 @@ await page.waitForTimeout(1500);
   ok('and the sheet says to tap it',
      /Tap the time beside something/i.test(await body()), (await body()).slice(0, 400));
 
+  // ── An afternoon holds more than one hour ──
+  //
+  // Every row used to offer the hour the gap starts at, and placing a task took
+  // nothing out of the gap — so four payments placed in a row all landed at
+  // 14:19: four tasks claiming the same minute, all reminding at once. Reported
+  // from a real phone with fourteen payments and one free afternoon, which is
+  // the first thing anybody does with this sheet.
+  const firstHour = (await at.first().innerText()).trim();
   await at.first().click();
   await page.waitForTimeout(1200);
 
   const after = await body();
-  ok('the sheet closes once something is placed',
-     !/Tap the time beside something/i.test(after), after.slice(0, 300));
-  ok('and it says what it did, with a way back', /Undo/i.test(after), after.slice(0, 400));
+  ok('the sheet stays open so the next one can go in too',
+     /free .*from \d\d:\d\d/i.test(after), after.slice(0, 400));
+  ok('and the row says which hour it got, with a way back',
+     /\u2192\s*\d\d:\d\d/.test(after) && /Undo/i.test(after), after.slice(0, 400));
+
+  // The assertion this whole change exists for.
+  const nextChip = page.locator('[data-planat]').filter({ hasText: /^\d\d:\d\d$/ }).first();
+  const secondHour = (await nextChip.innerText()).trim();
+  ok('the next row is offered the hour after it, not the same one again',
+     secondHour !== firstHour, `${firstHour} then ${secondHour}`);
+  ok('and it is exactly one hour later',
+     (Number(secondHour.slice(0, 2)) * 60 + Number(secondHour.slice(3)))
+       - (Number(firstHour.slice(0, 2)) * 60 + Number(firstHour.slice(3))) === 60,
+     `${firstHour} then ${secondHour}`);
+
+  await nextChip.click();
+  await page.waitForTimeout(1100);
+  const twice = await body();
+  ok('so two placed in a row hold two different hours',
+     twice.includes(`\u2192 ${firstHour}`) && twice.includes(`\u2192 ${secondHour}`),
+     twice.slice(0, 500));
+  ok('and the line says how much of the gap is left, not what there was',
+     !twice.includes(`from ${firstHour}`), twice.slice(0, 400));
+
+  // Put the second one back, because the strip assertions below were written
+  // against a single plan drawn on it.
+  await page.getByLabel(new RegExp(`out of ${secondHour}`)).first().click();
+  await page.waitForTimeout(900);
+  await page.getByText('Done', { exact: true }).first().click();
+  await page.waitForTimeout(1000);
 
   const marks = page.locator('[data-planned]');
   ok('the plan is drawn on the strip', (await marks.count()) === 1,
@@ -329,10 +374,10 @@ await page.waitForTimeout(1500);
   ok('and in a different ink from the meetings', shades.ink !== shades.plan,
      JSON.stringify(shades));
 
-  // The whole point: it is an ordinary task now, with an hour on it — which
-  // the undo bar quotes back, naming the task and the time together.
+  // The whole point: it is an ordinary task now, with an hour on it, which the
+  // strip draws and the row said back when it was given one.
   ok('and the task it came from now has a time',
-     /—\s*\d\d:\d\d/.test(after), after.slice(0, 500));
+     new RegExp(`\u2192\\s*${firstHour}`).test(after), after.slice(0, 500));
 }
 
 // ── A day with nothing free still answers ───────────────────────────────────

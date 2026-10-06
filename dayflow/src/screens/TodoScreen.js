@@ -664,18 +664,24 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
   const openGap = useCallback(gap => { setGapPicked(gap || null); setPlanning(true); }, []);
   const closePlanning = useCallback(() => { setPlanning(false); setGapPicked(null); }, []);
 
-  const placeInGap = useCallback((task, gap) => {
-    const when = planFor(gap);
-    closePlanning();
-    if (!task || !when) return;
+  // `at` is the hour the sheet offered, not the start of the gap: a gap holds
+  // more than one hour and the sheet hands them out in turn.
+  //
+  // The sheet stays open and the row says what it got. It used to close after
+  // one, and put the answer in a banner at the bottom of the page behind it —
+  // so filling an afternoon was one task per round trip, and the confirmation
+  // appeared somewhere nobody was looking.
+  const placeInGap = useCallback((task, at) => {
+    const when = planFor({ start: at });
+    if (!task || !when) return null;
+    const was = { dueDate: task.dueDate || '', dueTime: task.dueTime || '' };
     updateTask(task.id, when);
-    setBanner({
+    return {
+      when: when.dueTime,
       text: `${task.title} — ${when.dueTime}`,
-      action: 'Undo',
-      label: 'Undo putting it in the free time',
-      run: () => updateTask(task.id, { dueDate: task.dueDate || '', dueTime: task.dueTime || '' }),
-    });
-  }, [updateTask, closePlanning]);
+      undo: () => updateTask(task.id, was),
+    };
+  }, [updateTask]);
 
   // What a tap on the strip can offer. Today's free time while there is any,
   // and tomorrow's once the day has closed — because at seven in the evening

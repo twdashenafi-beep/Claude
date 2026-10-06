@@ -16,6 +16,7 @@ import {
   barSegments, barNow, barDrawable, barCaption, loadSentence,
   spanLoad, dayLoad, BAR_GAP, BAR_LEAST, tomorrowLine,
   barPlans, gapAt, planFor, placeable, clockOf, tomorrowGaps, putOff, putOffTo, LATER,
+  takenIn, nextHour, leftIn,
 } from '../src/services/agenda.js';
 
 let pass = 0, fail = 0;
@@ -665,6 +666,83 @@ const near = (a, b, slack = 0.51) => Math.abs(a - b) <= slack;
      putOffTo(task, day, 'half four').dueTime === ''
      && iso(putOffTo(task, day, 'half four')).getDate() === 23,
      JSON.stringify(putOffTo(task, day, 'half four')));
+}
+
+// ── Filling a gap more than once ────────────────────────────────────────────
+//
+// A three-hour gap offered the same 14:19 on every row, and placing four tasks
+// gave four tasks the same minute, because the gaps are worked out from the
+// diary and a task placed in one took nothing out of it. With fourteen payments
+// and one free afternoon that is the first thing anybody does with this sheet.
+{
+  const hhmm = at => `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
+  const gap = { start: new Date(2026, 9, 6, 14, 19), end: new Date(2026, 9, 6, 18, 0) };
+  const dated = (h, m) => ({
+    id: `t${h}${m}`, title: 't',
+    dueDate: new Date(2026, 9, 6, h, m).toISOString(),
+    dueTime: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`,
+  });
+
+  ok('an empty gap offers the hour it starts at',
+     hhmm(nextHour(gap, [])) === '14:19', hhmm(nextHour(gap, [])));
+  ok('once that hour is taken it offers the next',
+     hhmm(nextHour(gap, [new Date(2026, 9, 6, 14, 19)])) === '15:19',
+     hhmm(nextHour(gap, [new Date(2026, 9, 6, 14, 19)])));
+
+  // Payments down the list, each an hour after the last, until the gap runs out.
+  //
+  // Four were expected here first. 14:19 to 18:00 is three hours and forty-one
+  // minutes, which holds three whole hours and not four — the fourth would run
+  // to 18:19, past the end of the day. The code was right and the assertion was
+  // wrong, which is the better way round.
+  const said = [];
+  let used = [];
+  for (let i = 0; i < 6; i += 1) {
+    const at = nextHour(gap, used);
+    if (!at) break;
+    said.push(hhmm(at));
+    used = used.concat([at]);
+  }
+  ok('each one placed takes the hour after the last',
+     said.join(' ') === '14:19 15:19 16:19', said.join(' '));
+  ok('and the same hour is never given out twice',
+     new Set(said).size === said.length, said.join(' '));
+  ok('and it stops rather than running past the end of the gap',
+     said.length === 3 && nextHour(gap, used) === null, `${said.length} / ${said.join(' ')}`);
+
+  // Short gaps hold nothing, rather than holding something that overruns.
+  ok('a gap shorter than an hour offers none',
+     nextHour({ start: new Date(2026, 9, 6, 9, 0), end: new Date(2026, 9, 6, 9, 40) }) === null);
+
+  // ── What counts as taken ──
+  const inside = dated(15, 19);
+  const outside = dated(9, 0);
+  ok('a task already in the gap takes its hour',
+     takenIn([inside], gap).length === 1, String(takenIn([inside], gap).length));
+  ok('and one outside the gap does not',
+     takenIn([outside], gap).length === 0, String(takenIn([outside], gap).length));
+  ok('so reopening the sheet does not offer that hour again',
+     hhmm(nextHour(gap, takenIn([dated(14, 19)], gap))) === '15:19',
+     hhmm(nextHour(gap, takenIn([dated(14, 19)], gap))));
+  ok('finished work frees its hour again',
+     takenIn([{ ...inside, completed: true }], gap).length === 0);
+  ok('and so does filed work', takenIn([{ ...inside, archivedAt: 'x' }], gap).length === 0);
+  ok('a task with a day but no hour claims nothing',
+     takenIn([{ id: 'd', title: 'd', dueDate: new Date(2026, 9, 6).toISOString() }], gap).length === 0);
+  ok('a broken list is survived', takenIn(null, gap).length === 0 && takenIn([null], gap).length === 0);
+  ok('and no gap means nothing is taken', takenIn([inside], null).length === 0);
+
+  // ── How much is left ──
+  ok('an untouched gap has every hour it holds', leftIn(gap, []) === 180, String(leftIn(gap, [])));
+  ok('one placed takes an hour off it',
+     leftIn(gap, [new Date(2026, 9, 6, 14, 19)]) === 120,
+     String(leftIn(gap, [new Date(2026, 9, 6, 14, 19)])));
+  ok('and a full gap has nothing left',
+     leftIn(gap, [new Date(2026, 9, 6, 14, 19), new Date(2026, 9, 6, 15, 19),
+       new Date(2026, 9, 6, 16, 19)]) === 0);
+
+  ok('nothing in is nothing out',
+     nextHour(null) === null && nextHour({}) === null && leftIn(null) === 0);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
