@@ -407,6 +407,58 @@ ok('with the list still there', after.includes('Pay the invoice'), after.slice(0
      evening.includes('Quarterly review'), evening.slice(0, 800));
 }
 
+// ── Whether this phone is the only place the list exists ───────────────────
+//
+// Somebody lost their list to this app once: deleted it, reinstalled it, and the
+// vault went with the app, because iOS keeps the Keychain and not the storage
+// beside it. Nothing had ever said whether a copy existed, because nothing
+// recorded when one was taken.
+{
+  await page.clock.setFixedTime(new Date('2026-10-05T09:00:00'));
+  await page.waitForTimeout(1500);
+
+  // Silent while sync is working, and this suite is the proof: it mocks the
+  // server completely, so there genuinely is a second copy. A warning that
+  // ignores the thing already protecting you is one people learn to ignore back.
+  ok('nothing is said about copies while sync is working',
+     (await page.locator('[data-keepbar]').count()) === 0,
+     (await body()).slice(0, 300));
+
+  // Now the case this was built for, and the nastiest one: sync is set up, so
+  // it feels safe, and it is failing, so there is no second copy at all.
+  await page.unroute(u => u.hostname === 'stubproject.supabase.co');
+  await page.route(u => u.hostname === 'stubproject.supabase.co', r => {
+    const p2 = new URL(r.request().url()).pathname;
+    if (p2.startsWith('/auth/')) return route(r);
+    return r.fulfill({ status: 500, contentType: 'application/json', body: '{"message":"no"}' });
+  });
+  await toDo('Something written while sync was down');
+  await page.waitForTimeout(3000);
+
+  const bar = page.locator('[data-keepbar]');
+  ok('a list with no copy and no working sync says so', (await bar.count()) === 1,
+     `${await bar.count()} — ${(await body()).slice(0, 400)}`);
+
+  if ((await bar.count()) === 1) {
+    const said = await bar.first().innerText();
+    ok('naming the risk rather than the remedy',
+       /copied off this phone/.test(said), said);
+    // A sentence about backups with no way to take one is one nobody can act
+    // on, which is how it becomes furniture.
+    ok('and offering the one thing that answers it',
+       /Export a copy/.test(said), said);
+
+    await bar.first().click();
+    await page.waitForTimeout(1300);
+    const sheet = await body();
+    ok('tapping it reaches the control that takes a copy',
+       /Export a copy/.test(sheet) && /No copy has been taken/.test(sheet),
+       sheet.slice(0, 600));
+    await page.getByText('Done', { exact: true }).first().click();
+    await page.waitForTimeout(700);
+  }
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();
 server.close();

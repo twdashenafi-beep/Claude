@@ -393,8 +393,24 @@ ok('and neither is a quantity with a month-ish word', (() => {
     // Monday for a reason that had nothing to do with clock times. The second
     // time a test in this project has been written against the day it was
     // written on; the first was an hour rather than a weekday.
+    // Not `at.getDate() !== 12`. That was the third time this one assertion was
+    // written against the day it ran on: today is the 6th, so the Monday coming
+    // IS the twelfth, and the guard cried wolf about the parser being right.
+    //
+    // Two assertions instead, neither of which knows what today is. The first
+    // is the whole claim — the coming Monday, worked out here rather than read
+    // off the parser. The second is the one with teeth every day of the week:
+    // if an hour were being taken for a day of the month, 12:30 and 09:15 would
+    // land on different dates. They cannot, whatever today is.
+    const monday = midnight(new Date());
+    monday.setDate(monday.getDate() + ((1 - monday.getDay()) + 7) % 7);
+    ok('it lands on the Monday coming', +midnight(at) === +monday,
+       `${at.toDateString()} — wanted ${monday.toDateString()}`);
     ok('a clock time is not a day of the month',
-       at.getDate() !== 12 && daysOut >= 0 && daysOut <= 7,
+       +midnight(new Date(spoken('Dentist Monday 09:15').dueDate)) === +midnight(at),
+       `12:30 -> ${at.toDateString()}, 09:15 -> `
+       + `${new Date(spoken('Dentist Monday 09:15').dueDate).toDateString()}`);
+    ok('and it is still within the week', daysOut >= 0 && daysOut <= 7,
        `${at.toDateString()} — ${daysOut} days out`);
   }
   ok('it is a time', r.dueTime === '12:30', String(r.dueTime));
