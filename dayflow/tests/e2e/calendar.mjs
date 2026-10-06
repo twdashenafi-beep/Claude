@@ -184,6 +184,29 @@ ok('and how much of it is ahead of you',
 ok('and offers to forget it again',
    (await page.getByText('Forget the calendar', { exact: true }).count()) === 1);
 
+// ── And the row itself says both numbers, afterwards ──
+//
+// The confirmation above is a sentence about the last two seconds. The row is
+// what somebody reads a week later wondering why their day looks empty, and it
+// used to say "TA · 1 ahead · read today" — which cannot be acted on, because a
+// calendar of four hundred meetings with one coming up and a calendar holding
+// one meeting read exactly the same and need opposite fixes.
+{
+  // Back out to the list the row lives on: reading a file leaves the sheet on
+  // the calendar page, and the row is on the page behind it.
+  await page.getByLabel('Close account settings').click();
+  await page.waitForTimeout(900);
+  await page.getByLabel('Account settings').click();
+  await page.waitForTimeout(1100);
+
+  const row = await body();
+  ok('the calendar row says how much is written down',
+     /\d+ entr(y|ies)/.test(row), row.slice(0, 900));
+  ok('and how much of it is coming up, as a separate number',
+     /\d+ coming up|none coming up/.test(row), row.slice(0, 900));
+  ok('and when it last read it', /read (today|yesterday|\d)/i.test(row), row.slice(0, 900));
+}
+
 await page.getByLabel('Close account settings').click();
 await page.waitForTimeout(1500);
 
@@ -290,6 +313,10 @@ await page.waitForTimeout(1500);
   await page.getByText('Cancel', { exact: true }).last().click();
   await page.waitForTimeout(900);
 
+  // One more to place, because an afternoon that holds three hours proves
+  // nothing with a single task in the list.
+  await toDo('Second thing to place');
+
   // Back to the strip, and this time the control that places it — which says
   // the hour it would use, because that is the sheet's whole purpose.
   {
@@ -297,6 +324,12 @@ await page.waitForTimeout(1500);
     await page.mouse.click(where.x + where.width * 0.5, where.y + 6);
     await page.waitForTimeout(1100);
   }
+  // The long stretch rather than whichever the tap landed on: 16:30-18:00 holds
+  // exactly one hour, and a gap with room for one cannot show that the second
+  // task is offered a different hour from the first.
+  await page.getByLabel('Free 13:00 to 16:00').click();
+  await page.waitForTimeout(800);
+
   const at = page.locator('[data-planat]');
   ok('every row offers an hour to put the task at', (await at.count()) > 0,
      String(await at.count()));
@@ -306,13 +339,48 @@ await page.waitForTimeout(1500);
   ok('and the sheet says to tap it',
      /Tap the time beside something/i.test(await body()), (await body()).slice(0, 400));
 
+  // ── An afternoon holds more than one hour ──
+  //
+  // Every row used to offer the hour the gap starts at, and placing a task took
+  // nothing out of the gap — so four payments placed in a row all landed at
+  // 14:19: four tasks claiming the same minute, all reminding at once. Reported
+  // from a real phone with fourteen payments and one free afternoon, which is
+  // the first thing anybody does with this sheet.
+  const firstHour = (await at.first().innerText()).trim();
   await at.first().click();
   await page.waitForTimeout(1200);
 
   const after = await body();
-  ok('the sheet closes once something is placed',
-     !/Tap the time beside something/i.test(after), after.slice(0, 300));
-  ok('and it says what it did, with a way back', /Undo/i.test(after), after.slice(0, 400));
+  ok('the sheet stays open so the next one can go in too',
+     /free .*from \d\d:\d\d/i.test(after), after.slice(0, 400));
+  ok('and the row says which hour it got, with a way back',
+     /\u2192\s*\d\d:\d\d/.test(after) && /Undo/i.test(after), after.slice(0, 400));
+
+  // The assertion this whole change exists for.
+  const nextChip = page.locator('[data-planat]').filter({ hasText: /^\d\d:\d\d$/ }).first();
+  const secondHour = (await nextChip.innerText()).trim();
+  ok('the next row is offered the hour after it, not the same one again',
+     secondHour !== firstHour, `${firstHour} then ${secondHour}`);
+  ok('and it is exactly one hour later',
+     (Number(secondHour.slice(0, 2)) * 60 + Number(secondHour.slice(3)))
+       - (Number(firstHour.slice(0, 2)) * 60 + Number(firstHour.slice(3))) === 60,
+     `${firstHour} then ${secondHour}`);
+
+  await nextChip.click();
+  await page.waitForTimeout(1100);
+  const twice = await body();
+  ok('so two placed in a row hold two different hours',
+     twice.includes(`\u2192 ${firstHour}`) && twice.includes(`\u2192 ${secondHour}`),
+     twice.slice(0, 500));
+  ok('and the line says how much of the gap is left, not what there was',
+     !twice.includes(`from ${firstHour}`), twice.slice(0, 400));
+
+  // Put the second one back, because the strip assertions below were written
+  // against a single plan drawn on it.
+  await page.getByLabel(new RegExp(`out of ${secondHour}`)).first().click();
+  await page.waitForTimeout(900);
+  await page.getByText('Done', { exact: true }).first().click();
+  await page.waitForTimeout(1000);
 
   const marks = page.locator('[data-planned]');
   ok('the plan is drawn on the strip', (await marks.count()) === 1,
@@ -329,10 +397,10 @@ await page.waitForTimeout(1500);
   ok('and in a different ink from the meetings', shades.ink !== shades.plan,
      JSON.stringify(shades));
 
-  // The whole point: it is an ordinary task now, with an hour on it — which
-  // the undo bar quotes back, naming the task and the time together.
+  // The whole point: it is an ordinary task now, with an hour on it, which the
+  // strip draws and the row said back when it was given one.
   ok('and the task it came from now has a time',
-     /—\s*\d\d:\d\d/.test(after), after.slice(0, 500));
+     new RegExp(`\u2192\\s*${firstHour}`).test(after), after.slice(0, 500));
 }
 
 // ── A day with nothing free still answers ───────────────────────────────────
@@ -899,6 +967,86 @@ ok('forgetting it puts the page back as it was', (await diaryLine()) === null,
 
   ok('and coming back to it reads the calendar again',
      (await diaryLine()) === null, String(await diaryLine()));
+}
+
+// ── A meeting added while the app was locked ────────────────────────────────
+//
+// Reported from a phone: "the new meetings I put in are not in. The calendar
+// should update each time I lock and open app." The app did ask for the diary
+// every time it came forward — and the fetch was refused unless the stored copy
+// was half an hour old, so locking, adding a meeting and unlocking showed the
+// diary from before, with nothing said about why.
+//
+// Served from a route that can change under the app, which is the only way to
+// tell a re-read from a re-render.
+{
+  const FEED = 'https://calendar.example.test/share/abc.ics';
+  const one = [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'X-WR-CALNAME:Linked',
+    'BEGIN:VEVENT', 'UID:first@x', 'SUMMARY:Planning call',
+    'DTSTART;TZID=Europe/London:20261002T100000', 'DURATION:PT1H', 'END:VEVENT',
+    'END:VCALENDAR',
+  ].join('\r\n');
+  const two = one.replace('END:VCALENDAR', [
+    'BEGIN:VEVENT', 'UID:second@x', 'SUMMARY:Added while locked',
+    'DTSTART;TZID=Europe/London:20261002T150000', 'DURATION:PT1H', 'END:VEVENT',
+    'END:VCALENDAR',
+  ].join('\r\n'));
+
+  let serving = one;
+  let fetches = 0;
+  await page.route(u => u.hostname === 'calendar.example.test', r => {
+    fetches += 1;
+    r.fulfill({
+      status: 200,
+      contentType: 'text/calendar',
+      headers: { 'Access-Control-Allow-Origin': '*' },
+      body: serving,
+    });
+  });
+
+  await page.clock.setFixedTime(new Date('2026-10-02T09:00:00'));
+  await page.getByLabel('Account settings').click();
+  await page.waitForTimeout(900);
+  await page.getByText('Calendar link', { exact: true }).click();
+  await page.waitForTimeout(700);
+  await page.getByRole('textbox', { name: 'Calendar link' }).fill(FEED);
+  await page.getByLabel('Connect this calendar link').click();
+  await page.waitForTimeout(2000);
+  ok('a calendar can be connected by its link', fetches > 0, String(fetches));
+  // The link lives on a page of its own inside the sheet, so it is Back first
+  // and then out.
+  await page.getByText('Back', { exact: true }).first().click();
+  await page.waitForTimeout(700);
+  await page.getByLabel('Close account settings').click();
+  await page.waitForTimeout(1500);
+
+  const first = await body();
+  ok('and what it holds is on the day', /Planning call/.test(first) || (await diaryLine()) !== null,
+     String(await diaryLine()));
+
+  // The meeting is added elsewhere while the app is in the background. Nothing
+  // tells the app; the calendar simply answers differently next time.
+  serving = two;
+  const before = fetches;
+
+  // Locked and opened. The clock moves because this suite pins time, and a
+  // pinned clock makes every elapsed check read zero however long it waits.
+  await page.clock.setFixedTime(new Date('2026-10-02T09:02:00'));
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await page.waitForTimeout(2500);
+
+  ok('coming back two minutes later asks the calendar again',
+     fetches > before, `${before} then ${fetches}`);
+
+  const now = await body();
+  ok('and the meeting added while it was locked is there',
+     /Added while locked/.test(now) || /2h booked|2h/.test(now), now.slice(0, 600));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

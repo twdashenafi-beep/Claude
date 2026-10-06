@@ -32,7 +32,7 @@ import { Platform } from 'react-native';
 import Store from './store';
 import { encrypt, decrypt } from './encryption';
 import { parseICS, describeICS } from './ics';
-import { feedUrl, linkName, mergeEvents } from './calendarLink';
+import { feedUrl, linkName, mergeEvents, shouldRefetch } from './calendarLink';
 
 export { feedUrl };
 
@@ -93,12 +93,14 @@ export async function saveFeed(text, key, now = new Date(), label = '', link = '
 
 // ── The subscription link ───────────────────────────────────────────────────
 
-// How stale a linked calendar may get before opening the app reads it again.
-// Proton regenerates its shared feed on its own schedule; half an hour is often
-// enough to see a meeting added this morning, and rare enough not to fetch the
-// whole diary every time the app comes forward.
-const LINK_FRESH_MS = 30 * 60 * 1000;
 const LINK_TIMEOUT_MS = 20000;
+
+// One fetch of a given calendar at a time.
+//
+// A phone can fire several "came forward" events in a second, and each one asks
+// for the diary. Without this they all go out, all come back, and the last one
+// to land wins — three requests to say the same thing.
+let inFlight = null;
 
 // Why a link could not be read, in words that say where to look.
 export class FeedLinkError extends Error {}
@@ -110,7 +112,17 @@ async function fetchCalendar(url) {
   let response;
   try {
     response = await fetch(url, {
-      headers: { Accept: 'text/calendar, text/plain, */*' },
+      // Asked for fresh every time. A diary fetched through a cache is a diary
+      // that can be hours old while reporting itself as read just now — which
+      // is the same fault as not fetching at all, wearing a newer timestamp.
+      // The URL is left alone: Proton's carries its own key and query, and a
+      // cache-busting parameter bolted onto that is a link it may refuse.
+      cache: 'no-store',
+      headers: {
+        Accept: 'text/calendar, text/plain, */*',
+        'Cache-Control': 'no-cache',
+        Pragma: 'no-cache',
+      },
       ...(abort ? { signal: abort.signal } : {}),
     });
   } catch (e) {
@@ -142,18 +154,31 @@ export async function saveFeedLink(pasted, key, now = new Date()) {
   return saveFeed(text, key, now, linkName(url), url);
 }
 
-// Read a linked calendar again if the copy is old. A failure keeps the copy it
-// had: yesterday's diary, said to be yesterday's, beats none.
+// Read a linked calendar again whenever the app asks for the diary. A failure
+// keeps the copy it had: yesterday's diary, said to be yesterday's, beats none.
+//
+// It used to refuse unless the copy was half an hour old, and the app asks for
+// the diary every time it comes forward — so locking the phone, adding a
+// meeting, and unlocking showed the diary from before, with nothing said about
+// why. The rule is in calendarLink.js, where it can be tested.
 export async function refreshFeed(key, now = new Date(), { force = false } = {}) {
   const feed = await readFeed(key);
-  if (!feed || !feed.url) return feed;
-  const age = new Date(now) - new Date(feed.at);
-  if (!force && age >= 0 && age < LINK_FRESH_MS) return feed;
-  try {
+  if (!shouldRefetch(feed, now, { force })) return feed;
+
+  // Joined to whatever is already in the air rather than starting a second one.
+  if (inFlight) {
+    try { return (await inFlight) || feed; } catch { return feed; }
+  }
+  inFlight = (async () => {
     const text = await fetchCalendar(feed.url);
-    return (await saveFeed(text, key, now, feed.name || linkName(feed.url), feed.url)) || feed;
+    return saveFeed(text, key, now, feed.name || linkName(feed.url), feed.url);
+  })();
+  try {
+    return (await inFlight) || feed;
   } catch {
     return feed;
+  } finally {
+    inFlight = null;
   }
 }
 

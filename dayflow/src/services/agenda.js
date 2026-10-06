@@ -689,6 +689,60 @@ export function gapAt(load, width, x) {
 //
 // The start of the gap rather than the middle of it: a thing you have decided
 // to do at two o'clock is a thing you do at two o'clock.
+// Which hours of a gap are already spoken for.
+//
+// The gaps themselves are worked out from the diary alone, because a meeting is
+// where you have to be and a task is where you said you would be — and the
+// strip has always drawn those differently. But for filling a gap the
+// difference does not matter: an hour you already gave to something is not free
+// to give again.
+//
+// Without this, every row in a three-hour gap offered the same 14:19, and
+// placing four tasks gave four tasks the same minute. With fourteen payments
+// and one long afternoon that is the first thing anybody does with this sheet.
+export function takenIn(tasks, gap) {
+  if (!gap) return [];
+  const used = [];
+  for (const task of tasks || []) {
+    if (!task || task.completed || task.archivedAt) continue;
+    const when = momentOf(task.dueDate, task.dueTime);
+    if (when && when >= gap.start && when < gap.end) used.push(when);
+  }
+  return used.sort((a, b) => a - b);
+}
+
+// The next hour in a gap that nothing has claimed, or null once it is full.
+//
+// Stepping from the start of the gap rather than packing around what is there:
+// the hours a gap offers are 14:19, 15:19, 16:19, and an hour that fell between
+// two of them is one somebody chose by hand. Treating it as a boundary to pack
+// against would answer 14:47, which is not an hour anybody means.
+export function nextHour(gap, taken = [], minutes = ASSUMED_MINUTES) {
+  if (!gap || !gap.start || !gap.end) return null;
+  const span = Math.max(1, Number(minutes) || ASSUMED_MINUTES);
+  const claimed = (taken || []).map(when => +asDate(when)).filter(Number.isFinite);
+
+  for (let at = new Date(gap.start); +at + span * MINUTE <= +gap.end;
+    at = new Date(+at + span * MINUTE)) {
+    if (!claimed.some(when => when >= +at && when < +at + span * MINUTE)) return at;
+  }
+  return null;
+}
+
+// What is left of a gap once the hours already given out are taken off it.
+export function leftIn(gap, taken = [], minutes = ASSUMED_MINUTES) {
+  if (!gap || !gap.start || !gap.end) return 0;
+  const span = Math.max(1, Number(minutes) || ASSUMED_MINUTES);
+  const claimed = (taken || []).map(when => +asDate(when)).filter(Number.isFinite);
+
+  let free = 0;
+  for (let at = new Date(gap.start); +at + span * MINUTE <= +gap.end;
+    at = new Date(+at + span * MINUTE)) {
+    if (!claimed.some(when => when >= +at && when < +at + span * MINUTE)) free += span;
+  }
+  return free;
+}
+
 export function planFor(gap) {
   if (!gap || !gap.start) return null;
   const at = asDate(gap.start);

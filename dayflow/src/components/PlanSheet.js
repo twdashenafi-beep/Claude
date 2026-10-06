@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { clockOf, placeable, spanMinutes } from '../services/agenda';
+import { clockOf, placeable, spanMinutes, takenIn, nextHour, leftIn } from '../services/agenda';
 import LaterPicker from './LaterPicker';
 import TickBox from './TickBox';
 import WhenSheet from './WhenSheet';
@@ -59,6 +59,22 @@ export default function PlanSheet({
   // task, for the same reason the list is: a row that reported itself from the
   // live task would contradict the held row it sits on.
   const [ticked, setTicked] = useState({});
+
+  // What each row was given, and which hours of this gap have gone.
+  //
+  // Every row used to offer the hour the gap starts at, and placing a task took
+  // nothing out of the gap — so four payments placed in a row all landed at
+  // 14:19, four tasks claiming the same minute and all reminding at once. The
+  // hours already given out are counted here, and the next one is offered.
+  // `placed` is only what to show on the row afterwards. The hours themselves
+  // are counted off the live task list, which already holds the task that was
+  // just given one — placing writes the time straight through, so a second
+  // record of it here would be a second thing to keep in step. It was written
+  // that way first; deleting it changed nothing, which is how you find out.
+  const [placed, setPlaced] = useState({});
+  const taken = here ? takenIn(tasks, here) : [];
+  const offer = here ? nextHour(here, taken) : null;
+  const left = here ? leftIn(here, taken) : 0;
   // A list of three hundred is a list nobody reads to the end of. The order
   // puts what is owed first, so the top of it is the part worth showing, and
   // the rest is counted rather than scrolled.
@@ -74,7 +90,7 @@ export default function PlanSheet({
   // half-decided in it.
   const close = () => {
     if (exact) { setExact(null); return; }
-    setGap(null); setTicked({}); onClose();
+    setGap(null); setTicked({}); setPlaced({}); onClose();
   };
 
   return (
@@ -119,12 +135,18 @@ export default function PlanSheet({
                 })}
               </View>
 
+              {/* What is left rather than what there was, because the
+                  sheet now stays open while the gap fills and a line that
+                  still says "3h 40m free" after three hours have been given
+                  away is the app not keeping up with its own arithmetic. */}
               <Text style={s.blurb}>
-                {here
-                  ? `${spanMinutes(Math.round((here.end - here.start) / 60000))} free `
-                    + `${tomorrow ? 'tomorrow ' : ''}from ${clockOf(here.start)}. `
-                    + 'Tap the time beside something to put it there.'
-                  : 'Pick a stretch of free time.'}
+                {!here
+                  ? 'Pick a stretch of free time.'
+                  : offer
+                    ? `${spanMinutes(left)} free ${tomorrow ? 'tomorrow ' : ''}`
+                      + `from ${clockOf(offer)}. Tap the time beside something to put it there.`
+                    : `Nothing is left of ${clockOf(here.start)}–${clockOf(here.end)}. `
+                      + 'Pick another stretch, or put something off.'}
               </Text>
 
               {free.length === 0 ? (
@@ -182,15 +204,43 @@ export default function PlanSheet({
                         it reads as the answer to the line above: two hours free
                         from 09:00, and here is 09:00 beside everything you
                         could put there. */}
-                    {here ? (
+                    {placed[task.id] ? (
+                      // What this row got, on the row, with a way back — the
+                      // same shape as putting something off. The sheet stays
+                      // open now, so a banner at the far end of the screen
+                      // would be reporting to nobody.
+                      <View style={s.after} dataSet={{ planat: 'true', plandone2: 'true' }}>
+                        <Text style={s.afterText}>{`\u2192 ${clockOf(placed[task.id].at)}`}</Text>
+                        <TouchableOpacity
+                          onPress={() => {
+                            placed[task.id].undo();
+                            setPlaced(was => {
+                              const next = { ...was };
+                              delete next[task.id];
+                              return next;
+                            });
+                          }}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Take ${task.title} back out of ${clockOf(placed[task.id].at)}`}
+                        >
+                          <Text style={s.atText}>Undo</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : offer ? (
                       <TouchableOpacity
                         style={s.at}
-                        onPress={() => { onPlace(task, here); setGap(null); }}
+                        onPress={() => {
+                          const note = onPlace(task, offer);
+                          setPlaced(was => ({
+                            ...was,
+                            [task.id]: { at: offer, undo: (note && note.undo) || (() => {}) },
+                          }));
+                        }}
                         accessibilityRole="button"
-                        accessibilityLabel={`Do ${task.title} at ${clockOf(here.start)}`}
+                        accessibilityLabel={`Do ${task.title} at ${clockOf(offer)}`}
                         dataSet={{ planat: 'true' }}
                       >
-                        <Text style={s.atText}>{clockOf(here.start)}</Text>
+                        <Text style={s.atText}>{clockOf(offer)}</Text>
                       </TouchableOpacity>
                     ) : null}
                     {/* One control, four named answers, and the result
@@ -277,6 +327,8 @@ const s = StyleSheet.create({
     paddingVertical: 6, paddingHorizontal: 9, marginLeft: 4,
   },
   atText: { fontFamily: SANS, fontSize: typeSize(12.5), color: COLORS.accent },
+  after: { flexDirection: 'row', alignItems: 'center', marginLeft: 4 },
+  afterText: { fontFamily: SANS, fontSize: typeSize(12), color: COLORS.inkFaint, marginRight: 10 },
   rowTextDone: { color: COLORS.done, textDecorationLine: 'line-through' },
   act: { paddingVertical: 6, paddingHorizontal: 9, marginLeft: 4 },
   actText: { fontFamily: SANS, fontSize: typeSize(12.5), color: COLORS.accent },

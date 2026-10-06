@@ -43,3 +43,68 @@ export function mergeEvents(fromDevice = [], fromFeed = []) {
     return true;
   });
 }
+
+// What a connected calendar is actually giving you.
+//
+// The line used to say "TA · 1 ahead · read today", and that one number cannot
+// be acted on: a calendar holding four hundred meetings of which one falls in
+// the next three weeks, and a calendar holding one meeting, read identically —
+// and they need opposite fixes. The first means the link points somewhere with
+// nothing coming up; the second means it points at an empty calendar.
+//
+// Both numbers are already worked out when the file is read. Only one of them
+// was ever shown. saveFeed's own comment says why this matters: "a file of 363
+// events that yields none for the next three weeks has parsed perfectly and is
+// still useless, and 'read 363 events' says nothing about which of those two
+// you have."
+export function feedSummary(feed, age = '') {
+  if (!feed) return '';
+  const held = Math.max(0, Number(feed.events) || 0);
+  const ahead = Math.max(0, Number(feed.ahead) || 0);
+
+  const parts = [feed.name || 'Linked'];
+  if (held === 0) {
+    parts.push('nothing was read from it');
+  } else {
+    // Two different things, so they get two different words. The first counts
+    // entries in the file; the second counts occurrences in the next three
+    // weeks, and one weekly meeting is a single entry that comes up three
+    // times. Writing it as a share of the whole — "7 of 5" — was the first
+    // draft, and it is arithmetic that cannot happen saying something that can.
+    parts.push(`${held} ${held === 1 ? 'entry' : 'entries'}`);
+    parts.push(ahead === 0 ? 'none coming up' : `${ahead} coming up`);
+  }
+  if (age) parts.push(age);
+  return parts.join(' · ');
+}
+
+// Whether a linked calendar is worth fetching again.
+//
+// This was a freshness policy — half an hour — and it was the wrong idea. The
+// app already re-reads whenever it comes forward, which is exactly the moment
+// somebody has just added a meeting on their laptop and picked the phone up to
+// look at it. Half an hour meant that lock, add a meeting, unlock showed
+// yesterday's diary and said nothing about why.
+//
+// So: not a policy about staleness, a guard against a stampede. A phone can
+// fire several "came forward" events in a second or two, and the only thing
+// worth suppressing is the second and third fetch of the same breath.
+export const LINK_SETTLE_MS = 10000;
+
+export function shouldRefetch(feed, now = new Date(), opts = {}) {
+  if (!feed || !feed.url) return false;
+  if (opts.force) return true;
+
+  const settle = Number.isFinite(opts.settle) ? opts.settle : LINK_SETTLE_MS;
+  const at = Date.parse(feed.at);
+  // No readable stamp means nothing is known about the copy, and the honest
+  // answer to "is it current" is to go and find out.
+  if (!Number.isFinite(at)) return true;
+
+  const age = new Date(now).getTime() - at;
+  if (!Number.isFinite(age)) return true;
+  // A copy stamped in the future is a clock that moved, not a copy that is
+  // fresh for the next six hours.
+  if (age < 0) return true;
+  return age >= settle;
+}
