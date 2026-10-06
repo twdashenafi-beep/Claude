@@ -663,6 +663,7 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
   // said in the sheet rather than by the sheet refusing to appear.
   const openGap = useCallback(gap => { setGapPicked(gap || null); setPlanning(true); }, []);
   const closePlanning = useCallback(() => { setPlanning(false); setGapPicked(null); }, []);
+
   const placeInGap = useCallback((task, gap) => {
     const when = planFor(gap);
     closePlanning();
@@ -810,6 +811,17 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
     setAlerts(prev => prev.filter(a => a.task.id !== task.id));
     openResult(live);
   }, [openResult]);
+
+  // Opened from the planner, the same way a reminder opens from the Due sheet.
+  //
+  // The live task rather than the held one: the sheet keeps its list from the
+  // moment it opened, so a row could be a minute out of date by the time it is
+  // tapped, and opening a stale copy would show the task as it was.
+  const openFromPlan = useCallback(task => {
+    const live = liveTasks.current.find(t => t.id === task.id) || task;
+    closePlanning();
+    openResult(live);
+  }, [closePlanning, openResult]);
 
   // Ticked from the sheet. The row goes, the sheet stays: most of what a
   // reminder catches is already done or takes a moment, and closing after each
@@ -1288,6 +1300,7 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
         onPutOff={putTaskOff}
         onPutOffTo={putTaskOffTo}
         onDone={task => toggleTask(task.id)}
+        onOpen={openFromPlan}
         onClose={closePlanning}
       />
 
