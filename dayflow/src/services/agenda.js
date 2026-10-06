@@ -483,6 +483,56 @@ export function barSegments(load, width, gap = BAR_GAP, least = BAR_LEAST) {
 
 // Where you are standing on the day, or null when now is outside it. One tick,
 // no number: the clock is already on the phone.
+// What the block under your finger is.
+//
+// The strip said how much and when, and never what: 07:00, 2h booked, 18:00.
+// The names were in the briefing, two taps away, and a tap on a meeting did
+// something unrelated — it fell forward to the next free stretch and opened the
+// planner for an hour you had not pointed at.
+//
+// Read back from the pixel rather than from the drawn segments: placeSpans
+// widens a short meeting to stay visible and merges two that would touch, so
+// its output does not line up one-to-one with the meetings that went in. The
+// time under the finger does.
+export function bookedAt(load, width, x) {
+  if (!barDrawable(load) || !(width > 0)) return null;
+  const { from, to } = load.window;
+  const total = to - from;
+  if (!(total > 0)) return null;
+
+  const within = Math.max(0, Math.min(width, Number(x)));
+  if (!Number.isFinite(within)) return null;
+  const at = +from + (within / width) * total;
+  // A twenty-minute call is drawn wider than it is so it can be seen at all,
+  // and a finger that lands on the part of it that is drawing rather than
+  // diary should still find it.
+  const slack = (BAR_LEAST / width) * total;
+
+  const touching = (load.events || [])
+    .filter(event => !event.allDay && +event.end > at - slack && +event.start < at + slack)
+    .sort((a, b) => a.start - b.start);
+  if (touching.length === 0) return null;
+
+  const [first] = touching;
+  return {
+    title: first.title || 'Busy',
+    start: first.start,
+    end: first.end,
+    more: touching.length - 1,
+  };
+}
+
+// Said where the caption goes, in place of "2h booked", for as long as it is
+// the thing being asked about.
+export function bookedLine(hit) {
+  if (!hit || !hit.start || !hit.end) return null;
+  const when = `${clockOf(hit.start)}–${clockOf(hit.end)}`;
+  if (hit.more > 0) {
+    return `${hit.title} and ${hit.more} other${hit.more === 1 ? '' : 's'}  ·  ${when}`;
+  }
+  return `${hit.title}  ·  ${when}`;
+}
+
 export function barNow(load, width, now = new Date()) {
   if (!load || load.span !== 'day' || !load.window) return null;
   if (!(width > 0)) return null;

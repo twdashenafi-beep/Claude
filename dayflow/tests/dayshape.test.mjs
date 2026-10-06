@@ -16,7 +16,7 @@ import {
   barSegments, barNow, barDrawable, barCaption, loadSentence,
   spanLoad, dayLoad, BAR_GAP, BAR_LEAST, tomorrowLine,
   barPlans, gapAt, planFor, placeable, clockOf, tomorrowGaps, putOff, putOffTo, LATER,
-  takenIn, nextHour, leftIn,
+  takenIn, nextHour, leftIn, bookedAt, bookedLine,
 } from '../src/services/agenda.js';
 
 let pass = 0, fail = 0;
@@ -743,6 +743,67 @@ const near = (a, b, slack = 0.51) => Math.abs(a - b) <= slack;
 
   ok('nothing in is nothing out',
      nextHour(null) === null && nextHour({}) === null && leftIn(null) === 0);
+}
+
+// ── Asking the strip what a block is ────────────────────────────────────────
+//
+// It said how much and when and never what: 07:00, 2h booked, 18:00. The names
+// were in the briefing, and a tap on a meeting fell forward to the next free
+// stretch and opened the planner for an hour nobody had pointed at.
+{
+  const day = new Date(2026, 9, 2, 9, 30);
+  const ev = (title, h1, m1, h2, m2) => ({
+    id: title, title,
+    start: new Date(2026, 9, 2, h1, m1), end: new Date(2026, 9, 2, h2, m2),
+  });
+  const events = [ev('Standup', 9, 0, 9, 30), ev('Board call', 11, 0, 12, 30)];
+  const load = dayLoad([], events, day);
+  const W = 300;
+  // 08:00–18:00 across 300px: an hour is 30px.
+  const at = hour => ((hour - 8) / 10) * W;
+
+  ok('a tap on a meeting finds it',
+     (bookedAt(load, W, at(11.5)) || {}).title === 'Board call',
+     JSON.stringify(bookedAt(load, W, at(11.5))));
+  ok('and the one earlier in the day is its own',
+     (bookedAt(load, W, at(9.2)) || {}).title === 'Standup',
+     JSON.stringify(bookedAt(load, W, at(9.2))));
+  ok('a tap on free time finds no meeting', bookedAt(load, W, at(15)) === null,
+     JSON.stringify(bookedAt(load, W, at(15))));
+
+  // Both ends of a meeting belong to it, and the hour outside it does not.
+  ok('the start of a meeting is in it', (bookedAt(load, W, at(11.05)) || {}).title === 'Board call');
+  ok('and a good way after it has ended is not',
+     bookedAt(load, W, at(13.5)) === null, JSON.stringify(bookedAt(load, W, at(13.5))));
+
+  // A twenty-minute call is drawn wider than it is so it can be seen at all,
+  // and a finger landing on the drawn part should still find it.
+  const brief = dayLoad([], [ev('Quick sync', 14, 0, 14, 10)], day);
+  ok('a very short meeting can still be hit',
+     (bookedAt(brief, W, at(14.05)) || {}).title === 'Quick sync',
+     JSON.stringify(bookedAt(brief, W, at(14.05))));
+
+  // Two at once is one block, and the block has to admit there are two.
+  const double = dayLoad([], [ev('Board call', 11, 0, 12, 30), ev('Investor call', 11, 30, 12, 0)], day);
+  const both = bookedAt(double, W, at(11.75));
+  ok('a double booking names one and counts the other', both && both.more === 1,
+     JSON.stringify(both));
+  ok('and says so in words',
+     /Board call and 1 other/.test(bookedLine(both) || ''), String(bookedLine(both)));
+
+  // An all-day note is not an hour of the day and must not answer for one.
+  const allDay = dayLoad([], [{ id: 'o', title: 'Offsite', allDay: true,
+    start: new Date(2026, 9, 2), end: new Date(2026, 9, 3) }, ev('Standup', 9, 0, 9, 30)], day);
+  ok('an all-day note does not claim the afternoon',
+     bookedAt(allDay, W, at(15)) === null, JSON.stringify(bookedAt(allDay, W, at(15))));
+
+  ok('the line names the meeting and its hours',
+     bookedLine(bookedAt(load, W, at(11.5))) === 'Board call  ·  11:00–12:30',
+     String(bookedLine(bookedAt(load, W, at(11.5)))));
+
+  ok('nothing in is nothing out',
+     bookedAt(null, W, 10) === null && bookedAt(load, 0, 10) === null
+     && bookedAt(load, W, NaN) === null && bookedLine(null) === null);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
