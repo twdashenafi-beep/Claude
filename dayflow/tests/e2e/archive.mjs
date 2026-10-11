@@ -408,6 +408,87 @@ await A.page.waitForTimeout(900);
 const restoredNote = await A.page.getByPlaceholder('Add notes...').inputValue();
 ok('a restored task keeps its note', restoredNote === SHORT, JSON.stringify(restoredNote));
 
+// ── Finished work files itself after a week ─────────────────────────────────
+//
+// The only way into the archive was pressing the cross, or Clear all — a chore
+// whose whole purpose is housekeeping. If the archive's value is safe clearing,
+// the app can do the clearing.
+//
+// Silent by design, and Owe Me exempt: a thing somebody owed you that you
+// ticked is a different record from a job you finished, and settling up is
+// worth dismissing by hand.
+{
+  const forward = async days => {
+    await A.page.clock.setFixedTime(new Date(Date.now() + days * 86400000));
+    await A.page.evaluate(() => {
+      Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+      Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await A.page.waitForTimeout(1800);
+  };
+
+  // The block above leaves a task's sheet open, and an open sheet swallows
+  // every tap meant for the page behind it.
+  const shut = async () => {
+    const cancel = A.page.getByText('Cancel', { exact: true });
+    if (await cancel.count()) { await cancel.last().click(); await A.page.waitForTimeout(800); }
+  };
+  await shut();
+  await A.page.getByLabel('All tasks not in a project').click();
+  await A.page.waitForTimeout(600);
+  await add('Ticked and left alone');
+  await A.page.getByLabel('Mark Ticked and left alone as done').click();
+  await A.page.waitForTimeout(600);
+
+  // Something somebody owes you, ticked and left the same way.
+  await A.page.getByLabel('Add something you are waiting on to Owe Me').click();
+  await A.page.waitForTimeout(500);
+  await A.page.getByPlaceholder('What are you waiting on?').fill('Owed and ticked');
+  await A.page.getByPlaceholder('Who owes you this?').fill('Sam');
+  await A.page.getByLabel('Add to Owe Me').click();
+  await A.page.waitForTimeout(900);
+  await A.page.getByLabel('Mark Owed and ticked as done').click();
+  await A.page.waitForTimeout(600);
+
+  const reveal = async () => {
+    const more = A.page.getByLabel(/^Show \d+ completed/).first();
+    if (await more.count()) { await more.click(); await A.page.waitForTimeout(400); }
+  };
+  await reveal();
+  ok('a task ticked today stays on the page', await shows('Ticked and left alone'),
+     (await page()).slice(0, 300));
+
+  // Two days later it is still today's news.
+  await forward(2);
+  await reveal();
+  ok('and is still there two days later', await shows('Ticked and left alone'),
+     (await page()).slice(0, 300));
+
+  // Eight days later it is not.
+  await forward(8);
+  ok('but after a week it has filed itself', !(await shows('Ticked and left alone')),
+     (await page()).slice(0, 400));
+
+  // Silent: the whole point is removing a chore, not reporting that it was
+  // removed.
+  ok('and said nothing about having done so',
+     !/filed|archived/i.test(await page()), (await page()).slice(0, 400));
+
+  // The decision that was made deliberately.
+  await reveal();
+  ok('a ticked Owe Me is left where it is', await shows('Owed and ticked'),
+     (await page()).slice(0, 400));
+
+  // Filed, not lost.
+  await openArchive();
+  ok('the filed task is in Finished', await shows('Ticked and left alone'),
+     (await page()).slice(0, 400));
+  await A.page.getByLabel('All tasks not in a project').click();
+  await A.page.waitForTimeout(700);
+}
+
 // ── A year folds away ───────────────────────────────────────────────────────
 //
 // This place had one way out and it was a cliff: EMPTY, all of it, for ever. So
@@ -418,10 +499,13 @@ ok('a restored task keeps its note', restoredNote === SHORT, JSON.stringify(rest
 // through the interface is not possible, and rewriting archivedAt behind the
 // app's back would be testing a fixture rather than the app.
 {
-  // The block above left a task's sheet open, and an open sheet swallows every
-  // tap meant for the page behind it.
-  await A.page.getByText('Cancel', { exact: true }).last().click();
-  await A.page.waitForTimeout(800);
+  // Any sheet still open swallows every tap meant for the page behind it. The
+  // block above usually closes it; this is here because "usually" is how a
+  // suite starts failing at the far end for a reason that is nowhere near it.
+  {
+    const cancel = A.page.getByText('Cancel', { exact: true });
+    if (await cancel.count()) { await cancel.last().click(); await A.page.waitForTimeout(800); }
+  }
   await A.page.getByLabel('All tasks not in a project').click();
   await A.page.waitForTimeout(600);
   await add('Finished long ago');

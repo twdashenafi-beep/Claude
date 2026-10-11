@@ -4,7 +4,7 @@
 // keep it, and on something unfinished should not. Pure logic. Run with
 // `npm test`.
 
-import { ARCHIVE, isArchived, deletionOf, sortArchive, groupByDay, byAge, foldedLine }
+import { ARCHIVE, isArchived, deletionOf, sortArchive, groupByDay, byAge, foldedLine, readyToFile }
   from '../src/services/archive.js';
 
 let pass = 0, fail = 0;
@@ -111,6 +111,67 @@ ok('the archive has a reserved name so a project cannot take it',
      foldedLine(older) === '2 finished more than a year ago', String(foldedLine(older)));
   ok('and says nothing when there is nothing behind it', foldedLine([]) === null);
   ok('nor when asked about nothing at all', foldedLine(null) === null);
+}
+
+// ── Filing itself ───────────────────────────────────────────────────────────
+//
+// The only way into the archive was pressing the cross, or Clear all — a chore
+// whose whole purpose is housekeeping. If the archive's value is safe clearing,
+// the app can do the clearing.
+{
+  const NOW = new Date(2026, 9, 11, 9, 0);
+  const done = (id, daysAgo, extra = {}) => ({
+    id, title: id, completed: true, taskType: 'todo',
+    completedAt: new Date(+NOW - daysAgo * 86400000).toISOString(),
+    ...extra,
+  });
+  const ids = list => readyToFile(list, NOW).sort().join(',');
+
+  ok('a week-old finished task files itself', ids([done('a', 8)]) === 'a');
+  ok('and one finished this morning does not', ids([done('b', 0)]) === '');
+  ok('nor one finished six days ago', ids([done('c', 6)]) === '');
+  // The boundary, both sides.
+  ok('a day under the week stays', ids([done('d', 6.9)]) === '');
+  ok('and a day over it goes', ids([done('e', 7.1)]) === 'e');
+
+  // Still open is still open, however long it has sat there. This is the whole
+  // difference between filing and tidying up after somebody.
+  ok('an unfinished task is never filed, however old',
+     ids([{ id: 'open', title: 'open', completed: false, taskType: 'todo',
+       updatedAt: new Date(2020, 0, 1).toISOString() }]) === '');
+  ok('and one already filed is not filed again',
+     ids([done('f', 40, { archivedAt: new Date(2026, 8, 1).toISOString() })]) === '');
+
+  // Owe Me is exempt. A thing somebody owed you that you ticked is a different
+  // record from a job you finished, and settling up is worth dismissing by hand.
+  ok('a ticked Owe Me stays on the page',
+     ids([done('owed', 40, { taskType: 'done_for_me' })]) === '');
+  ok('while the work beside it files itself',
+     ids([done('mine', 40), done('owed', 40, { taskType: 'done_for_me' })]) === 'mine');
+
+  // A project is not a task.
+  ok('a project is never filed',
+     ids([{ id: 'p', kind: 'project', name: 'p', completed: true }]) === '');
+
+  // completedAt is the honest answer; updatedAt is the fallback, and it is at
+  // worst too recent — so an old task with no completedAt waits rather than
+  // vanishing early.
+  ok('a task with no completedAt falls back to when it was last touched',
+     ids([{ id: 'g', title: 'g', completed: true, taskType: 'todo',
+       updatedAt: new Date(+NOW - 30 * 86400000).toISOString() }]) === 'g');
+  ok('and one with no dates at all is left alone rather than guessed at',
+     ids([{ id: 'h', title: 'h', completed: true, taskType: 'todo' }]) === '');
+  ok('as is one whose date cannot be read',
+     ids([{ id: 'i', title: 'i', completed: true, taskType: 'todo', completedAt: 'whenever' }]) === '');
+
+  ok('a broken list is survived',
+     readyToFile(null, NOW).length === 0 && readyToFile([null, undefined], NOW).length === 0);
+  ok('and a record with no id is not filed by its absence',
+     ids([{ completed: true, taskType: 'todo', completedAt: new Date(2020, 0, 1).toISOString() }]) === '');
+
+  // Several at once, which is what a first run after a week looks like.
+  ok('everything ready goes together',
+     ids([done('x', 9), done('y', 20), done('z', 1)]) === 'x,y');
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

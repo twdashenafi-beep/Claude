@@ -73,6 +73,62 @@ export function foldedLine(older) {
   return `${many} finished more than a year ago`;
 }
 
+// Filing itself.
+//
+// The archive's real job is making the cross safe: because filing loses
+// nothing, writing something down costs nothing either. But the only way in
+// was pressing the cross, or Clear all — a chore whose entire purpose is
+// housekeeping. If the value is safe clearing, the app can do the clearing.
+//
+// A week, because a thing finished this morning is still today's news and a
+// thing finished last Tuesday is not. The cross still works for "get this off
+// my page now", which is the impatient half of the same wish.
+//
+// Owe Me is exempt, deliberately: a thing somebody owed you that you ticked is
+// a different kind of record from a job you finished, and settling up is worth
+// a deliberate dismissal.
+//
+// Silent. No banner, no count — the point is to remove a chore, and announcing
+// that it has been removed puts a smaller one back.
+const FILE_AFTER_DAYS = 7;
+const ARCHIVE_KIND_GUARD = 'project';
+
+// When a finished task was last anybody's business.
+//
+// completedAt is written the moment it is ticked, and is the honest answer.
+// Failing that updatedAt, which is at worst too recent — so a task with no
+// completedAt waits longer rather than disappearing early.
+function settledAt(task) {
+  for (const raw of [task.completedAt, task.updatedAt]) {
+    const at = Date.parse(raw);
+    if (Number.isFinite(at)) return at;
+  }
+  return null;
+}
+
+// The ids of everything that should file itself now. Always an array.
+export function readyToFile(tasks, now = new Date(), days = FILE_AFTER_DAYS) {
+  const at = now instanceof Date && !Number.isNaN(now.getTime()) ? now : new Date();
+  const edge = at.getTime() - days * 86400000;
+
+  const ready = [];
+  for (const task of tasks || []) {
+    if (!task || typeof task.id !== 'string' || task.id === '') continue;
+    if (!task.completed || task.archivedAt) continue;
+    // Not Owe Me. Only work of your own files itself.
+    if (task.taskType === 'done_for_me') continue;
+    // A project is not a task and has no business here.
+    if (task.kind === ARCHIVE_KIND_GUARD) continue;
+
+    const when = settledAt(task);
+    // No readable date means nothing is known about when it was finished, and
+    // filing it on a guess would be filing it the moment it was ticked.
+    if (when === null) continue;
+    if (when < edge) ready.push(task.id);
+  }
+  return ready;
+}
+
 // Grouped by the day they were filed, because "what did I get done on Tuesday"
 // is the question an archive is for.
 export function groupByDay(tasks, formatDay) {
