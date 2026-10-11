@@ -237,6 +237,12 @@ for (let i = 0; i < 20 && !played; i += 1) {
   if (!played) await page.waitForTimeout(100);
 }
 ok('and it actually plays', played);
+// The row says why a note will not play, and on the web there is never
+// anything to say — notes have always played here. A line appearing in a
+// browser would mean the complaint is being shown to the one platform that
+// does not have the problem.
+ok('and says nothing about not playing, because it played',
+   (await page.locator('[data-notetrouble]').count()) === 0);
 if (await page.getByLabel('Stop voice note').count()) {
   await page.getByLabel('Stop voice note').first().click();
   await page.waitForTimeout(400);
