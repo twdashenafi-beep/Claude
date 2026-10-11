@@ -5,7 +5,7 @@ import {
   setAudioModeAsync, requestRecordingPermissionsAsync, RecordingPresets,
 } from 'expo-audio';
 import { COLORS, SANS, typeSize } from '../utils/theme';
-import { toDurableUri, tooShort, slidUp } from '../services/audio';
+import { toDurableUri, tooShort, slidUp, noteTrouble } from '../services/audio';
 import { canAddNote } from '../services/voiceNotes';
 import { claim, release } from '../services/playback';
 import { playableUri } from '../services/notePlayback';
@@ -469,6 +469,14 @@ function useNotePlayer(uri) {
   const status = useAudioPlayerStatus(player);
   const playing = status?.playing ?? false;
 
+  // Whether anybody has asked this note to play.
+  //
+  // A note is not loaded for the first moment of its life, and a row that
+  // complained about that would complain about every note every time the sheet
+  // opened. So nothing is said until somebody has pressed play and been given
+  // nothing back.
+  const [asked, setAsked] = useState(false);
+
   // A recording made in the browser often carries no length in its metadata —
   // MediaRecorder does not write one — so the length is reported when it is
   // known and left out when it is not, rather than shown as 0:00.
@@ -493,6 +501,7 @@ function useNotePlayer(uri) {
   useEffect(() => () => release(stopMe), [stopMe]);
 
   const toggle = () => {
+    setAsked(true);
     if (playing) {
       pause.current();
       release(stopMe);
@@ -522,7 +531,9 @@ function useNotePlayer(uri) {
     player.play();
   };
 
-  return { playing, at, length, toggle };
+  const trouble = asked ? noteTrouble(uri, status, Platform.OS !== 'web') : '';
+
+  return { playing, at, length, toggle, trouble };
 }
 
 // One note: a play control, what it is, how long it is, and a way to be rid
@@ -532,7 +543,7 @@ function useNotePlayer(uri) {
 // alone. A note is the thing on the row a person most wants to touch and it had
 // the smallest target on it.
 function NoteRow({ uri, index, total, onRemove }) {
-  const { playing, at, length, toggle } = useNotePlayer(uri);
+  const { playing, at, length, toggle, trouble } = useNotePlayer(uri);
 
   return (
     <View style={st.existing}>
@@ -571,6 +582,9 @@ function NoteRow({ uri, index, total, onRemove }) {
         <View style={st.progressTrack}>
           <View style={[st.progressFill, { width: `${Math.min(100, (at / length) * 100)}%` }]} />
         </View>
+      ) : null}
+      {trouble ? (
+        <Text style={st.noteTrouble} dataSet={{ notetrouble: 'true' }}>{trouble}</Text>
       ) : null}
     </View>
   );
@@ -614,6 +628,11 @@ const st = StyleSheet.create({
   micBtnLocked: { backgroundColor: COLORS.accent, borderColor: COLORS.ink },
   micIcon: { fontSize: typeSize(19) },
   stopIcon: { fontSize: typeSize(15), color: COLORS.sheet },
+
+  noteTrouble: {
+    width: '100%', fontFamily: SANS, fontSize: typeSize(12.5),
+    color: COLORS.accent, paddingTop: 4,
+  },
 
   micLabel: { fontFamily: SANS, fontSize: typeSize(13.5), color: COLORS.inkFaint },
   micProblem: { color: COLORS.accent },

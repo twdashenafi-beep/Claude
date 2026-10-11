@@ -91,7 +91,57 @@ export async function toDurableUri(uri) {
   // The size guess above is a guess; this is the thing that will actually be
   // stored.
   if (encoded.length > MAX_NOTE_BYTES) return null;
-  return encoded;
+  return labelled(encoded, uri);
+}
+
+// What a recording is, read off the name of the file it was written to.
+//
+// The type is the one piece of information this app had and then threw away,
+// and throwing it away is the whole of why notes played on the web and not on
+// a phone.
+//
+// The bytes become durable through a fetch of the recording followed by
+// readAsDataURL, and readAsDataURL labels its result with whatever type the
+// platform put on the blob. In a browser that is MediaRecorder's own
+// 'audio/webm;codecs=opus', so everything downstream knows what it is holding
+// and the browser decodes it from the label. Fetching a file:// URL need not
+// produce a type at all, and a note that arrives without one is stored as
+// application/octet-stream — a recording whose format is now unknown, written
+// to disk as note-xxxx.dat, which is the one name AVPlayer will not open.
+//
+// None of that has to be guessed at. The recorder named the file.
+const MIMES = {
+  m4a: 'audio/m4a',
+  mp4: 'audio/mp4',
+  aac: 'audio/aac',
+  mp3: 'audio/mpeg',
+  wav: 'audio/wav',
+  caf: 'audio/x-caf',
+  webm: 'audio/webm',
+  ogg: 'audio/ogg',
+};
+
+export function mimeForPath(path) {
+  if (typeof path !== 'string' || path === '') return '';
+  // A query and a fragment are not part of a file's name.
+  const clean = path.split(/[?#]/)[0];
+  const slash = Math.max(clean.lastIndexOf('/'), clean.lastIndexOf('\\'));
+  const name = clean.slice(slash + 1);
+  const dot = name.lastIndexOf('.');
+  // A leading dot is a hidden file, not an extension.
+  if (dot <= 0) return '';
+  return MIMES[name.slice(dot + 1).toLowerCase()] || '';
+}
+
+// Puts the type back on a data URI that lost it. One that says what it is
+// keeps what it says — a browser's own label is better than an extension.
+function labelled(encoded, from) {
+  const parts = splitDataUri(encoded);
+  if (!parts) return encoded;
+  if (parts.mime && parts.mime !== 'application/octet-stream') return encoded;
+  const mime = mimeForPath(from);
+  if (!mime) return encoded;
+  return `data:${mime};base64,${parts.base64}`;
 }
 
 // A data URI, taken apart.
@@ -146,9 +196,42 @@ const EXTENSIONS = {
 export function extensionFor(mime) {
   const known = EXTENSIONS[String(mime || '').toLowerCase()];
   if (known) return known;
-  // An unknown audio type is still audio; m4a is what this app records on a
-  // phone and the likeliest thing an unlabelled recording actually is.
-  return String(mime || '').startsWith('audio/') ? 'm4a' : 'dat';
+  // Anything else is still a voice note, and the only thing that records one on
+  // a phone is this app, which records m4a. There is no recording for which
+  // '.dat' is the better guess — it is the one extension certain not to open,
+  // and it is what an unlabelled note used to be written as.
+  return 'm4a';
+}
+
+// Why a note is not playing, in a sentence, or '' when there is nothing to say.
+//
+// Silence was the old answer, and it is most of why this took five attempts to
+// find. A note whose format the phone cannot open does not fail: it never
+// finishes loading, so the play button stays a triangle, nothing moves, and
+// nothing on screen says what it is holding. Four of my guesses at the cause
+// were wrong, and each one cost a build and a day because the only report
+// available was "it still does not work".
+//
+// So whatever is wrong next time, the row says it.
+export function noteTrouble(uri, status, native = true) {
+  // Nothing known yet, or loaded and therefore fine.
+  if (!status || status.isLoaded) return '';
+  if (!native) return '';
+
+  const parts = splitDataUri(uri);
+  // Not a stored note at all — a recording from this session, still a real
+  // file on disk. Nothing to take apart and nothing useful to say about it.
+  if (!parts) return 'This note could not be opened';
+
+  // What a browser records, and what no iPhone can decode. Named rather than
+  // reported as a failure, because it is not one: the recording is intact and
+  // the web version plays it.
+  if (parts.mime === 'audio/webm' || parts.mime === 'audio/ogg') {
+    return 'Recorded in a browser, which an iPhone cannot play — it still plays on the web version';
+  }
+
+  const kb = Math.max(1, Math.round((parts.base64.length * 3) / 4096));
+  return `Could not open this note — ${parts.mime}, ${kb} KB`;
 }
 
 // A name that is the same every time for the same recording, so a note played

@@ -12,7 +12,7 @@
 // megabytes that every typed task lives in.
 //
 // Run with `npm test`.
-import { toDurableUri, MAX_NOTE_BYTES, MIN_NOTE_MS, tooShort, slidUp, LOCK_DY, splitDataUri, extensionFor, noteFileName } from '../src/services/audio.js';
+import { toDurableUri, MAX_NOTE_BYTES, MIN_NOTE_MS, tooShort, slidUp, LOCK_DY, splitDataUri, extensionFor, noteFileName, mimeForPath, noteTrouble } from '../src/services/audio.js';
 
 let pass = 0, fail = 0;
 const ok = (label, cond, extra = '') => {
@@ -204,12 +204,15 @@ ok('and nonsense never does',
   ok('and wav, mp3 and caf keep theirs',
      extensionFor('audio/wav') === 'wav' && extensionFor('audio/mpeg') === 'mp3'
      && extensionFor('audio/x-caf') === 'caf');
-  // An unlabelled recording is still a recording. Writing it as .dat is writing
-  // a file the player may decline to open.
-  ok('an unknown audio type is still treated as audio',
+  // An unlabelled recording is still a recording, and this function names only
+  // voice notes. '.dat' is the one extension certain not to open, so there is
+  // nothing it can be the right answer for — and it is what every note whose
+  // type was lost on the way to storage used to be written as.
+  ok('an unknown audio type is treated as the format this app records',
      extensionFor('audio/something-new') === 'm4a');
-  ok('but something that is not audio is not', extensionFor('application/pdf') === 'dat');
-  ok('nor is nothing at all', extensionFor('') === 'dat' && extensionFor(null) === 'dat');
+  ok('and so is a type that is not audio at all, because a note is still a note',
+     extensionFor('application/octet-stream') === 'm4a' && extensionFor('application/pdf') === 'm4a');
+  ok('and so is nothing at all', extensionFor('') === 'm4a' && extensionFor(null) === 'm4a');
 
   // ── The name, which has to be the same every time ──
   ok('the same recording always gets the same name',
@@ -226,6 +229,111 @@ ok('and nonsense never does',
      `${noteFileName(m4a)} vs ${noteFileName(twin)}`);
   ok('and anything that is not a stored note has no name',
      noteFileName('file:///tmp/a.m4a') === null && noteFileName('') === null);
+}
+
+// ── The type, read off the name of the file the recorder wrote ─────────────
+//
+// This is the piece that was being thrown away, and throwing it away is why
+// notes played on the web and not on a phone: a browser's blob carries
+// MediaRecorder's own type, and a blob read from a file:// URL need not carry
+// one at all. The recording was then stored as application/octet-stream — a
+// note of unknown format, written to disk as note-xxxx.dat.
+{
+  ok('a recording written by the phone is recognised',
+     mimeForPath('file:///var/mobile/Containers/Data/recording-AB12.m4a') === 'audio/m4a',
+     mimeForPath('file:///var/mobile/Containers/Data/recording-AB12.m4a'));
+  ok('whatever case the extension is in',
+     mimeForPath('file:///tmp/a.M4A') === 'audio/m4a');
+  ok('and the other formats a recorder can produce',
+     mimeForPath('/tmp/a.wav') === 'audio/wav' && mimeForPath('/tmp/a.caf') === 'audio/x-caf'
+     && mimeForPath('/tmp/a.webm') === 'audio/webm' && mimeForPath('/tmp/a.mp3') === 'audio/mpeg');
+  ok('a query string is not part of the name',
+     mimeForPath('https://x/note.m4a?token=abc') === 'audio/m4a');
+  ok('a blob URL has no name to read', mimeForPath('blob:http://localhost/9f2c') === '');
+  ok('nor has a path without an extension', mimeForPath('file:///tmp/recording') === '');
+  // A dot in a directory and none in the file name, which is the case that
+  // reads an extension off the wrong part of the path. Left as one line rather
+  // than two: a version that never strips the directory still answers '' here,
+  // because the lookup is exact and 'm4a/recording' is not a type — so there is
+  // no implementation this can tell apart, and an assertion that cannot fail is
+  // decoration. The hidden-file case below is the one that bites.
+  ok('a hidden file has no extension', mimeForPath('/tmp/.m4a') === '');
+  ok('junk has no type', mimeForPath('') === '' && mimeForPath(null) === ''
+     && mimeForPath(undefined) === '');
+
+  // ── And the type survives the trip through storage ──
+  //
+  // The whole point: what comes back out must say what it is, so that the file
+  // written for the player carries an extension the player recognises.
+  const keep = { fetch: globalThis.fetch, FileReader: globalThis.FileReader };
+  globalThis.fetch = async () => ({ blob: async () => ({ size: 9 }) });
+
+  // A platform that gave the blob no type at all, which is the iOS case.
+  globalThis.FileReader = readerYielding('data:;base64,QUJD');
+  const unlabelled = await toDurableUri('file:///tmp/recording-AB12.m4a');
+  ok('a recording that came back with no type is labelled from its file',
+     unlabelled === 'data:audio/m4a;base64,QUJD', unlabelled);
+  ok('and is therefore written for the player as m4a, not dat',
+     noteFileName(unlabelled).endsWith('.m4a'), noteFileName(unlabelled));
+
+  globalThis.FileReader = readerYielding('data:application/octet-stream;base64,QUJD');
+  const octet = await toDurableUri('file:///tmp/recording-AB12.m4a');
+  ok('and so is one that came back as octet-stream',
+     octet === 'data:audio/m4a;base64,QUJD', octet);
+
+  // A browser's own label is better than an extension and must not be
+  // overwritten: webm is what it is, and calling it m4a would write a file the
+  // player then refuses.
+  //
+  // Read from a path whose extension disagrees, which is the only way this
+  // asserts anything. Against a blob: URL there is no extension to prefer, so
+  // the guard could be deleted and the test would still pass — it did, and the
+  // falsification that should have caught it went straight through.
+  globalThis.FileReader = readerYielding('data:audio/webm;base64,QUJD');
+  const browser = await toDurableUri('file:///tmp/recording-AB12.m4a');
+  ok('a type the platform did give is kept, even where the name disagrees',
+     browser === 'data:audio/webm;base64,QUJD', browser);
+
+  // Nothing to read it from, so nothing is invented.
+  globalThis.FileReader = readerYielding('data:;base64,QUJD');
+  const nameless = await toDurableUri('blob:http://localhost/9f2c');
+  ok('a recording with neither type nor name is left as it arrived',
+     nameless === 'data:;base64,QUJD', nameless);
+
+  globalThis.fetch = keep.fetch;
+  globalThis.FileReader = keep.FileReader;
+}
+
+// ── Saying why a note is not playing ───────────────────────────────────────
+//
+// Silence was the old answer, and four wrong guesses at this bug were paid for
+// a build at a time because the only report available was "it still does not
+// work".
+{
+  const loaded = { isLoaded: true };
+  const not = { isLoaded: false };
+  const note = mime => `data:${mime};base64,${'A'.repeat(4000)}`;
+
+  ok('a note that loaded says nothing', noteTrouble(note('audio/m4a'), loaded) === '');
+  ok('nor does one nothing is known about yet', noteTrouble(note('audio/m4a'), null) === '');
+  ok('nor does the web, where this has always worked',
+     noteTrouble(note('audio/webm'), not, false) === '');
+
+  const browser = noteTrouble(note('audio/webm'), not);
+  ok('a browser recording on a phone is named rather than called a failure',
+     browser.includes('browser') && browser.includes('web version'), browser);
+  ok('and ogg is the same case', noteTrouble(note('audio/ogg'), not) === browser);
+
+  const unknown = noteTrouble(note('application/octet-stream'), not);
+  ok('anything else reports what the note actually is',
+     unknown.includes('application/octet-stream'), unknown);
+  ok('and how big it is, so a note of nothing is distinguishable from a real one',
+     /\b3 KB\b/.test(unknown), unknown);
+  ok('a note of almost nothing still reads as a size',
+     /\b1 KB\b/.test(noteTrouble('data:audio/m4a;base64,QUJD', not)),
+     noteTrouble('data:audio/m4a;base64,QUJD', not));
+  ok('something that is not a stored note still says it could not be opened',
+     noteTrouble('file:///tmp/a.m4a', not) === 'This note could not be opened');
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
