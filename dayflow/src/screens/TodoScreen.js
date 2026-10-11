@@ -16,7 +16,7 @@ import { keptLine } from '../services/keeping';
 import { loadCopy } from '../services/copyStore';
 import { EVERYTHING, projectOf, projectName } from '../services/projects';
 import { moveTick } from '../services/haptics';
-import { ARCHIVE, deletionOf } from '../services/archive';
+import { ARCHIVE, deletionOf, readyToFile } from '../services/archive';
 import { loadShown, saveShown } from '../services/alertStore';
 import { alertPermission, requestAlertPermission, showSystemAlert, onAlertOpened } from '../services/notifications';
 import { playChime } from '../services/chime';
@@ -325,6 +325,27 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
     });
     return () => sub.remove();
   }, []);
+
+  // Finished work files itself after a week.
+  //
+  // The archive's job is making the cross safe: filing loses nothing, so
+  // writing something down costs nothing. But the only way in was pressing the
+  // cross — a chore whose whole purpose is housekeeping. If the value is safe
+  // clearing, the app can do the clearing.
+  //
+  // Silent, and that is the design rather than an omission: the point is to
+  // take a chore away, and announcing that it has been taken away puts a
+  // smaller one back. Owe Me is exempt — settling up is worth dismissing by
+  // hand. The rule, and why a week, is in archive.js.
+  //
+  // On opening and on coming back, which is often enough for something that
+  // changes once a week. Nothing to guard against a loop: a task filed is a
+  // task with archivedAt, and readyToFile will not offer it again.
+  useEffect(() => {
+    const ready = readyToFile(tasks);
+    if (ready.length > 0) archiveTasks(ready);
+  }, [diaryAt, tasks, archiveTasks]);
+
   const [banner, setBanner] = useState(null);
 
   // Which project's sheet is on screen. Empty is the main list, and the bar

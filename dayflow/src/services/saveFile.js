@@ -17,15 +17,19 @@ import { Platform, Share } from 'react-native';
 //   sharing files is not offered on most of them, so canShare says no and this
 //   runs instead.
 //
-// On a native build there is no file system module in this project — adding one
-// before the first device build has ever succeeded is a risk worth not taking —
-// so the text goes to the system share sheet, which can write it to Files. Past
-// a certain size that stops being reasonable, and saying so is better than
-// handing the operating system several megabytes in a string and watching it
-// decide.
+// On an iPhone the backup is written to a file and the file is shared. It used to
+// be sent as the share sheet's *message* — a string — because this project had
+// no filesystem module, and adding one before the first device build had ever
+// succeeded was a risk worth not taking. That reason expired: a hundred builds
+// have shipped since, and expo-file-system is a declared dependency now.
+//
+// It mattered. A backup carries the voice notes inside it, so half a megabyte
+// is an ordinary export rather than an extreme one, and the phone answered
+// "too large to send from here — export from the browser instead". A backup you
+// can only take on a computer is one that does not get taken.
 
-// A share sheet carries a message, not a file, on native. Beyond this it is the
-// wrong tool and will be a spinner rather than a saved file.
+// Only the fallback below is a message rather than a file, and past this a
+// message is the wrong tool: it will be a spinner rather than a saved file.
 export const SHARE_LIMIT = 512 * 1024;
 
 // 'saved'      — written, or handed to something that writes it
@@ -36,6 +40,16 @@ export async function saveTextFile(name, text, type = 'application/json') {
   if (typeof text !== 'string' || text === '') return 'unavailable';
 
   if (Platform.OS !== 'web') {
+    // A real file, shared as a file. No size limit worth naming, and the sheet
+    // offers "Save to Files" because it is being handed something that is one.
+    //
+    // iOS only, and that is the platform's doing rather than a preference:
+    // Android's share module reads `message` and `title` and ignores `url`, so
+    // handing it a path there shares nothing and reports that it worked.
+    const shared = Platform.OS === 'ios' ? await shareNativeFile(name, text) : null;
+    if (shared) return shared;
+
+    // Nothing could be written. The old route is still better than refusing.
     if (text.length > SHARE_LIMIT) return 'toolarge';
     try {
       const result = await Share.share({ message: text, title: name });
@@ -48,6 +62,34 @@ export async function saveTextFile(name, text, type = 'application/json') {
   const shared = await shareAsFile(name, text, type);
   if (shared) return shared;
   return downloadAsFile(name, text, type) ? 'saved' : 'unavailable';
+}
+
+// Write it, then share the file. Returns a result, or null to fall through to
+// the message route below.
+async function shareNativeFile(name, text) {
+  let path;
+  try {
+    // Imported here rather than at the top: the web bundle has no use for it.
+    const { File, Paths } = await import('expo-file-system');
+    const file = new File(Paths.cache, name);
+    // Overwritten rather than appended to: exporting twice in one day is one
+    // backup taken twice, not a file with two copies of everything in it.
+    file.create({ intermediates: true, overwrite: true });
+    file.write(text);
+    path = file.uri;
+  } catch {
+    return null;
+  }
+  if (!path) return null;
+
+  try {
+    const result = await Share.share({ url: path, title: name });
+    return result && result.action === Share.dismissedAction ? 'cancelled' : 'saved';
+  } catch {
+    // Written but not shared. The caller's next move is the message route,
+    // which is what this did before files were an option.
+    return null;
+  }
 }
 
 // Returns a result if the share sheet handled it, or null to fall through.
@@ -107,10 +149,9 @@ function downloadAsFile(name, text, type) {
 
 // Choosing a file to read back in.
 //
-// There is no cross-platform way to do this and no file-system module in the
-// project, so this is the browser's own picker, made and thrown away each time.
-// A native build gets nothing here until it gets expo-document-picker, and says
-// so rather than presenting a control that does nothing.
+// Two features reach for one: "Read a calendar" and restoring a backup. On the
+// web this is the browser's own picker, made and thrown away each time; on a
+// phone it is the system picker, reached through expo-file-system.
 //
 // Resolves to { name, text } or null — null being both "cancelled" and "could
 // not", because to the person standing there they are the same thing and
@@ -134,32 +175,76 @@ function downloadAsFile(name, text, type) {
 // and readAsText on a gigabyte of film is a frozen tab rather than an error.
 export const MAX_PICK_BYTES = 25 * 1024 * 1024;
 
-// Picking a file on a phone, which this app cannot do.
+// Picking a file on a phone.
 //
-// Worth setting down properly, because it looked available twice over.
+// Worth setting down, because this was written off twice and the second time
+// was my own mistake. On a phone it first returned null the moment it was
+// called, which the callers read as a cancellation, so both buttons did nothing
+// when tapped and said nothing about it. Restoring is the one that matters: it
+// is the button somebody presses after losing everything.
 //
-// Two features reach for a file: "Read a calendar" and restoring a backup. On
-// the web both open a file input. On a phone this returned null the moment it
-// was called, and the callers read that as a cancellation — so both buttons did
-// nothing at all when tapped, and said nothing about it. Restoring is the one
-// that matters: it is the button somebody presses after losing everything.
+// Then the note here said the picker did not exist — that expo-file-system
+// declared File.pickFileAsync, that the native module implemented it, and that
+// no JavaScript connected the two. The last part was wrong. The package ships
+// TypeScript rather than compiled JavaScript, so its `build` directory holds
+// only type declarations; the implementation is in `src/File.ts`, exported from
+// the package root, and it calls the native method directly. Looking for
+// compiled output and finding none is not the same as there being none.
 //
-// expo-file-system looks like the answer and is not. Its types declare
-// File.pickFileAsync, the native module really does implement pickFileAsync —
-// at module level, confirmed in FileSystemModule.swift — and no JavaScript in
-// the package connects the two. The module itself is not reachable either: the
-// package's `exports` map allows only "." and "./legacy", and the picker is in
-// neither. The declaration is ahead of the implementation, which is a thing
-// that happens, and a build is a slow way to discover it.
+// So restoring on a phone needs no new native module, and nothing here is
+// waiting on a decision.
 //
-// Reading a real file on a phone needs expo-document-picker, which is a native
-// module and therefore a deliberate decision rather than something to slip in.
-// Until then this says so, which is the whole of the improvement: a button that
-// cannot work must not look like one that was cancelled.
+// No mimeTypes, for exactly the reason the web picker has no accept list: on
+// iOS a type the system does not recognise greys a file out rather than
+// narrowing the list. The option defaults to '*/*', so leaving it off opens
+// everything.
 const NO_PICKER = 'picking a file is not available on this device yet';
 
-function pickOnDevice() {
-  return Promise.resolve({ name: '', text: null, failed: NO_PICKER });
+async function pickOnDevice() {
+  let File;
+  try {
+    ({ File } = await import('expo-file-system'));
+  } catch {
+    return { name: '', text: null, failed: NO_PICKER };
+  }
+  // Asked rather than assumed. A version without it is the one case where the
+  // old message is the truth, and a missing function would otherwise throw
+  // from inside the try below and be reported as a cancellation.
+  if (!File || typeof File.pickFileAsync !== 'function') {
+    return { name: '', text: null, failed: NO_PICKER };
+  }
+
+  let picked;
+  try {
+    picked = await File.pickFileAsync();
+  } catch {
+    // The picker refusing to open at all. Nothing was chosen, which to the
+    // person standing there is the same as having changed their mind.
+    return null;
+  }
+  // Cancelling resolves rather than throws, and a failure inside the module
+  // arrives the same way, as `canceled` with nothing in `result`.
+  if (!picked || picked.canceled || !picked.result) return null;
+
+  const file = picked.result;
+  const name = (file.name && String(file.name)) || 'backup.json';
+  // The same guard as the web, for the same reason: with nothing filtered out,
+  // a video can be chosen, and reading a gigabyte of film is a frozen app
+  // rather than an error.
+  if (typeof file.size === 'number' && file.size > MAX_PICK_BYTES) {
+    return { name, text: null, tooBig: true };
+  }
+
+  try {
+    const text = await file.text();
+    if (typeof text !== 'string') return null;
+    return { name, text };
+  } catch {
+    // Chosen, and then unreadable — a file that has moved, or one iCloud has
+    // not actually brought down yet. Said rather than passed off as a
+    // cancellation, because the person did choose something.
+    return { name, text: null, failed: 'that file could not be read' };
+  }
 }
 
 export function pickTextFile() {

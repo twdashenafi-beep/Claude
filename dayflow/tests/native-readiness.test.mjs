@@ -852,5 +852,57 @@ ok('two keys in a row differ', generateDataKey() !== generateDataKey());
   }
 }
 
+// ── Every native module the app imports is one the build will ship ──────────
+//
+// A module can sit in node_modules as somebody else's dependency, import
+// cleanly, pass every test here and still be absent from a build — or vanish
+// the day the package that pulled it in stops needing it. Nothing in a browser
+// notices; the phone is where it goes missing, which is the one place none of
+// this is run.
+//
+// expo-file-system arrived exactly that way, as a transitive dependency, and
+// was imported for a fix before anybody declared it.
+{
+  const { readFileSync, readdirSync, statSync } = await import('node:fs');
+  const { join } = await import('node:path');
+
+  const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+  const declared = new Set([
+    ...Object.keys(pkg.dependencies || {}),
+    ...Object.keys(pkg.devDependencies || {}),
+  ]);
+
+  const src = new URL('../src', import.meta.url).pathname;
+  const files = [];
+  const walk = dir => {
+    for (const entry of readdirSync(dir)) {
+      const full = join(dir, entry);
+      if (statSync(full).isDirectory()) walk(full);
+      else if (entry.endsWith('.js')) files.push(full);
+    }
+  };
+  walk(src);
+
+  // Static imports and the dynamic ones, which is how a module gets loaded
+  // only on the platform that has any use for it.
+  const wanted = new Map();
+  for (const file of files) {
+    const text = readFileSync(file, 'utf8');
+    for (const m of text.matchAll(/(?:from\s*|import\s*\(\s*)['"]((?:expo|@expo\/|react-native-)[^'"]+)['"]/g)) {
+      const name = m[1].startsWith('@')
+        ? m[1].split('/').slice(0, 2).join('/')
+        : m[1].split('/')[0];
+      if (!wanted.has(name)) wanted.set(name, file.slice(src.length + 1));
+    }
+  }
+
+  ok('the app imports native modules at all', wanted.size > 0, String(wanted.size));
+
+  const undeclared = [...wanted].filter(([name]) => !declared.has(name));
+  ok('and every one of them is a declared dependency',
+     undeclared.length === 0,
+     undeclared.map(([name, where]) => `${name} (imported by ${where})`).join(', '));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
