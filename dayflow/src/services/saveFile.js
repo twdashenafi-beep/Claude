@@ -17,15 +17,19 @@ import { Platform, Share } from 'react-native';
 //   sharing files is not offered on most of them, so canShare says no and this
 //   runs instead.
 //
-// On a native build there is no file system module in this project — adding one
-// before the first device build has ever succeeded is a risk worth not taking —
-// so the text goes to the system share sheet, which can write it to Files. Past
-// a certain size that stops being reasonable, and saying so is better than
-// handing the operating system several megabytes in a string and watching it
-// decide.
+// On an iPhone the backup is written to a file and the file is shared. It used to
+// be sent as the share sheet's *message* — a string — because this project had
+// no filesystem module, and adding one before the first device build had ever
+// succeeded was a risk worth not taking. That reason expired: a hundred builds
+// have shipped since, and expo-file-system is a declared dependency now.
+//
+// It mattered. A backup carries the voice notes inside it, so half a megabyte
+// is an ordinary export rather than an extreme one, and the phone answered
+// "too large to send from here — export from the browser instead". A backup you
+// can only take on a computer is one that does not get taken.
 
-// A share sheet carries a message, not a file, on native. Beyond this it is the
-// wrong tool and will be a spinner rather than a saved file.
+// Only the fallback below is a message rather than a file, and past this a
+// message is the wrong tool: it will be a spinner rather than a saved file.
 export const SHARE_LIMIT = 512 * 1024;
 
 // 'saved'      — written, or handed to something that writes it
@@ -36,6 +40,16 @@ export async function saveTextFile(name, text, type = 'application/json') {
   if (typeof text !== 'string' || text === '') return 'unavailable';
 
   if (Platform.OS !== 'web') {
+    // A real file, shared as a file. No size limit worth naming, and the sheet
+    // offers "Save to Files" because it is being handed something that is one.
+    //
+    // iOS only, and that is the platform's doing rather than a preference:
+    // Android's share module reads `message` and `title` and ignores `url`, so
+    // handing it a path there shares nothing and reports that it worked.
+    const shared = Platform.OS === 'ios' ? await shareNativeFile(name, text) : null;
+    if (shared) return shared;
+
+    // Nothing could be written. The old route is still better than refusing.
     if (text.length > SHARE_LIMIT) return 'toolarge';
     try {
       const result = await Share.share({ message: text, title: name });
@@ -48,6 +62,34 @@ export async function saveTextFile(name, text, type = 'application/json') {
   const shared = await shareAsFile(name, text, type);
   if (shared) return shared;
   return downloadAsFile(name, text, type) ? 'saved' : 'unavailable';
+}
+
+// Write it, then share the file. Returns a result, or null to fall through to
+// the message route below.
+async function shareNativeFile(name, text) {
+  let path;
+  try {
+    // Imported here rather than at the top: the web bundle has no use for it.
+    const { File, Paths } = await import('expo-file-system');
+    const file = new File(Paths.cache, name);
+    // Overwritten rather than appended to: exporting twice in one day is one
+    // backup taken twice, not a file with two copies of everything in it.
+    file.create({ intermediates: true, overwrite: true });
+    file.write(text);
+    path = file.uri;
+  } catch {
+    return null;
+  }
+  if (!path) return null;
+
+  try {
+    const result = await Share.share({ url: path, title: name });
+    return result && result.action === Share.dismissedAction ? 'cancelled' : 'saved';
+  } catch {
+    // Written but not shared. The caller's next move is the message route,
+    // which is what this did before files were an option.
+    return null;
+  }
 }
 
 // Returns a result if the share sheet handled it, or null to fall through.
