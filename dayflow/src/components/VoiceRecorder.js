@@ -8,6 +8,7 @@ import { COLORS, SANS, typeSize } from '../utils/theme';
 import { toDurableUri, tooShort, slidUp } from '../services/audio';
 import { canAddNote } from '../services/voiceNotes';
 import { claim, release } from '../services/playback';
+import { playableUri } from '../services/notePlayback';
 import { liftTick, dropTick } from '../services/haptics';
 
 // Voice notes, on expo-audio.
@@ -450,7 +451,21 @@ export default function VoiceRecorder({ notes = [], onAdd, onRemove }) {
 // Shared by the row in the list and the row in the sheet, which differ only in
 // how much of it they show. Two copies of this drifted apart once already.
 function useNotePlayer(uri) {
-  const player = useAudioPlayer(uri);
+  // What the player is actually given.
+  //
+  // On a phone a note is written to a file first and the player gets the path;
+  // on the web the data URI goes straight in. Held in state because the write
+  // is asynchronous, and started as null so the player is never handed the
+  // seven-hundred-kilobyte string even for one render.
+  const [source, setSource] = useState(null);
+  useEffect(() => {
+    let gone = false;
+    setSource(null);
+    playableUri(uri).then(ready => { if (!gone) setSource(ready); });
+    return () => { gone = true; };
+  }, [uri]);
+
+  const player = useAudioPlayer(source);
   const status = useAudioPlayerStatus(player);
   const playing = status?.playing ?? false;
 

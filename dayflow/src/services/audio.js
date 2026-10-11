@@ -94,6 +94,83 @@ export async function toDurableUri(uri) {
   return encoded;
 }
 
+// A data URI, taken apart.
+//
+// Notes are kept as base64 inside the vault, which is what makes them survive a
+// reinstall and travel between devices. It is also a string of up to seven
+// hundred kilobytes, and handing one of those to the phone's audio player means
+// pushing it across the native bridge and through iOS's URL parser before any
+// audio code sees it. That is where playback was being lost: the button never
+// even changed to a stop square, on every note, in both places it appears.
+//
+// So the base64 is written to a real file and the player is given a path. The
+// player's own iOS code does this internally when it recognises the data URI;
+// doing it here means it happens the same way every time, and can be tested.
+export function splitDataUri(uri) {
+  if (typeof uri !== 'string' || !uri.startsWith('data:')) return null;
+  const comma = uri.indexOf(',');
+  if (comma < 0) return null;
+
+  const head = uri.slice(5, comma);
+  const body = uri.slice(comma + 1);
+  if (!body) return null;
+  // Only base64 is ever written here, and a URI that is not base64 is one this
+  // app did not make.
+  if (!/;base64$/i.test(head)) return null;
+
+  // "audio/webm;codecs=opus" keeps its parameters off: the extension comes from
+  // the type alone.
+  const mime = head.replace(/;base64$/i, '').split(';')[0].trim().toLowerCase();
+  return { mime: mime || 'application/octet-stream', base64: body };
+}
+
+// What to call the file, so the player has something it can recognise.
+//
+// AVPlayer and the browser both decide how to decode partly by extension, so a
+// recording written as .dat is a recording that may not open.
+const EXTENSIONS = {
+  'audio/m4a': 'm4a',
+  'audio/x-m4a': 'm4a',
+  'audio/mp4': 'm4a',
+  'audio/aac': 'm4a',
+  'audio/mpeg': 'mp3',
+  'audio/mp3': 'mp3',
+  'audio/wav': 'wav',
+  'audio/x-wav': 'wav',
+  'audio/webm': 'webm',
+  'audio/ogg': 'ogg',
+  'audio/caf': 'caf',
+  'audio/x-caf': 'caf',
+};
+
+export function extensionFor(mime) {
+  const known = EXTENSIONS[String(mime || '').toLowerCase()];
+  if (known) return known;
+  // An unknown audio type is still audio; m4a is what this app records on a
+  // phone and the likeliest thing an unlabelled recording actually is.
+  return String(mime || '').startsWith('audio/') ? 'm4a' : 'dat';
+}
+
+// A name that is the same every time for the same recording, so a note played
+// twice is written once. Not a hash for any security reason — just something
+// short, stable and derived from the whole string rather than its first bytes,
+// since every recording of the same format starts identically.
+export function noteFileName(uri) {
+  if (typeof uri !== 'string' || uri === '') return null;
+  const parts = splitDataUri(uri);
+  if (!parts) return null;
+
+  let a = 0x811c9dc5;
+  let b = 0x01000193;
+  for (let i = 0; i < uri.length; i += 1) {
+    const c = uri.charCodeAt(i);
+    a = Math.imul(a ^ c, 0x01000193) >>> 0;
+    b = Math.imul(b + c, 0x85ebca6b) >>> 0;
+  }
+  const stamp = `${a.toString(36)}${b.toString(36)}`;
+  return `note-${stamp}.${extensionFor(parts.mime)}`;
+}
+
 // Whether a gesture is somebody sliding the button up to keep recording
 // hands-free, or a thumb on its way off the screen.
 //

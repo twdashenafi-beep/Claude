@@ -12,7 +12,7 @@
 // megabytes that every typed task lives in.
 //
 // Run with `npm test`.
-import { toDurableUri, MAX_NOTE_BYTES, MIN_NOTE_MS, tooShort, slidUp, LOCK_DY } from '../src/services/audio.js';
+import { toDurableUri, MAX_NOTE_BYTES, MIN_NOTE_MS, tooShort, slidUp, LOCK_DY, splitDataUri, extensionFor, noteFileName } from '../src/services/audio.js';
 
 let pass = 0, fail = 0;
 const ok = (label, cond, extra = '') => {
@@ -166,6 +166,67 @@ ok('downwards never does, however far', !slidUp(0, 200));
 ok('sideways never does either', !slidUp(200, 0));
 ok('and nonsense never does',
    !slidUp('up', -60) && !slidUp(0, NaN) && !slidUp(undefined, undefined));
+
+// ── Taking a stored note apart so it can be played ──────────────────────────
+//
+// A note is base64 in the vault, which is what makes it survive a reinstall and
+// travel between devices. It is also up to seven hundred kilobytes of string,
+// and handing that to the phone's player means pushing it across the native
+// bridge and through iOS's URL parser before any audio code sees it. That is
+// where playback was lost: the button never even became a stop square.
+{
+  const m4a = 'data:audio/x-m4a;base64,AAAAIGZ0eXBNNEEg';
+  const webm = 'data:audio/webm;codecs=opus;base64,GkXfo59C';
+
+  const got = splitDataUri(m4a);
+  ok('a stored note comes apart into its type and its bytes',
+     got && got.mime === 'audio/x-m4a' && got.base64 === 'AAAAIGZ0eXBNNEEg',
+     JSON.stringify(got));
+
+  // The browser writes "audio/webm;codecs=opus". The codec is not part of the
+  // type, and leaving it on gives a file extension of nothing.
+  ok('codec parameters are not part of the type',
+     splitDataUri(webm).mime === 'audio/webm', JSON.stringify(splitDataUri(webm)));
+  ok('and the bytes still come through whole',
+     splitDataUri(webm).base64 === 'GkXfo59C', JSON.stringify(splitDataUri(webm)));
+
+  ok('a file path is not a data uri', splitDataUri('file:///tmp/a.m4a') === null);
+  ok('nor is nothing', splitDataUri(null) === null && splitDataUri('') === null);
+  ok('a data uri that is not base64 is refused',
+     splitDataUri('data:audio/wav,RIFF') === null);
+  ok('and one with no bytes at all', splitDataUri('data:audio/m4a;base64,') === null);
+
+  // ── The extension, which is how both players decide what to decode ──
+  ok('m4a and its aliases all land on m4a',
+     ['audio/m4a', 'audio/x-m4a', 'audio/mp4', 'audio/aac']
+       .every(t => extensionFor(t) === 'm4a'));
+  ok('the browser format keeps its own', extensionFor('audio/webm') === 'webm');
+  ok('and wav, mp3 and caf keep theirs',
+     extensionFor('audio/wav') === 'wav' && extensionFor('audio/mpeg') === 'mp3'
+     && extensionFor('audio/x-caf') === 'caf');
+  // An unlabelled recording is still a recording. Writing it as .dat is writing
+  // a file the player may decline to open.
+  ok('an unknown audio type is still treated as audio',
+     extensionFor('audio/something-new') === 'm4a');
+  ok('but something that is not audio is not', extensionFor('application/pdf') === 'dat');
+  ok('nor is nothing at all', extensionFor('') === 'dat' && extensionFor(null) === 'dat');
+
+  // ── The name, which has to be the same every time ──
+  ok('the same recording always gets the same name',
+     noteFileName(m4a) === noteFileName(m4a), noteFileName(m4a));
+  ok('and carries the right extension', noteFileName(m4a).endsWith('.m4a'), noteFileName(m4a));
+  ok('a different recording gets a different name',
+     noteFileName(m4a) !== noteFileName(webm),
+     `${noteFileName(m4a)} vs ${noteFileName(webm)}`);
+  // Every recording of one format begins with the same header bytes, so a name
+  // taken from the start of the string would collide for all of them.
+  const twin = `${m4a}AAAA`;
+  ok('two recordings that start identically still differ',
+     noteFileName(m4a) !== noteFileName(twin),
+     `${noteFileName(m4a)} vs ${noteFileName(twin)}`);
+  ok('and anything that is not a stored note has no name',
+     noteFileName('file:///tmp/a.m4a') === null && noteFileName('') === null);
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
