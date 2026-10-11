@@ -149,10 +149,9 @@ function downloadAsFile(name, text, type) {
 
 // Choosing a file to read back in.
 //
-// There is no cross-platform way to do this and no file-system module in the
-// project, so this is the browser's own picker, made and thrown away each time.
-// A native build gets nothing here until it gets expo-document-picker, and says
-// so rather than presenting a control that does nothing.
+// Two features reach for one: "Read a calendar" and restoring a backup. On the
+// web this is the browser's own picker, made and thrown away each time; on a
+// phone it is the system picker, reached through expo-file-system.
 //
 // Resolves to { name, text } or null — null being both "cancelled" and "could
 // not", because to the person standing there they are the same thing and
@@ -176,32 +175,76 @@ function downloadAsFile(name, text, type) {
 // and readAsText on a gigabyte of film is a frozen tab rather than an error.
 export const MAX_PICK_BYTES = 25 * 1024 * 1024;
 
-// Picking a file on a phone, which this app cannot do.
+// Picking a file on a phone.
 //
-// Worth setting down properly, because it looked available twice over.
+// Worth setting down, because this was written off twice and the second time
+// was my own mistake. On a phone it first returned null the moment it was
+// called, which the callers read as a cancellation, so both buttons did nothing
+// when tapped and said nothing about it. Restoring is the one that matters: it
+// is the button somebody presses after losing everything.
 //
-// Two features reach for a file: "Read a calendar" and restoring a backup. On
-// the web both open a file input. On a phone this returned null the moment it
-// was called, and the callers read that as a cancellation — so both buttons did
-// nothing at all when tapped, and said nothing about it. Restoring is the one
-// that matters: it is the button somebody presses after losing everything.
+// Then the note here said the picker did not exist — that expo-file-system
+// declared File.pickFileAsync, that the native module implemented it, and that
+// no JavaScript connected the two. The last part was wrong. The package ships
+// TypeScript rather than compiled JavaScript, so its `build` directory holds
+// only type declarations; the implementation is in `src/File.ts`, exported from
+// the package root, and it calls the native method directly. Looking for
+// compiled output and finding none is not the same as there being none.
 //
-// expo-file-system looks like the answer and is not. Its types declare
-// File.pickFileAsync, the native module really does implement pickFileAsync —
-// at module level, confirmed in FileSystemModule.swift — and no JavaScript in
-// the package connects the two. The module itself is not reachable either: the
-// package's `exports` map allows only "." and "./legacy", and the picker is in
-// neither. The declaration is ahead of the implementation, which is a thing
-// that happens, and a build is a slow way to discover it.
+// So restoring on a phone needs no new native module, and nothing here is
+// waiting on a decision.
 //
-// Reading a real file on a phone needs expo-document-picker, which is a native
-// module and therefore a deliberate decision rather than something to slip in.
-// Until then this says so, which is the whole of the improvement: a button that
-// cannot work must not look like one that was cancelled.
+// No mimeTypes, for exactly the reason the web picker has no accept list: on
+// iOS a type the system does not recognise greys a file out rather than
+// narrowing the list. The option defaults to '*/*', so leaving it off opens
+// everything.
 const NO_PICKER = 'picking a file is not available on this device yet';
 
-function pickOnDevice() {
-  return Promise.resolve({ name: '', text: null, failed: NO_PICKER });
+async function pickOnDevice() {
+  let File;
+  try {
+    ({ File } = await import('expo-file-system'));
+  } catch {
+    return { name: '', text: null, failed: NO_PICKER };
+  }
+  // Asked rather than assumed. A version without it is the one case where the
+  // old message is the truth, and a missing function would otherwise throw
+  // from inside the try below and be reported as a cancellation.
+  if (!File || typeof File.pickFileAsync !== 'function') {
+    return { name: '', text: null, failed: NO_PICKER };
+  }
+
+  let picked;
+  try {
+    picked = await File.pickFileAsync();
+  } catch {
+    // The picker refusing to open at all. Nothing was chosen, which to the
+    // person standing there is the same as having changed their mind.
+    return null;
+  }
+  // Cancelling resolves rather than throws, and a failure inside the module
+  // arrives the same way, as `canceled` with nothing in `result`.
+  if (!picked || picked.canceled || !picked.result) return null;
+
+  const file = picked.result;
+  const name = (file.name && String(file.name)) || 'backup.json';
+  // The same guard as the web, for the same reason: with nothing filtered out,
+  // a video can be chosen, and reading a gigabyte of film is a frozen app
+  // rather than an error.
+  if (typeof file.size === 'number' && file.size > MAX_PICK_BYTES) {
+    return { name, text: null, tooBig: true };
+  }
+
+  try {
+    const text = await file.text();
+    if (typeof text !== 'string') return null;
+    return { name, text };
+  } catch {
+    // Chosen, and then unreadable — a file that has moved, or one iCloud has
+    // not actually brought down yet. Said rather than passed off as a
+    // cancellation, because the person did choose something.
+    return { name, text: null, failed: 'that file could not be read' };
+  }
 }
 
 export function pickTextFile() {

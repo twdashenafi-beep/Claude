@@ -1,16 +1,26 @@
-// Getting a backup off the phone.
+// Getting a file off the phone, and back onto it.
 //
-// The export button answered "too large to send from here — export from the
-// browser instead" on a real backup, because on a phone the JSON was handed to
-// the share sheet as a *message* and a message has a size past which the sheet
-// is a spinner. A backup carries voice notes, so that size is reached by an
-// ordinary export rather than an extreme one. It is written to a file now.
+// Both halves of this were broken on a phone and working on the web, which is
+// the shape of every bug in this file.
 //
-// None of that can be reached by importing the module: saveFile.js imports
-// react-native, which Node cannot parse, and the file route is behind
+// Exporting answered "too large to send from here — export from the browser
+// instead" on a real backup, because the JSON was handed to the share sheet as
+// a *message* and a message has a size past which the sheet is a spinner. A
+// backup carries voice notes, so an ordinary export reaches that size. It is
+// written to a file now.
+//
+// Restoring did nothing at all, and then said it could not be done, on a note
+// claiming expo-file-system's picker had no implementation behind it. It has
+// one; the package ships TypeScript, so looking in its compiled output found
+// nothing because nothing compiled is there. Both directions work on a phone
+// now, and the one that matters is this one: restoring is the button somebody
+// presses after losing everything.
+//
+// None of it can be reached by importing the module: saveFile.js imports
+// react-native, which Node cannot parse, and both routes are behind
 // `Platform.OS`. So the source is compiled here and run against stand-ins for
-// react-native and expo-file-system — which is the only way to see the branch
-// that only ever runs on a phone, the one place none of this is tested.
+// react-native and expo-file-system — the only way to see branches that run
+// only on a phone, the one place none of this is tested.
 //
 // Run with `npm test`.
 import { createRequire } from 'node:module';
@@ -45,7 +55,7 @@ const { code: TRANSLATED } = babel.transformSync(SOURCE, {
 // checked rather than assumed.
 const DYNAMIC = (TRANSLATED.match(/\bimport\(/g) || []).length;
 const COMPILED = TRANSLATED.replace(/\bimport\(/g, 'require(');
-ok('the one module loaded only on a phone is reachable from here', DYNAMIC === 1, String(DYNAMIC));
+ok('both modules loaded only on a phone are reachable from here', DYNAMIC === 2, String(DYNAMIC));
 
 // Loads saveFile.js with the modules it asks for replaced. Anything it reaches
 // for that is not listed throws, so a route quietly taking a different module
@@ -246,6 +256,149 @@ const BIG = JSON.stringify({ note: 'x'.repeat(700 * 1024) });
   ok('the native sheet was never involved', calls.length === 0, String(calls.length));
   ok('and the limits the sheet publishes are unchanged',
      SHARE_LIMIT === 512 * 1024 && MAX_PICK_BYTES === 25 * 1024 * 1024);
+}
+
+// ── Reading a file back in, on a phone ──────────────────────────────────────
+
+// A picked file, as expo-file-system hands one over.
+function picked({ name = 'dayflow-2026-10-11.json', text = '{"app":"DayFlow"}', size = text.length, fails = false } = {}) {
+  const reads = [];
+  return {
+    name,
+    size,
+    uri: `file:///picked/${name}`,
+    text() {
+      reads.push(name);
+      return fails ? Promise.reject(new Error('gone')) : Promise.resolve(text);
+    },
+    reads,
+  };
+}
+
+// expo-file-system's File, with only the static the picker needs. `asked`
+// records the options it was called with, because what is NOT in them is the
+// point: a type filter greys files out on iOS instead of narrowing the list.
+function picker(answer) {
+  const asked = [];
+  const File = {
+    pickFileAsync(options) {
+      asked.push(options);
+      if (answer instanceof Error) return Promise.reject(answer);
+      return Promise.resolve(answer);
+    },
+  };
+  return { mod: { File, Paths: { cache: '/cache' } }, asked };
+}
+
+{
+  const file = picked();
+  const { mod, asked } = picker({ result: file, canceled: false });
+  const { pickTextFile } = load({ 'react-native': rn('ios', sheet().Share), 'expo-file-system': mod });
+
+  const result = await pickTextFile();
+  ok('a backup chosen on a phone comes back', result !== null && result.text === '{"app":"DayFlow"}',
+     JSON.stringify(result));
+  ok('under the name it was chosen by', result && result.name === 'dayflow-2026-10-11.json',
+     result && result.name);
+  ok('and the picker was opened once', asked.length === 1, String(asked.length));
+  ok('with nothing filtered out, which is what let a Proton calendar be chosen',
+     asked[0] === undefined || asked[0].mimeTypes === undefined, JSON.stringify(asked[0]));
+}
+
+{
+  const { mod } = picker({ result: null, canceled: true });
+  const { pickTextFile } = load({ 'react-native': rn('ios', sheet().Share), 'expo-file-system': mod });
+  // Caught rather than awaited plainly: reading the empty result of a
+  // cancellation as a file throws, and a throw that takes the whole run down
+  // with it says less than a failure standing next to its neighbours.
+  let answer, threw = '';
+  try { answer = await pickTextFile(); } catch (e) { threw = String(e && e.message); }
+  ok('changing your mind in the picker is nothing at all',
+     threw === '' && answer === null, threw || String(answer));
+}
+
+{
+  const { mod } = picker(new Error('the picker would not open'));
+  const { pickTextFile } = load({ 'react-native': rn('ios', sheet().Share), 'expo-file-system': mod });
+  ok('a picker that will not open is survived', await pickTextFile() === null);
+}
+
+{
+  // 25MB is the limit, and a film is how somebody reaches it now that nothing
+  // is filtered out.
+  const film = picked({ name: 'holiday.mov', text: 'not really a film', size: 40 * 1024 * 1024 });
+  const { mod } = picker({ result: film, canceled: false });
+  const { pickTextFile } = load({ 'react-native': rn('ios', sheet().Share), 'expo-file-system': mod });
+  const result = await pickTextFile();
+  ok('something far too big is refused by name rather than read',
+     result !== null && result.tooBig === true && result.name === 'holiday.mov' && result.text === null,
+     JSON.stringify(result));
+  ok('and it was never read', film.reads.length === 0, String(film.reads.length));
+}
+
+{
+  const vanished = picked({ fails: true });
+  const { mod } = picker({ result: vanished, canceled: false });
+  const { pickTextFile } = load({ 'react-native': rn('ios', sheet().Share), 'expo-file-system': mod });
+  const result = await pickTextFile();
+  ok('a file chosen and then unreadable says so', result !== null && typeof result.failed === 'string'
+     && result.text === null, JSON.stringify(result));
+  ok('rather than passing for a cancellation, which the person would not recognise',
+     result !== null, String(result));
+}
+
+{
+  // The one case the old message is the truth: a copy of the package without
+  // the picker. It must not arrive as a cancellation, because a button that
+  // cannot work must not look like one that was dismissed.
+  const { pickTextFile } = load({
+    'react-native': rn('ios', sheet().Share),
+    'expo-file-system': { File: {}, Paths: { cache: '/cache' } },
+  });
+  const result = await pickTextFile();
+  ok('a copy of the module with no picker is reported, not silently cancelled',
+     result !== null && typeof result.failed === 'string', JSON.stringify(result));
+}
+
+{
+  // And the module missing altogether — the resolver throws on it here.
+  const { pickTextFile } = load({ 'react-native': rn('ios', sheet().Share) });
+  const result = await pickTextFile();
+  ok('and so is the module not being there at all',
+     result !== null && typeof result.failed === 'string', JSON.stringify(result));
+}
+
+// ── And on the web, still the browser's own input ──────────────────────────
+{
+  const { pickTextFile } = load({ 'react-native': rn('web', sheet().Share) });
+  const listeners = new Map();
+  const input = {
+    style: {},
+    files: [{ name: 'dayflow-2026-10-11.json', size: 20 }],
+    addEventListener: (kind, fn) => listeners.set(kind, fn),
+    remove() {},
+    click() { listeners.get('change')(); },
+  };
+  const keys = ['document', 'FileReader'];
+  const prior = keys.map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]);
+  const set = (key, value) =>
+    Object.defineProperty(globalThis, key, { value, configurable: true, writable: true });
+  set('document', { body: { appendChild() {}, removeChild() {} }, createElement: () => input });
+  set('FileReader', function () {
+    this.readAsText = () => { this.result = '{"app":"DayFlow"}'; this.onloadend(); };
+  });
+  let result;
+  try {
+    result = await pickTextFile();
+  } finally {
+    for (const [key, descriptor] of prior) {
+      if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+      else delete globalThis[key];
+    }
+  }
+  ok('on the web the file input still reads what was chosen',
+     result !== null && result.text === '{"app":"DayFlow"}' && result.name === 'dayflow-2026-10-11.json',
+     JSON.stringify(result));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
