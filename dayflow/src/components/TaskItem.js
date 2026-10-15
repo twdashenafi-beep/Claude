@@ -11,6 +11,7 @@ import { ageLabel } from '../services/age';
 import { repeatPhrase } from '../services/repeat';
 import { chaseLabel } from '../services/chase';
 import { scopeNote } from '../services/scope';
+import { placedByTime } from '../services/ordering';
 import { meetingLabel } from '../services/meetings';
 import { COLORS, SANS, SERIF, typeSize } from '../utils/theme';
 import { liftTick, dropTick } from '../services/haptics';
@@ -94,6 +95,12 @@ function TaskItem({
   }, []);
 
   const armLift = useCallback(() => {
+    // A task with a time has its place decided by the clock, so a drag would
+    // lift it, carry it, and spring it back where it started. Better not to
+    // lift at all: a gesture that cannot do anything should not look as though
+    // it is about to. Swiping it away still works — that is the branch below,
+    // and it is not about where the task sits.
+    if (placedByTime(task)) return;
     clearTimeout(holding.current);
     claimed.current = false;
     holding.current = setTimeout(() => {
@@ -101,7 +108,7 @@ function TaskItem({
       setLifted(true);
       liftTick();
     }, LIFT_MS);
-  }, []);
+  }, [task]);
 
   // One responder, because there is now one thing being touched.
   //

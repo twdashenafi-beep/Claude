@@ -4,9 +4,14 @@
 // explicit instruction, so it wins over priority — but only for tasks that have
 // actually been placed. Everything else keeps sorting the way it always did.
 //
+// A time beats both. "Call John at 9am" belongs above "Call Bob at 11am"
+// whichever was written first, and a list that has to be dragged into the order
+// the clock already decided is a list doing work you could have had for free.
+//
 // Pure: no React, no storage. The awkward parts here are the arithmetic of
 // inserting between two neighbours and the arithmetic of turning a drag
 // distance into an index, and both are worth testing without a browser.
+import { momentOf } from './agenda.js';
 
 export function orderOf(task) {
   const value = task ? task.order : undefined;
@@ -24,10 +29,42 @@ function between(before, after) {
   return mid > before && mid < after ? mid : null;
 }
 
-// Display order: placed tasks first, in the order they were placed; then
-// everything untouched, still sorted the way it was before any of this existed.
+// When a task happens, as a number, or null when it happens no particular time.
+//
+// Only a clock time counts. A task due "on Thursday" is due some time on
+// Thursday and has no position within it — the same distinction momentOf
+// already draws for clashes, borrowed rather than restated, because two
+// notions of when a task happens would drift apart and this is the one the
+// diary, the day strip and the planner all already use.
+function whenOf(task) {
+  const at = task ? momentOf(task.dueDate, task.dueTime) : null;
+  return at ? +at : null;
+}
+
+// Whether a task's place in the list is already decided for it.
+//
+// Exported because the controls that move a task have to know. A time settles
+// the question, so there is nothing left for a move to achieve, and a button
+// that cannot achieve anything must not look like one that can.
+export function placedByTime(task) {
+  return whenOf(task) !== null;
+}
+
+// Display order: anything with a time, by its time; then placed tasks in the
+// order they were placed; then everything untouched, still sorted the way it
+// was before any of this existed.
 export function sortForDisplay(tasks, rankOf) {
   return [...tasks].sort((a, b) => {
+    // The clock first. Two tasks at the same minute fall through to everything
+    // below, so a time decides the order between tasks and never within a
+    // single moment — where you put them still does.
+    const aw = whenOf(a);
+    const bw = whenOf(b);
+    if (aw !== null && bw !== null) {
+      if (aw !== bw) return aw - bw;
+    } else if (aw !== null) return -1;
+    else if (bw !== null) return 1;
+
     const ao = orderOf(a);
     const bo = orderOf(b);
     if (ao !== null && bo !== null) return ao - bo;
