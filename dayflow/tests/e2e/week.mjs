@@ -459,6 +459,100 @@ ok('with the list still there', after.includes('Pay the invoice'), after.slice(0
   }
 }
 
+// ── The week, read by outcome ───────────────────────────────────────────────
+//
+// Eleven ticks in a row say the week was busy and nothing about whether it
+// added up. A project is where the tasks serving one outcome already live, so
+// the page gathers each list under it — and the figure beside a name is the
+// only thing here that can say a result was reached rather than merely moved.
+//
+// Last in the file rather than beside the other reckoning checks, and that is
+// not tidiness: this block finishes two more tasks and enters a project, which
+// moves the Finished count and empties the main list. Run any earlier and the
+// briefing's "1 thing finished today" and the day's own assertions fail for a
+// reason that has nothing to do with them — which is exactly what happened.
+{
+  // Back to the Friday. The block above moves the clock to a Monday to ask
+  // whether this phone is the only place the list exists, and on a Monday
+  // there is no reckoning to open at all — which is how this block came to
+  // fail for a reason that had nothing to do with it.
+  await page.clock.setFixedTime(THE_FRIDAY);
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(1300);
+  await page.locator('input, textarea').nth(0).fill(USER.email);
+  await page.locator('input, textarea').nth(1).fill('a strong master password');
+  await page.getByText('UNLOCK', { exact: false }).first().click();
+  await page.getByLabel('Search').first()
+    .waitFor({ state: 'visible', timeout: 120000 }).catch(() => {});
+  await page.waitForTimeout(1500);
+
+  // The project bar is out of the way until asked for, which is the whole of
+  // why it took a click to find.
+  await page.getByLabel('Projects').click();
+  await page.waitForTimeout(700);
+
+  const project = async name => {
+    await page.getByLabel('New project').click();
+    await page.waitForTimeout(600);
+    await page.getByLabel('New project name').fill(name);
+    await page.getByLabel('Create the project').click();
+    await page.waitForTimeout(1100);
+  };
+
+  // One outcome still moving: something finished, something still to do.
+  await project('Hollis deal');
+  await toDo('Send the term sheet');
+  await tick('Send the term sheet');
+  await toDo('Draft the agreement');
+
+  // And one reached: everything in it is done.
+  await project('Kitchen');
+  await toDo('Book the fitter');
+  await tick('Book the fitter');
+
+  await week().click();
+  await page.waitForTimeout(1300);
+  const byOutcome = await page.locator('[data-weeksheet]').first().innerText();
+  const names = await page.locator('[data-weeksheet] [data-weekproject]').allInnerTexts();
+  const figures = await page.locator('[data-weeksheet] [data-weekresult]').allInnerTexts();
+
+  ok('what was finished is gathered under the outcomes it served',
+     names.includes('Hollis deal') && names.includes('Kitchen'), names.join(' | '));
+  ok('and the main list is named too, since it holds work as well',
+     names.includes('Everything'), names.join(' | '));
+  ok('the main list comes last, because it is not an outcome',
+     names.lastIndexOf('Everything') === names.length - 1, names.join(' | '));
+  ok('each outcome keeps its own work under its own name',
+     /Hollis deal[\s\S]*Send the term sheet/.test(byOutcome)
+     && /Kitchen[\s\S]*Book the fitter/.test(byOutcome),
+     byOutcome.slice(0, 700));
+
+  // The figure. Only the Finished section carries one — the other two say when
+  // a thing was or will be due, on the row, which is the question those ask.
+  ok('an outcome still moving says what is left of it',
+     figures.includes('1 still open'), figures.join(' | '));
+  ok('and one with nothing left says so, which is a result reached',
+     figures.includes('nothing left'), figures.join(' | '));
+  // Written first as a comparison of two counts that reduced to
+  // `figures.length === figures.length`. Names are collected across all three
+  // sections and only Finished carries a figure, so the two counts differ
+  // legitimately and there was no honest comparison to make. What is worth
+  // holding is the shape of the sentence, which is what the page is read for.
+  ok('every figure either says what is left or says nothing is',
+     figures.length > 0
+     && figures.every(f => f === 'nothing left' || /^\d+ still open( · \d+ slipped)?$/.test(f)),
+     figures.join(' | '));
+  ok('and the main list reports what it is still holding, slipped and all',
+     figures.some(f => /still open · \d+ slipped/.test(f)), figures.join(' | '));
+
+  await page.getByLabel('Close the week').click();
+  await page.waitForTimeout(800);
+
+  // Left as it was found, in case anything is ever added after this.
+  await page.getByLabel('All tasks not in a project').click();
+  await page.waitForTimeout(700);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();
 server.close();

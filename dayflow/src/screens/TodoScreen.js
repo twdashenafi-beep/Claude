@@ -1296,6 +1296,7 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
         onClose={() => setShowWeek(false)}
         tasks={tasks}
         archived={archived}
+        projects={projects}
       />
       <ConfettiOverlay visible={celebrating} onDone={() => setCelebrating(false)} />
 

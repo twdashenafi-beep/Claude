@@ -13,6 +13,7 @@
 // Run with `npm test`.
 import {
   reckon, headline, nudge, isReckoningDay, weekStart, finishedAt, waitedFor, byPerson,
+  byProject, resultLine,
 } from '../src/services/reckoning.js';
 
 let pass = 0, fail = 0;
@@ -259,6 +260,142 @@ ok('no date, nothing said', waitedFor({}, FRI) === '');
   ok('somebody never chased totals nothing', groups[1].chases === 0);
   ok('a nameless one is not a group', byPerson([task({ owePerson: '   ' })]).length === 0);
   ok('nothing owed is no groups', byPerson([]).length === 0 && byPerson(null).length === 0);
+}
+
+// ── The week by outcome, not by tick ───────────────────────────────────────
+//
+// Eleven ticks in a row say the week was busy and nothing about whether it
+// added up, which is the one thing this page could not say. A project is where
+// the tasks serving one outcome already live, so grouping by it is the whole
+// of the change: no new field, no new record, the same figures.
+{
+  const project = (id, name, order) => ({ kind: 'project', id, name, order });
+  const PROJECTS = [
+    project('p-kitchen', 'Kitchen', 1),
+    project('p-hollis', 'Hollis deal', 0),
+  ];
+  const task = (id, projectId, extra = {}) => ({
+    id, projectId, title: id, taskType: 'todo', ...extra,
+  });
+
+  // ── Gathering ──
+  // Kitchen's work arrives first and Hollis is kept first, which is the only
+  // arrangement that can tell the two apart. Written the other way round, a
+  // sort that simply left the list alone passed every assertion below.
+  const done = [
+    task('fitter', 'p-kitchen', { completed: true }),
+    task('term-sheet', 'p-hollis', { completed: true }),
+    task('dentist', '', { completed: true }),
+    task('surveyor', 'p-hollis', { completed: true }),
+  ];
+  const groups = byProject(done, PROJECTS);
+  ok('the week is gathered under the outcomes it served',
+     groups.map(g => g.name).join(',') === 'Hollis deal,Kitchen,Everything',
+     groups.map(g => g.name).join(','));
+  ok('and each outcome keeps its own work',
+     groups.map(g => `${g.name}:${g.tasks.length}`).join(' ')
+       === 'Hollis deal:2 Kitchen:1 Everything:1',
+     groups.map(g => `${g.name}:${g.tasks.length}`).join(' '));
+  ok('nothing is lost on the way',
+     groups.reduce((n, g) => n + g.tasks.length, 0) === done.length);
+
+  // Projects in the order they are kept in, so this page and the tab bar do
+  // not disagree about which comes first. Hollis is second in the array and
+  // first by order, which is the only arrangement that tells them apart.
+  ok('the order is the one the projects are kept in, not the one they arrived in',
+     groups[0].name === 'Hollis deal', groups[0].name);
+
+  // The main list is not an outcome. Somebody reading for outcomes should not
+  // have to pass it to reach the first one.
+  ok('the main list comes last however many outcomes there are',
+     byProject(done, PROJECTS).at(-1).id === '',
+     byProject(done, PROJECTS).at(-1).name);
+  ok('and still last when it is the only thing there',
+     byProject([task('dentist', '', { completed: true })], PROJECTS)
+       .map(g => g.name).join(',') === 'Everything');
+
+  // A project record swept in with the tasks is not a task, and a week that
+  // counted one would report an outcome that finished itself.
+  ok('a project is not counted as work',
+     byProject([...done, project('p-hollis', 'Hollis deal', 0)], PROJECTS)
+       .reduce((n, g) => n + g.tasks.length, 0) === done.length);
+
+  // Two projects with no order between them: sortProjects is what the tab bar
+  // uses and it is stable, so the page follows it rather than inventing an
+  // order of its own. Whatever the tab bar shows first, this shows first.
+  const unordered = [project('p-b', 'Beta'), project('p-a', 'Alpha')];
+  ok('projects with no order between them follow the list the tabs follow',
+     byProject([task('x', 'p-b'), task('y', 'p-a')], unordered)
+       .map(g => g.name).join(',') === 'Beta,Alpha',
+     byProject([task('x', 'p-b'), task('y', 'p-a')], unordered).map(g => g.name).join(','));
+
+  // An id that has outlived its project — another device's deletion before it
+  // merged, or an older backup — folds into the main list rather than drawing
+  // a second heading also called Everything.
+  const orphaned = byProject(
+    [task('ghost', 'p-gone', { completed: true }), task('dentist', '', { completed: true })],
+    PROJECTS,
+  );
+  ok('a task whose project is gone joins the main list',
+     orphaned.map(g => `${g.name}:${g.tasks.length}`).join(',') === 'Everything:2',
+     orphaned.map(g => `${g.name}:${g.tasks.length}`).join(','));
+  ok('and there is only ever one heading of that name',
+     orphaned.filter(g => g.name === 'Everything').length === 1,
+     String(orphaned.length));
+
+  ok('nothing finished is no groups at all', byProject([], PROJECTS).length === 0);
+  ok('and junk is survived', byProject(null, null).length === 0);
+
+  // ── What the figure beside a name says ──
+  const AT = new Date('2026-10-02T15:00:00');
+  const LATE = { dueDate: iso(2026, 9, 28), dueTime: '09:00' };
+  const SOON = { dueDate: iso(2026, 10, 9), dueTime: '09:00' };
+  const open = [
+    task('agreement', 'p-hollis', LATE),
+    task('lease', 'p-hollis', SOON),
+    task('tiles', 'p-kitchen', {}),
+  ];
+
+  ok('an outcome with work left says how much',
+     resultLine('p-hollis', open, AT) === '2 still open · 1 slipped',
+     resultLine('p-hollis', open, AT));
+  ok('and an outcome with nothing left says so, which is a result reached',
+     resultLine('p-kitchen', [open[0], open[1]], AT) === 'nothing left',
+     resultLine('p-kitchen', [open[0], open[1]], AT));
+  ok('work left but none of it late says only that',
+     resultLine('p-hollis', [open[1]], AT) === '1 still open',
+     resultLine('p-hollis', [open[1]], AT));
+  ok('the main list is read the same way',
+     resultLine('', [task('post', '', {})], AT) === '1 still open',
+     resultLine('', [task('post', '', {})], AT));
+
+  // What somebody else owes you is named under the person holding it further
+  // down the same page. Counting it here as well makes a week read worse than
+  // it went, which is the rule Slipped and Next week already follow.
+  ok('what another person owes you is not your open work',
+     resultLine('p-hollis', [task('deck', 'p-hollis', { taskType: 'done_for_me', owePerson: 'Sarah' })], AT)
+       === 'nothing left',
+     resultLine('p-hollis', [task('deck', 'p-hollis', { taskType: 'done_for_me', owePerson: 'Sarah' })], AT));
+  // And a project swept in with them is not open work either.
+  ok('nor is a project record',
+     resultLine('p-hollis', [project('p-hollis', 'Hollis deal', 0)], AT) === 'nothing left');
+
+  ok('no open work at all reads as nothing left', resultLine('p-hollis', [], AT) === 'nothing left');
+  ok('and junk is survived', resultLine('p-hollis', null, AT) === 'nothing left'
+     && resultLine(null, null, null) === 'nothing left');
+
+  // ── And it is the same work the page already counted ──
+  //
+  // The grouping must not change what the week says, only how it reads. If the
+  // two ever disagree, the headline is lying or the sections are.
+  const sum = reckon([...done, ...open, ...PROJECTS], [], AT);
+  ok('the groups hold exactly what the Finished count counts',
+     byProject(sum.done, PROJECTS).reduce((n, g) => n + g.tasks.length, 0) === sum.done.length,
+     `${byProject(sum.done, PROJECTS).reduce((n, g) => n + g.tasks.length, 0)} of ${sum.done.length}`);
+  ok('and the same for what slipped',
+     byProject(sum.slipped, PROJECTS).reduce((n, g) => n + g.tasks.length, 0) === sum.slipped.length);
+  ok('and for next week',
+     byProject(sum.ahead, PROJECTS).reduce((n, g) => n + g.tasks.length, 0) === sum.ahead.length);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
