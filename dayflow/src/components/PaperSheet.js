@@ -164,6 +164,12 @@ const s = StyleSheet.create({
 export const groupStyles = StyleSheet.create({
   group: { marginBottom: 12 },
   person: { fontFamily: SANS, fontSize: typeSize(13), fontWeight: '600', color: COLORS.ink, marginBottom: 3 },
+  // A heading that carries a figure beside it. Wraps rather than truncating:
+  // the figure is the point of the line, so it is the last thing that should
+  // be allowed to fall off the end of it.
+  head: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', gap: 8, marginBottom: 3 },
+  name: { fontFamily: SANS, fontSize: typeSize(13), fontWeight: '600', color: COLORS.ink },
+  figure: { fontFamily: SANS, fontSize: typeSize(12.5), color: COLORS.inkFaint },
   summary: { fontFamily: SANS, fontSize: typeSize(14.5), color: COLORS.ink, lineHeight: typeSize(21) },
   // What to walk into a meeting with, listed under it.
   bring: {

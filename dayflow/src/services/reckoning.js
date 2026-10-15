@@ -20,6 +20,7 @@
 import { daysSince, span } from './age.js';
 import { chaseCount } from './chase.js';
 import { dueMoment, mattersAt } from './due.js';
+import { EVERYTHING, isProject, isTask, projectOf, projectName, sortProjects } from './projects.js';
 
 // Friday, Saturday, Sunday. The reckoning belongs to the end of the week
 // rather than to one afternoon of it: plenty of people close the week on a
@@ -168,6 +169,78 @@ export function reckon(tasks = [], archived = [], now = new Date()) {
     ahead,
     people: people.size,
   };
+}
+
+// The same list, gathered under the outcome each thing served.
+//
+// Eleven ticks in a row say the week was busy and nothing about whether it
+// added up. A project is the outcome — it is where you already put the tasks
+// that belong to one — so grouping by it turns "11 done" into which results
+// moved and by how much, without asking anybody to classify anything, write
+// down a purpose, or learn a new word for a thing they already use.
+//
+// No new field, no new record: every figure here was already on this page.
+export function byProject(tasks, projects = []) {
+  // Projects in the order you keep them in, so this page and the tab bar never
+  // disagree about which outcome comes first.
+  const kept = sortProjects((projects || []).filter(isProject));
+  const rank = new Map(kept.map((project, i) => [project.id, i]));
+
+  const held = new Map();
+  for (const task of tasks || []) {
+    if (!isTask(task)) continue;
+    // An id that has outlived its project folds into the main list. Deleting a
+    // project already moves its tasks there, so locally this cannot happen —
+    // but it is what another device's deletion looks like until it has merged,
+    // and what an older backup carries in. Left alone it would draw a second
+    // heading, also called Everything, beside the real one.
+    const of = projectOf(task);
+    const id = rank.has(of) ? of : EVERYTHING;
+    if (!held.has(id)) held.set(id, []);
+    held.get(id).push(task);
+  }
+
+  return [...held].map(([id, list]) => ({
+    id,
+    name: projectName(projects, id),
+    tasks: list,
+  })).sort((a, b) => {
+    // The main list last. It is not an outcome, and somebody reading for
+    // outcomes should not have to pass it to reach the first one.
+    if (a.id === EVERYTHING) return 1;
+    if (b.id === EVERYTHING) return -1;
+    return rank.get(a.id) - rank.get(b.id);
+  });
+}
+
+// What one project's week amounts to, for the line beside its name.
+//
+// The only sentence on this page that can say a result was actually reached,
+// which is the whole reason for the grouping: "done beats busy" is unsayable
+// while the page counts ticks. Four things finished and two still open is a
+// result moving; four finished and nothing left is a result reached; and five
+// finished under the main list, week after week, is the week getting away from
+// you — which the page can now show without passing judgement on it.
+//
+// What somebody else owes you is not counted as open work of yours. It is
+// named under the person holding it further down the same page, and a week
+// that counts one thing twice reads worse than it went — which is the rule
+// Slipped and Next week already follow.
+export function resultLine(projectId, open = [], now = new Date()) {
+  const at = new Date(now);
+  const mine = (open || []).filter(task =>
+    isTask(task)
+    && projectOf(task) === (projectId || EVERYTHING)
+    && task.taskType !== 'done_for_me');
+  if (mine.length === 0) return 'nothing left';
+
+  const late = Number.isNaN(at.getTime()) ? 0 : mine.filter(task => {
+    const moment = dueMoment(task);
+    return moment && moment.at < at;
+  }).length;
+
+  const still = `${mine.length} still open`;
+  return late ? `${still} · ${late} slipped` : still;
 }
 
 function plural(n, one, many) {
