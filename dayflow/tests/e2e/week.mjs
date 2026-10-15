@@ -472,6 +472,20 @@ ok('with the list still there', after.includes('Pay the invoice'), after.slice(0
 // briefing's "1 thing finished today" and the day's own assertions fail for a
 // reason that has nothing to do with them — which is exactly what happened.
 {
+  // Back to the Friday. The block above moves the clock to a Monday to ask
+  // whether this phone is the only place the list exists, and on a Monday
+  // there is no reckoning to open at all — which is how this block came to
+  // fail for a reason that had nothing to do with it.
+  await page.clock.setFixedTime(THE_FRIDAY);
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(1300);
+  await page.locator('input, textarea').nth(0).fill(USER.email);
+  await page.locator('input, textarea').nth(1).fill('a strong master password');
+  await page.getByText('UNLOCK', { exact: false }).first().click();
+  await page.getByLabel('Search').first()
+    .waitFor({ state: 'visible', timeout: 120000 }).catch(() => {});
+  await page.waitForTimeout(1500);
+
   // The project bar is out of the way until asked for, which is the whole of
   // why it took a click to find.
   await page.getByLabel('Projects').click();
