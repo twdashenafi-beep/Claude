@@ -14,6 +14,7 @@ import { shareText } from '../services/share';
 import { clashNote, clockOf } from '../services/agenda';
 import { deviceZone } from '../services/zones';
 import { zoneNote } from '../services/due';
+import { placedByTime } from '../services/ordering';
 import { attachTo, detach, meetingOf, choices, keyOfEvent, keyOfTask } from '../services/meetings';
 
 export default function TaskDetail({
@@ -33,6 +34,12 @@ export default function TaskDetail({
   // the task was typed on. Only a choice made out loud overrides the date.
   const [scopePinned, setScopePinned] = useState(false);
   const [projectId, setProjectId] = useState('');
+
+  // Read off what is on screen rather than what is saved, so clearing the time
+  // here brings the three buttons back immediately — the list will place it by
+  // hand the moment this is saved, and a control that waits for a save to admit
+  // it works is a control that looks broken.
+  const byTime = placedByTime({ dueDate, dueTime });
   const [voiceNotes, setVoiceNotes] = useState([]);
   const [taskType, setTaskType] = useState('todo');
   const [repeat, setRepeat] = useState('none');
@@ -275,14 +282,25 @@ export default function TaskDetail({
               Prioritising is usually "this one first" rather than a precise
               placement, and a button says that in one tap where a drag asks for
               a held finger and a steady hand. Dragging is still there for the
-              placements a button cannot express. */}
+              placements a button cannot express.
+
+              Unless it has a time, in which case the clock has already answered
+              this and all three buttons are off. Said rather than merely
+              greyed: three dead controls with no explanation read as a fault,
+              and the reason is one sentence long. */}
           <View style={styles.section}>
             <Text style={styles.label}>Order</Text>
+            {byTime ? (
+              <Text style={styles.chaseNote} dataSet={{ bytime: 'true' }}>
+                Kept in time order — earlier in the day comes first. Clear the
+                time to place it by hand.
+              </Text>
+            ) : null}
             <View style={styles.scopeRow}>
               {[
-                { key: 'top', to: 'top', label: '⤒ To the top', can: !!place && place.index > 0 },
-                { key: 'up', to: -1, label: '↑ Up', can: !!place && place.index > 0 },
-                { key: 'down', to: 1, label: '↓ Down', can: !!place && place.index < place.total - 1 },
+                { key: 'top', to: 'top', label: '⤒ To the top', can: !byTime && !!place && place.index > 0 },
+                { key: 'up', to: -1, label: '↑ Up', can: !byTime && !!place && place.index > 0 },
+                { key: 'down', to: 1, label: '↓ Down', can: !byTime && !!place && place.index < place.total - 1 },
               ].map(step => (
                 <TouchableOpacity
                   key={step.key}

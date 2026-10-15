@@ -6,6 +6,7 @@
 
 import {
   orderOf, sortForDisplay, orderForNewTask, moveWithin, targetIndex, shiftFor,
+  placedByTime,
 } from '../src/services/ordering.js';
 
 let pass = 0, fail = 0;
@@ -199,6 +200,103 @@ ok('nothing shifts when nothing moves', shiftFor(2, 1, 1, 40) === 0);
   ok('a tab between the two ends slides left', shiftFor(1, 0, 2, 80) === -80);
   ok('and the other way it slides right', shiftFor(1, 2, 0, 80) === 80);
   ok('a tab outside the move does not stir', shiftFor(4, 0, 2, 80) === 0);
+}
+
+// ── A time decides the order, whichever order they were written in ─────────
+//
+// "Call Bob at 11am" went in first, so it sat at the top; "Call John at 9am"
+// went in second and landed above it, because the list was ordered by what was
+// newest. Neither arrangement had anything to do with the day: one of them was
+// right by accident and the other was wrong by the same accident. The clock
+// already knows the answer, and a list that has to be dragged into the order
+// the clock decided is doing work it could have had for nothing.
+{
+  const DAY = '2026-10-15T00:00:00.000Z';
+  // `order` set as the app sets it: every new task goes in above the last, so
+  // the newest carries the lowest number. The times here disagree with that
+  // sequence on purpose — if they agreed, this would pass without the sort
+  // looking at a clock at all.
+  const bob = { id: 'bob', dueDate: DAY, dueTime: '11:00', order: 0, priority: 'medium', createdAt: '1' };
+  const john = { id: 'john', dueDate: DAY, dueTime: '09:00', order: -1, priority: 'medium', createdAt: '2' };
+  const noon = { id: 'noon', dueDate: DAY, dueTime: '12:00', order: -2, priority: 'medium', createdAt: '3' };
+
+  ok('nine in the morning comes above eleven',
+     ids(sortForDisplay([bob, john], rankOf)) === 'john,bob',
+     ids(sortForDisplay([bob, john], rankOf)));
+  ok('and the answer does not depend on which was handed over first',
+     ids(sortForDisplay([john, bob], rankOf)) === 'john,bob',
+     ids(sortForDisplay([john, bob], rankOf)));
+  ok('three of them run through the day in order',
+     ids(sortForDisplay([noon, bob, john], rankOf)) === 'john,bob,noon',
+     ids(sortForDisplay([noon, bob, john], rankOf)));
+
+  // The newest-first rule is what used to decide this, so a test that does not
+  // contradict it is a test that proves nothing. Stated outright: the order
+  // values here would give exactly the reverse.
+  ok('which is the opposite of what the placed order alone would give',
+     ids(sortForDisplay([noon, bob, john], rankOf)).split(',').reverse().join(',') === 'noon,bob,john');
+
+  // A high-priority task later in the day stays later in the day. Priority is
+  // how a task feels; a time is an appointment with the day, and an
+  // appointment does not move because you feel strongly about it.
+  const urgentLate = { ...bob, id: 'urgentLate', priority: 'high' };
+  ok('a time outranks priority',
+     ids(sortForDisplay([urgentLate, john], rankOf)) === 'john,urgentLate',
+     ids(sortForDisplay([urgentLate, john], rankOf)));
+
+  // ── Tasks with no time keep the place you gave them ──
+  const dragged = { id: 'dragged', order: -9, priority: 'low', createdAt: '0' };
+  const untouched = { id: 'untouched', priority: 'high', createdAt: '0' };
+  ok('anything with a time sits above anything without one',
+     ids(sortForDisplay([dragged, untouched, bob], rankOf)) === 'bob,dragged,untouched',
+     ids(sortForDisplay([dragged, untouched, bob], rankOf)));
+  ok('and among those the old rules are untouched',
+     ids(sortForDisplay([untouched, dragged], rankOf)) === 'dragged,untouched',
+     ids(sortForDisplay([untouched, dragged], rankOf)));
+
+  // A date without a time is not a position in the day. "Due Thursday" is due
+  // some time on Thursday, and the whole day is not an appointment.
+  const thursday = { id: 'thursday', dueDate: DAY, dueTime: '', order: -9, priority: 'medium', createdAt: '0' };
+  ok('a date with no time is not placed by the clock',
+     ids(sortForDisplay([thursday, bob], rankOf)) === 'bob,thursday',
+     ids(sortForDisplay([thursday, bob], rankOf)));
+
+  // Two at the same minute is the one case the clock cannot settle, so where
+  // you put them still decides — which is also what keeps dragging meaningful
+  // for a pair of tasks that genuinely happen together.
+  const alsoNine = { id: 'alsoNine', dueDate: DAY, dueTime: '09:00', order: -7, priority: 'medium', createdAt: '9' };
+  ok('two at the same minute fall back to where they were placed',
+     ids(sortForDisplay([john, alsoNine], rankOf)) === 'alsoNine,john',
+     ids(sortForDisplay([john, alsoNine], rankOf)));
+
+  // Yesterday at 5pm is earlier than this morning at 9, and an overdue task
+  // rising to the top is the point rather than a side effect.
+  const yesterday = { id: 'yesterday', dueDate: '2026-10-14T00:00:00.000Z', dueTime: '17:00', order: 5, priority: 'low', createdAt: '0' };
+  ok('an earlier day comes before an earlier hour',
+     ids(sortForDisplay([john, noon, yesterday], rankOf)) === 'yesterday,john,noon',
+     ids(sortForDisplay([john, noon, yesterday], rankOf)));
+
+  // ── And the controls know ──
+  ok('a task with a time is placed by it', placedByTime(bob) === true);
+  ok('one with only a date is not', placedByTime(thursday) === false);
+  ok('nor is one with neither', placedByTime(dragged) === false
+     && placedByTime({}) === false && placedByTime(null) === false);
+  // A time the picker could not have produced is not a time.
+  ok('and nor is something that is not a clock reading',
+     placedByTime({ dueDate: DAY, dueTime: '25:00' }) === false
+     && placedByTime({ dueDate: DAY, dueTime: 'morning' }) === false,
+     String(placedByTime({ dueDate: DAY, dueTime: '25:00' })));
+  // A time with nowhere to be is the shape the parser never produces — it
+  // makes "at 9am" today — but a stored task could carry it, and half a time
+  // is not a position in any day.
+  ok('a time with no date is not a position in a day',
+     placedByTime({ dueTime: '09:00' }) === false);
+
+  // ── Sorting leaves the caller's list alone ──
+  const given = [bob, john, noon];
+  sortForDisplay(given, rankOf);
+  ok('the list handed in is not reordered underneath the caller',
+     ids(given) === 'bob,john,noon', ids(given));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
