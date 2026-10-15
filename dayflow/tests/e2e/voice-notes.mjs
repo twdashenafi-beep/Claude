@@ -294,7 +294,15 @@ const before = await noteRows();
   const box = await mic.boundingBox();
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
-  await page.waitForTimeout(320);
+  // 300ms, which is the middle of the only window this can be tested in. The
+  // microphone opens 200ms after the press and a note is kept from 400ms, so
+  // the press has to outlast the first and not reach the second. It was 320 —
+  // 80ms below the threshold — and a sweep under load overshot the wait by
+  // more than that, recorded a real note, and failed both assertions below for
+  // a reason that had nothing to do with either. The margin is 100ms each way
+  // now; if it ever goes again the answer is a fake clock rather than a
+  // smaller number, because no number makes a wall clock reliable.
+  await page.waitForTimeout(300);
   await page.mouse.up();
   await page.waitForTimeout(1800);
 }
