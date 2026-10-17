@@ -70,8 +70,14 @@ ok('a link alone is the link', mergeEvents([], feed).length === 2);
 
   // A calendar of nothing but past meetings is the case the old line hid
   // completely: it read "0 ahead" and looked the same as a broken link.
+  //
+  // It now carries a clause saying which kind of none it is, so this asserts
+  // the first half and the block at the end of this file asserts the rest. A
+  // record with no `readable` count — which is what this is — asks to be read
+  // again rather than claiming anything about dates nobody has measured.
   ok('a calendar of nothing but past meetings is distinguishable from a broken one',
-     line({ name: 'TA', events: 300, ahead: 0 }) === 'TA · 300 entries · none coming up',
+     line({ name: 'TA', events: 300, ahead: 0 })
+       .startsWith('TA · 300 entries · none coming up'),
      line({ name: 'TA', events: 300, ahead: 0 }));
 
   ok('a calendar with no name still says the numbers',
@@ -228,6 +234,58 @@ ok('a link alone is the link', mergeEvents([], feed).length === 2);
      [null, undefined, 0, {}, { threw: true }, { kept: 'unreadable' },
       { kept: 'ok', broke: true }, { reading: IOS_PERMISSION }]
        .every(a => !/^(threw|not a string)/.test(line(a))));
+}
+
+// ── Which kind of "none coming up" it is ───────────────────────────────────
+//
+// "375 entries · none coming up" is two quite different calendars wearing one
+// sentence: one whose entries have all been and gone, which is the wrong
+// calendar, and one whose dates this app cannot read, which is a bug here.
+// That sentence was on the screen for days while both of us guessed.
+{
+  const feed = extra => ({ name: 'TA', events: 375, ahead: 0, ...extra });
+  const said = extra => feedSummary(feed(extra), 'read today');
+
+  const past = said({ readable: 375, latest: '2024-03-14T09:00:00.000Z' });
+  ok('a calendar whose entries have all been says when the last one was',
+     /last one was/.test(past), past);
+  ok('and gives the date, which is what says "wrong calendar" at a glance',
+     /2024/.test(past), past);
+
+  const unreadable = said({ readable: 0, latest: '' });
+  ok('and one whose dates cannot be read says that instead',
+     /no dates in it this app can read/.test(unreadable), unreadable);
+  ok('which is not the same sentence, because it is not the same fault',
+     unreadable !== past, `${unreadable} / ${past}`);
+
+  // Some read and some did not: a third state, and a different bug again from
+  // none of them reading.
+  const partly = said({ readable: 200, latest: '2025-01-02T09:00:00.000Z' });
+  ok('a calendar only partly dated says how much of it',
+     /only 200 dated/.test(partly), partly);
+
+  // A record written before any of this existed has no count in it. Saying
+  // "no dates this app can read" would be a confident lie about a calendar
+  // nobody has measured.
+  const older = said({});
+  ok('a record from before this was measured asks to be read again',
+     /read it again/.test(older), older);
+  ok('rather than claiming its dates cannot be read',
+     !/cannot read|no dates/.test(older), older);
+
+  // And none of it appears when there is something coming up, because then
+  // the question is not being asked.
+  const fine = feedSummary(
+    feed({ ahead: 7, readable: 375, latest: '2026-11-01T09:00:00.000Z' }), 'read today');
+  ok('a calendar with something in it says none of this', !/last one|dated|read it again/.test(fine), fine);
+  ok('and still says how much is coming up', /7 coming up/.test(fine), fine);
+
+  // A calendar that yielded nothing at all is already answered by the line
+  // above it; adding a second explanation to "nothing was read from it" says
+  // the same thing twice.
+  const empty = feedSummary({ name: 'TA', events: 0, ahead: 0, readable: 0 }, 'read today');
+  ok('a calendar that gave nothing keeps its own one sentence',
+     /nothing was read from it/.test(empty) && !/no dates in it/.test(empty), empty);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
