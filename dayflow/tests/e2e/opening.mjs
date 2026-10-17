@@ -231,7 +231,14 @@ ok('the opening screen is gone', !/Opening your vault/.test(open), open.slice(0,
 // ── What it cost, and which part of it ──
 await page.getByText('ACCOUNT', { exact: false }).first().click();
 await page.waitForTimeout(800);
-await page.getByText('This device', { exact: false }).first().click();
+// By the row's own label rather than by any text containing the words. The
+// day's page says "No calendar linked on this device" when none is linked,
+// which is deliberately the same vocabulary the Settings row uses — and a
+// substring match took that line, found it underneath the open sheet, and
+// spent thirty seconds trying to click something another control was sitting
+// on top of. The locator was always this loose; the new sentence is only what
+// walked into it.
+await page.getByLabel(/^This device\./).first().click();
 await page.waitForTimeout(2500);
 
 const report = await body();
