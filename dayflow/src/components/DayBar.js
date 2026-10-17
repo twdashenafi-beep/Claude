@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { COLORS, SANS, typeSize } from '../utils/theme';
 import {
-  barCaption, barDrawable, barNow, barPlans, barSegments, clockOf, gapAt, loadSentence,
+  barCaption, barDrawable, barNow, barPlans, barSegments, clockOf, loadSentence,
   bookedAt, bookedLine,
 } from '../services/agenda';
 
@@ -26,7 +26,7 @@ const TRACK = 4;
 // above the column headings.
 const TICK = 10;
 
-export default function DayBar({ load, now, plans = [], onPickGap, style }) {
+export default function DayBar({ load, now, plans = [], style }) {
   const [width, setWidth] = useState(0);
   // Which meeting was asked about, if one was. Held here rather than passed in:
   // it is a question about the drawing, answered on the drawing, and it lasts
@@ -52,11 +52,14 @@ export default function DayBar({ load, now, plans = [], onPickGap, style }) {
   // shape you made.
   const planned = barPlans(load, plans, width);
 
-  // Which gap a finger landed on. Forgiving: a gap is twenty pixels wide on a
-  // phone and a finger is wider, so a tap that misses falls forward to the
-  // next free time, which is almost always what was meant.
+  // What a finger landed on. A tap on a meeting asks what it is; a tap
+  // anywhere else clears the name.
+  //
+  // It used to ask for the free time instead, and open a sheet that put a task
+  // into it. That sheet is gone: setting a time on a task now reorders the day
+  // by itself, which reaches the same place in two taps and needs no
+  // explaining — and the sheet was the one feature that did.
   const tapped = event => {
-    if (!onPickGap) return;
     const native = (event && event.nativeEvent) || {};
 
     // Where along the day the finger landed.
@@ -75,22 +78,12 @@ export default function DayBar({ load, now, plans = [], onPickGap, style }) {
       const page = Number(native.pageX);
       if (rect && Number.isFinite(page)) x = page - rect.left;
     }
-    // Still unknown: fall forward from the start of the day, which is what this
-    // did by accident before and is the kinder of the two wrong answers.
+    // Still unknown: read from the start of the day, which is what this did by
+    // accident before and is the kinder of the two wrong answers.
     if (!Number.isFinite(x)) x = 0;
-    // Answered even when the answer is none. Past the end of a working day
-    // there is no free time left to tap, and this used to do nothing at all —
-    // a dead control that looks exactly like a broken one, which is the fault
-    // this app has spent two days taking out of everything else.
-    // A tap on a meeting asks what it is; a tap anywhere else asks for the
-    // free time. The strip said how much and when and never what, and the
-    // names were two taps away in the briefing — while a tap on a meeting
-    // fell forward to the next free stretch and opened the planner for an
-    // hour nobody had pointed at.
-    const hit = bookedAt(load, width, x);
-    if (hit) { setNamed(hit); return; }
-    setNamed(null);
-    onPickGap(gapAt(load, width, x));
+    // The strip said how much was booked and when, and never what. The names
+    // were two taps away in the briefing.
+    setNamed(bookedAt(load, width, x));
   };
 
   // The sentence holds the place until there is a width to draw into, and
@@ -116,15 +109,12 @@ export default function DayBar({ load, now, plans = [], onPickGap, style }) {
     >
       <Pressable
         onPress={tapped}
-        disabled={!onPickGap}
         // The hit area is the row, not the four-pixel line in the middle of it.
         hitSlop={{ top: 8, bottom: 8 }}
-        accessibilityRole={onPickGap ? 'button' : undefined}
-        // It does two things now, so it says both. A screen reader cannot
-        // aim at a block, which is why the caption is read out as well.
-        accessibilityLabel={onPickGap
-          ? 'The day, drawn. Tap a meeting to hear what it is, or free time to put a task in it'
-          : undefined}
+        accessibilityRole="button"
+        // A screen reader cannot aim at a block, which is why the caption is
+        // read out as well.
+        accessibilityLabel="The day, drawn. Tap a meeting to hear what it is"
         dataSet={{ striptap: 'true' }}
         style={s.strip}
       >
@@ -132,9 +122,9 @@ export default function DayBar({ load, now, plans = [], onPickGap, style }) {
             locationX is measured from whatever the finger landed on, so a tap
             on a meeting arrived as a few pixels into that block rather than as
             a position along the day — which read as an hour near the start of
-            the morning, found nothing booked there, and opened the planner for
-            a time nobody had pointed at. With the drawing out of the way the
-            Pressable is always the target and x is always along the day. */}
+            the morning and named whatever was there instead. With the drawing
+            out of the way the Pressable is always the target and x is always
+            along the day. */}
         <View style={s.track} pointerEvents="none">
           {segments.map(segment => (
             <View

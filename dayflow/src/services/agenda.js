@@ -241,10 +241,6 @@ export function freeGaps(events, window, now = new Date(), least = LEAST_USEFUL_
   return gaps.filter(gap => (gap.end - gap.start) / MINUTE >= least);
 }
 
-export function freeMinutes(events, window, now = new Date(), least = LEAST_USEFUL_GAP) {
-  return freeGaps(events, window, now, least)
-    .reduce((total, gap) => total + Math.round((gap.end - gap.start) / MINUTE), 0);
-}
 
 // Which meetings a task at a given moment runs into.
 //
@@ -394,19 +390,6 @@ export function loadLine(load) {
   return parts.join('  ·  ');
 }
 
-// Where the free time actually is. Two gaps named is useful; six is a timetable
-// nobody reads, so it says how many are left instead.
-export function gapsLine(load, most = 2) {
-  if (!load || load.gaps.length === 0) return null;
-  // With no calendar to read, "free 09:30–18:00" is not information about the
-  // day, it is the clock with a word in front of it.
-  if (load.events.length === 0) return null;
-  const named = load.gaps
-    .slice(0, most)
-    .map(gap => `${clockOf(gap.start)}–${clockOf(gap.end)}`);
-  const rest = load.gaps.length - named.length;
-  return `Free ${named.join(', ')}${rest > 0 ? `, and ${rest} more` : ''}`;
-}
 
 // ── The day as a ruled line ──────────────────────────────────────────────────
 //
@@ -640,168 +623,6 @@ export function tomorrowLine(load, rawEvents, now = new Date()) {
   return `Tomorrow starts ${clockOf(first.start)} — ${first.title}`;
 }
 
-// ── Putting work into the free time ─────────────────────────────────────────
-//
-// Everything above this line reports. The app could say three hours were
-// booked and the afternoon was free, and say which twelve things were open,
-// and the one move that joins those two facts — putting a thing into the free
-// time — happened in somebody's head and then, if they remembered, in a form.
-//
-// It needs no new idea. A task with a date and a time is already a placed
-// task: it clashes with meetings, it carries a reminder, it sorts into the
-// day. All that was missing was a way to say it in one tap, and a drawing that
-// shows the result next to what caused it.
-//
-// Still no invented durations. An hour is assumed for the slot, which is what
-// this app has always booked for a task with a time on it — an assumption
-// about the appointment, not about the work, which is the difference between
-// this and pretending to know how long anything takes.
-
-// The tasks a gap could hold.
-//
-// This was too strict in a way that made the whole thing useless. It excluded
-// anything with a time on it, on the reasoning that a placed task is placed
-// and offering it again is offering to move it. True of a task at eleven
-// tomorrow. Not true of one that was due at nine this morning and was not
-// done — and at seven in the evening, rescheduling exactly those is most of
-// what anybody is tapping the strip for.
-//
-// So: an hour still ahead of you is a commitment and stays out of the list. An
-// hour that has gone is a question, and the question is "when, then".
-//
-// Ordered by how much the answer is owed. Overdue first and oldest first
-// within that, because a thing missed twice is worse than a thing missed once;
-// then dated but untimed, nearest first; then everything else, which has no
-// claim on any particular day and sits in the order it was written.
-export function placeable(tasks, now = new Date(), planning = null) {
-  const at = asDate(now) || new Date();
-  // The last day worth offering for: the end of the day being filled.
-  //
-  // Without this the list offered everything with a date but no hour, which is
-  // most of what putting something off produces — a week out, a month out, the
-  // twenty-third. So a task moved to next week came straight back onto the
-  // Tomorrow page as though nothing had been decided, which is the app arguing
-  // with a decision it had just been given.
-  //
-  // The rule, said once: what is owed by the end of the day you are filling,
-  // plus anything carrying no date at all.
-  const edge = endOfDay(asDate(planning) || at);
-
-  const open = (tasks || []).filter(task => {
-    if (!task || task.completed || task.archivedAt) return false;
-    const when = momentOf(task.dueDate, task.dueTime);
-    // Already somewhere, and that somewhere has not happened yet.
-    if (when) return when <= at;
-    const day = asDate(task.dueDate);
-    // A day but no hour: owed that day, so offerable up to the day being
-    // filled and not before it.
-    if (day) return startOfDay(day) <= edge;
-    // Nothing on it at all, which is what the free time is mostly for.
-    return true;
-  });
-
-  const rank = task => {
-    const when = momentOf(task.dueDate, task.dueTime);
-    if (when) return 0;
-    return asDate(task.dueDate) ? 1 : 2;
-  };
-  const by = task => {
-    const when = momentOf(task.dueDate, task.dueTime) || asDate(task.dueDate);
-    return when ? when.getTime() : 0;
-  };
-
-  return open
-    .map((task, i) => ({ task, i }))
-    .sort((a, b) => rank(a.task) - rank(b.task) || by(a.task) - by(b.task) || a.i - b.i)
-    .map(x => x.task);
-}
-
-// Which gap a tap landed on.
-//
-// Forgiving on purpose: a gap can be twenty pixels wide on a phone, and a
-// finger is wider than that. A tap that misses falls forward to the next gap,
-// because the next free time is almost always what was meant — and tapping the
-// middle of a meeting to mean "after this" is a reasonable thing to do.
-export function gapAt(load, width, x) {
-  if (!load || load.span !== 'day' || !load.window) return null;
-  if (!(width > 0) || !load.gaps || load.gaps.length === 0) return null;
-  const total = load.window.to - load.window.from;
-  if (!(total > 0)) return null;
-
-  const at = new Date(load.window.from.getTime()
-    + (Math.max(0, Math.min(width, x)) / width) * total);
-  return load.gaps.find(g => at >= g.start && at < g.end)
-    || load.gaps.find(g => g.start >= at)
-    || load.gaps[load.gaps.length - 1];
-}
-
-// What to write on a task to put it in a gap.
-//
-// The start of the gap rather than the middle of it: a thing you have decided
-// to do at two o'clock is a thing you do at two o'clock.
-// Which hours of a gap are already spoken for.
-//
-// The gaps themselves are worked out from the diary alone, because a meeting is
-// where you have to be and a task is where you said you would be — and the
-// strip has always drawn those differently. But for filling a gap the
-// difference does not matter: an hour you already gave to something is not free
-// to give again.
-//
-// Without this, every row in a three-hour gap offered the same 14:19, and
-// placing four tasks gave four tasks the same minute. With fourteen payments
-// and one long afternoon that is the first thing anybody does with this sheet.
-export function takenIn(tasks, gap) {
-  if (!gap) return [];
-  const used = [];
-  for (const task of tasks || []) {
-    if (!task || task.completed || task.archivedAt) continue;
-    const when = momentOf(task.dueDate, task.dueTime);
-    if (when && when >= gap.start && when < gap.end) used.push(when);
-  }
-  return used.sort((a, b) => a - b);
-}
-
-// The next hour in a gap that nothing has claimed, or null once it is full.
-//
-// Stepping from the start of the gap rather than packing around what is there:
-// the hours a gap offers are 14:19, 15:19, 16:19, and an hour that fell between
-// two of them is one somebody chose by hand. Treating it as a boundary to pack
-// against would answer 14:47, which is not an hour anybody means.
-export function nextHour(gap, taken = [], minutes = ASSUMED_MINUTES) {
-  if (!gap || !gap.start || !gap.end) return null;
-  const span = Math.max(1, Number(minutes) || ASSUMED_MINUTES);
-  const claimed = (taken || []).map(when => +asDate(when)).filter(Number.isFinite);
-
-  for (let at = new Date(gap.start); +at + span * MINUTE <= +gap.end;
-    at = new Date(+at + span * MINUTE)) {
-    if (!claimed.some(when => when >= +at && when < +at + span * MINUTE)) return at;
-  }
-  return null;
-}
-
-// What is left of a gap once the hours already given out are taken off it.
-export function leftIn(gap, taken = [], minutes = ASSUMED_MINUTES) {
-  if (!gap || !gap.start || !gap.end) return 0;
-  const span = Math.max(1, Number(minutes) || ASSUMED_MINUTES);
-  const claimed = (taken || []).map(when => +asDate(when)).filter(Number.isFinite);
-
-  let free = 0;
-  for (let at = new Date(gap.start); +at + span * MINUTE <= +gap.end;
-    at = new Date(+at + span * MINUTE)) {
-    if (!claimed.some(when => when >= +at && when < +at + span * MINUTE)) free += span;
-  }
-  return free;
-}
-
-export function planFor(gap) {
-  if (!gap || !gap.start) return null;
-  const at = asDate(gap.start);
-  if (!at) return null;
-  return {
-    dueDate: at.toISOString(),
-    dueTime: `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`,
-  };
-}
 
 // Where the planned hours sit on the strip.
 //
@@ -832,23 +653,6 @@ export function barPlans(load, tasks, width, minutes = ASSUMED_MINUTES,
   return placed.map((seg, i) => ({ ...seg, title: spans[i] && spans[i].title }));
 }
 
-// Tomorrow's free time, for the hours when today has none.
-//
-// From the close of a working day until nine in the evening, tapping the strip
-// had nothing to offer: today is spent, and the page has not yet handed over.
-// Answering "nothing free is left today" is honest and no use — the page is
-// already saying what tomorrow opens with, two lines above, so the thing
-// somebody is reaching for when they tap at seven is tomorrow.
-//
-// Built from the same spanLoad as any other day, asked at a minute past
-// midnight so the whole of it is still ahead and every gap is offered.
-export function tomorrowGaps(rawEvents, now = new Date()) {
-  const at = asDate(now) || new Date();
-  const start = startOfDay(at);
-  start.setDate(start.getDate() + 1);
-  start.setMinutes(1);
-  return spanLoad([], rawEvents, start, 'day').gaps;
-}
 
 // Putting something off.
 //

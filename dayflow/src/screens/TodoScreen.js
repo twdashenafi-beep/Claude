@@ -11,7 +11,7 @@ import { isReckoningDay } from '../services/reckoning';
 import { eventsFor, diaryAbsence } from '../services/calendarFeed';
 import { absenceLine } from '../services/calendarLink';
 import { scopeNow, horizonStamp } from '../services/scope';
-import { spanLoad, tomorrowLine, planFor, tomorrowGaps, putOff, putOffTo } from '../services/agenda';
+import { spanLoad, tomorrowLine, putOff, putOffTo } from '../services/agenda';
 import { whenPreview } from '../services/due';
 import { keptLine } from '../services/keeping';
 import { loadCopy } from '../services/copyStore';
@@ -27,7 +27,6 @@ import ArchiveSheet from '../components/ArchiveSheet';
 import SearchSheet from '../components/SearchSheet';
 import ViewToggle from '../components/ViewToggle';
 import DayBar from '../components/DayBar';
-import PlanSheet from '../components/PlanSheet';
 import DueSheet from '../components/DueSheet';
 import AddTaskModal from '../components/AddTaskModal';
 import TaskDetail from '../components/TaskDetail';
@@ -693,44 +692,7 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
   // no page: today is spent, this week may be over, and the month counts
   // meetings without saying when they are. One line closes that, and says
   // nothing at all outside it.
-  // Putting work into the free time: the one move the diary could describe and
-  // never make. Only on the day's page — a gap in a week is not a slot.
-  const [planning, setPlanning] = useState(false);
-  const [gapPicked, setGapPicked] = useState(null);
-  // Opened by the tap, not by whether the tap found anything. A day with no
-  // free time left has an answer, and it is "nothing free is left today" —
-  // said in the sheet rather than by the sheet refusing to appear.
-  const openGap = useCallback(gap => { setGapPicked(gap || null); setPlanning(true); }, []);
-  const closePlanning = useCallback(() => { setPlanning(false); setGapPicked(null); }, []);
 
-  // `at` is the hour the sheet offered, not the start of the gap: a gap holds
-  // more than one hour and the sheet hands them out in turn.
-  //
-  // The sheet stays open and the row says what it got. It used to close after
-  // one, and put the answer in a banner at the bottom of the page behind it —
-  // so filling an afternoon was one task per round trip, and the confirmation
-  // appeared somewhere nobody was looking.
-  const placeInGap = useCallback((task, at) => {
-    const when = planFor({ start: at });
-    if (!task || !when) return null;
-    const was = { dueDate: task.dueDate || '', dueTime: task.dueTime || '' };
-    updateTask(task.id, when);
-    return {
-      when: when.dueTime,
-      text: `${task.title} — ${when.dueTime}`,
-      undo: () => updateTask(task.id, was),
-    };
-  }, [updateTask]);
-
-  // What a tap on the strip can offer. Today's free time while there is any,
-  // and tomorrow's once the day has closed — because at seven in the evening
-  // "nothing free is left today" is true and no use, and the page is already
-  // saying what tomorrow opens with two lines above.
-  const planWhen = useMemo(() => {
-    if (!load || load.span !== 'day' || !diary) return { gaps: [], tomorrow: false };
-    if (load.gaps.length > 0) return { gaps: load.gaps, tomorrow: !!load.tomorrow };
-    return { gaps: tomorrowGaps(diary.events, load.at), tomorrow: true };
-  }, [load, diary]);
 
   // Not ready for it. Moves when it is due, counted from today so a thing long
   // overdue does not stay overdue after being put off.
@@ -856,17 +818,6 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
     setAlerts(prev => prev.filter(a => a.task.id !== task.id));
     openResult(live);
   }, [openResult]);
-
-  // Opened from the planner, the same way a reminder opens from the Due sheet.
-  //
-  // The live task rather than the held one: the sheet keeps its list from the
-  // moment it opened, so a row could be a minute out of date by the time it is
-  // tapped, and opening a stale copy would show the task as it was.
-  const openFromPlan = useCallback(task => {
-    const live = liveTasks.current.find(t => t.id === task.id) || task;
-    closePlanning();
-    openResult(live);
-  }, [closePlanning, openResult]);
 
   // Ticked from the sheet. The row goes, the sheet stays: most of what a
   // reminder catches is already done or takes a moment, and closing after each
@@ -1021,7 +972,6 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
               load={load}
               now={load.at}
               plans={inView}
-              onPickGap={viewMode === 'day' ? openGap : undefined}
             />
           ) : null}
           {/* The strip's absence, said out loud. It used to be a gap in the
@@ -1340,20 +1290,6 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
           return note;
         }}
         onClose={() => { setShowingDue(false); setAlerts([]); }}
-      />
-
-      <PlanSheet
-        visible={planning}
-        gaps={planWhen.gaps}
-        tomorrow={planWhen.tomorrow}
-        chosen={gapPicked}
-        tasks={tasks}
-        onPlace={placeInGap}
-        onPutOff={putTaskOff}
-        onPutOffTo={putTaskOffTo}
-        onDone={task => toggleTask(task.id)}
-        onOpen={openFromPlan}
-        onClose={closePlanning}
       />
 
       <AccountSheet

@@ -15,8 +15,7 @@
 import {
   barSegments, barNow, barDrawable, barCaption, loadSentence,
   spanLoad, dayLoad, BAR_GAP, BAR_LEAST, tomorrowLine,
-  barPlans, gapAt, planFor, placeable, clockOf, tomorrowGaps, putOff, putOffTo, LATER,
-  takenIn, nextHour, leftIn, bookedAt, bookedLine,
+  barPlans, clockOf, putOff, putOffTo, LATER, bookedAt, bookedLine,
 } from '../src/services/agenda.js';
 
 let pass = 0, fail = 0;
@@ -362,125 +361,20 @@ const near = (a, b, slack = 0.51) => Math.abs(a - b) <= slack;
   ok('and nothing at all is survived', tomorrowLine(null, diary, at(4, 18, 30)) === null);
 }
 
-// ── Putting work into the free time ─────────────────────────────────────────
+// ── A planned hour, drawn on the strip ─────────────────────────────────────
 //
-// The one move the app could describe and never make. It could say the
-// afternoon was free and say what was open, and joining those two facts
-// happened in somebody's head.
+// A task with a date and a time is a placed task, and the strip shows it
+// beside the meetings it has to fit around.
 //
-// It needs no new idea underneath: a task with a date and a time is already a
-// placed task. What is new is a tap that writes one, and a drawing that shows
-// the result beside what caused it.
+// There was a sheet for writing one: tap a free stretch, pick a task, take the
+// next free hour. It is gone, and so are the tests for it. Setting a time on a
+// task now reorders the day by itself, which reaches the same place in two
+// taps — and the sheet was the one feature in the app that needed a written
+// explanation before anybody could use it.
 {
   const load = dayLoad([], [ev('Board call', on(11), on(12, 30))], on(9));
   ok('the day has two stretches of free time', load.gaps.length === 2,
      load.gaps.map(g => clockOf(g.start)).join(', '));
-
-  // ── Which gap a finger landed on ──
-  //
-  // Read through a helper that survives a null, because the interesting
-  // failure here is a tap that finds nothing — and a test that throws on it
-  // reports no failure at all, which is the same as not testing it.
-  const tapAt = x => { const g = gapAt(load, W, x); return g ? clockOf(g.start) : 'nothing'; };
-
-  ok('a tap at the start of the day finds the morning', tapAt(0) === '09:00', tapAt(0));
-  ok('a tap in the afternoon finds the afternoon', tapAt(pxAt(14)) === '12:30', tapAt(pxAt(14)));
-  // A gap can be twenty pixels wide on a phone and a finger is wider, so a
-  // miss has to land somewhere sensible rather than nowhere.
-  ok('a tap in the middle of a meeting falls forward to the next free time',
-     tapAt(pxAt(11, 45)) === '12:30', tapAt(pxAt(11, 45)));
-  ok('a tap past the end of the day still lands on free time',
-     gapAt(load, W, W + 200) !== null);
-  ok('a day with nothing free offers nothing',
-     gapAt(dayLoad([], [ev('All of it', on(8), on(18))], on(9)), W, 100) === null);
-  ok('and no width means no tap', gapAt(load, 0, 10) === null);
-
-  // ── What gets written on the task ──
-  const when = planFor(load.gaps[1]) || {};
-  ok('a task put in a gap takes the hour the gap starts', when.dueTime === '12:30', when.dueTime);
-  ok('and the day it is on', new Date(when.dueDate).getDate() === 2, when.dueDate);
-  ok('nothing in, nothing out', planFor(null) === null && planFor({}) === null);
-
-  // ── Which tasks can be placed ──
-  // 'b' carries a date as well as an hour, because an hour without a day is
-  // not a moment and this app cannot place it against anything. The first
-  // version of this fixture had the hour alone, which made the assertion pass
-  // for a reason that had nothing to do with what it claimed.
-  const tasks = [
-    { id: 'a', title: 'Draft the paper' },
-    { id: 'b', title: 'Already at eleven', dueDate: on(11).toISOString(), dueTime: '11:00' },
-    { id: 'c', title: 'Done', completed: true },
-    { id: 'd', title: 'Filed away', archivedAt: '2026-10-01T00:00:00.000Z' },
-  ];
-  const free = placeable(tasks, on(9));
-  ok('only what is open and not already somewhere is offered',
-     free.length === 1 && free[0].id === 'a', free.map(x => x.id).join(', '));
-  ok('a broken list is survived', placeable(null).length === 0);
-
-  // ── What "already somewhere" means ──
-  //
-  // This was too strict in a way that made the whole feature useless: it
-  // excluded anything with a time, so a phone showing one overdue task and
-  // three hundred undated ones offered nothing at all. An hour still ahead is
-  // a commitment; an hour that has gone is a question, and the question is
-  // "when, then" — which is most of what anybody taps the strip for at seven
-  // in the evening.
-  const evening = new Date(2026, 9, 2, 19, 42);
-  const timed = (id, day, hh) => ({
-    id, title: id, dueDate: new Date(2026, 9, day, hh).toISOString(),
-    dueTime: `${String(hh).padStart(2, '0')}:00`,
-  });
-  const mixed = [
-    { id: 'undated', title: 'undated' },
-    timed('overdue', 2, 9),
-    timed('ahead', 3, 11),
-    { id: 'today', title: 'today', dueDate: new Date(2026, 9, 2).toISOString() },
-    { id: 'dated', title: 'dated', dueDate: new Date(2026, 9, 3).toISOString() },
-    { id: 'nextweek', title: 'nextweek', dueDate: new Date(2026, 9, 12).toISOString() },
-    timed('older', 1, 9),
-    { id: 'done', title: 'done', completed: true },
-  ];
-  const offered = placeable(mixed, evening).map(x => x.id);
-
-  ok('an hour that has gone is offered again', offered.includes('overdue'), offered.join(', '));
-  ok('and an hour still ahead is left alone', !offered.includes('ahead'), offered.join(', '));
-  ok('finished work is not offered', !offered.includes('done'), offered.join(', '));
-
-  // ── What a day with no hour means ──
-  //
-  // It used to mean nothing: anything without a valid hour counted as "not
-  // already somewhere" and was offered. Putting something off is exactly how a
-  // task ends up dated and untimed — a week out, a month out, the twenty-third
-  // — so a task moved to next week came straight back onto the list as though
-  // the decision had not been taken. The app arguing with an instruction it had
-  // just been given.
-  //
-  // The rule, said once: what is owed by the end of the day being filled, plus
-  // anything carrying no date at all.
-  ok('something owed today is offered', offered.includes('today'), offered.join(', '));
-  ok('something put off to next week is not',
-     !offered.includes('nextweek'), offered.join(', '));
-  ok('nor is tomorrow\u2019s work, while today is the day being filled',
-     !offered.includes('dated'), offered.join(', '));
-
-  // And on the Tomorrow page, the horizon moves with it: tomorrow's work is
-  // the point, next week's still is not.
-  const forTomorrow = placeable(mixed, evening, new Date(2026, 9, 3)).map(x => x.id);
-  ok('filling tomorrow offers what is owed tomorrow',
-     forTomorrow.includes('dated'), forTomorrow.join(', '));
-  ok('and still not what was pushed past it',
-     !forTomorrow.includes('nextweek'), forTomorrow.join(', '));
-  ok('and what was already owed stays offered',
-     forTomorrow.includes('overdue') && forTomorrow.includes('today'),
-     forTomorrow.join(', '));
-
-  // Ordered by how much the answer is owed, because the top of the list is
-  // the part anybody reads.
-  ok('the longest overdue comes first', offered[0] === 'older', offered.join(', '));
-  ok('then the rest of what is overdue', offered[1] === 'overdue', offered.join(', '));
-  ok('then what has a day but no hour', offered[2] === 'today', offered.join(', '));
-  ok('and the undated last, having no claim on any day', offered[3] === 'undated',
-     offered.join(', '));
 
   // ── And it is drawn ──
   const placed = [{ id: 'a', title: 'Draft the paper', dueDate: on(14).toISOString(), dueTime: '14:00' }];
@@ -512,49 +406,6 @@ const near = (a, b, slack = 0.51) => Math.abs(a - b) <= slack;
      barPlans(spanLoad([], [], on(9), 'week'), placed, W).length === 0);
 }
 
-// ── Tapping the strip when today is spent ───────────────────────────────────
-//
-// Seven in the evening: the day closed at six, nothing is free, and the first
-// version of this did nothing at all when tapped. Answering "nothing free is
-// left today" would be honest and no use — the page is already saying what
-// tomorrow opens with, two lines above the strip, so tomorrow is what somebody
-// reaching for it at seven actually wants.
-{
-  const d = (day, h, mi = 0) => new Date(2026, 9, day, h, mi);
-  const some = (title, a, b) => ({ id: title, title, start: a, end: b, allDay: false });
-  const diary = [
-    some('Late call', d(5, 16), d(5, 17)),
-    some('Swim', d(6, 7), d(6, 8)),
-    some('Board', d(6, 11), d(6, 12, 30)),
-  ];
-  const evening = d(5, 19, 4);
-
-  ok('today has nothing free left at seven',
-     spanLoad([], diary, evening, 'day').gaps.length === 0);
-
-  const ahead = tomorrowGaps(diary, evening);
-  ok('so tomorrow is offered instead', ahead.length === 2,
-     ahead.map(g => clockOf(g.start)).join(', '));
-  // Asked at a minute past midnight so none of tomorrow is already behind you.
-  ok('and all of tomorrow is offered, not the part after seven',
-     clockOf(ahead[0].start) === '08:00', clockOf(ahead[0].start));
-  ok('with tomorrow\u2019s own meetings taken out of it',
-     clockOf(ahead[0].end) === '11:00', clockOf(ahead[0].end));
-
-  // The hour written must be tomorrow's, or the task lands on a day that has
-  // already gone — which would be the feature quietly doing the wrong thing
-  // rather than nothing, and that is worse.
-  const when = planFor(ahead[0]) || {};
-  ok('and a task put there takes tomorrow\u2019s date',
-     new Date(when.dueDate).getDate() === 6, String(when.dueDate));
-  ok('at the hour the gap starts', when.dueTime === '08:00', String(when.dueTime));
-
-  // A day whose tomorrow is solid has nothing to offer, and says so.
-  const packed = [some('All of it', d(6, 0), d(7, 0))];
-  ok('a tomorrow with no room in it offers nothing',
-     tomorrowGaps(packed, evening).length === 0,
-     String(tomorrowGaps(packed, evening).length));
-}
 
 // ── When, then ──────────────────────────────────────────────────────────────
 //
@@ -668,82 +519,6 @@ const near = (a, b, slack = 0.51) => Math.abs(a - b) <= slack;
      JSON.stringify(putOffTo(task, day, 'half four')));
 }
 
-// ── Filling a gap more than once ────────────────────────────────────────────
-//
-// A three-hour gap offered the same 14:19 on every row, and placing four tasks
-// gave four tasks the same minute, because the gaps are worked out from the
-// diary and a task placed in one took nothing out of it. With fourteen payments
-// and one free afternoon that is the first thing anybody does with this sheet.
-{
-  const hhmm = at => `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
-  const gap = { start: new Date(2026, 9, 6, 14, 19), end: new Date(2026, 9, 6, 18, 0) };
-  const dated = (h, m) => ({
-    id: `t${h}${m}`, title: 't',
-    dueDate: new Date(2026, 9, 6, h, m).toISOString(),
-    dueTime: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`,
-  });
-
-  ok('an empty gap offers the hour it starts at',
-     hhmm(nextHour(gap, [])) === '14:19', hhmm(nextHour(gap, [])));
-  ok('once that hour is taken it offers the next',
-     hhmm(nextHour(gap, [new Date(2026, 9, 6, 14, 19)])) === '15:19',
-     hhmm(nextHour(gap, [new Date(2026, 9, 6, 14, 19)])));
-
-  // Payments down the list, each an hour after the last, until the gap runs out.
-  //
-  // Four were expected here first. 14:19 to 18:00 is three hours and forty-one
-  // minutes, which holds three whole hours and not four — the fourth would run
-  // to 18:19, past the end of the day. The code was right and the assertion was
-  // wrong, which is the better way round.
-  const said = [];
-  let used = [];
-  for (let i = 0; i < 6; i += 1) {
-    const at = nextHour(gap, used);
-    if (!at) break;
-    said.push(hhmm(at));
-    used = used.concat([at]);
-  }
-  ok('each one placed takes the hour after the last',
-     said.join(' ') === '14:19 15:19 16:19', said.join(' '));
-  ok('and the same hour is never given out twice',
-     new Set(said).size === said.length, said.join(' '));
-  ok('and it stops rather than running past the end of the gap',
-     said.length === 3 && nextHour(gap, used) === null, `${said.length} / ${said.join(' ')}`);
-
-  // Short gaps hold nothing, rather than holding something that overruns.
-  ok('a gap shorter than an hour offers none',
-     nextHour({ start: new Date(2026, 9, 6, 9, 0), end: new Date(2026, 9, 6, 9, 40) }) === null);
-
-  // ── What counts as taken ──
-  const inside = dated(15, 19);
-  const outside = dated(9, 0);
-  ok('a task already in the gap takes its hour',
-     takenIn([inside], gap).length === 1, String(takenIn([inside], gap).length));
-  ok('and one outside the gap does not',
-     takenIn([outside], gap).length === 0, String(takenIn([outside], gap).length));
-  ok('so reopening the sheet does not offer that hour again',
-     hhmm(nextHour(gap, takenIn([dated(14, 19)], gap))) === '15:19',
-     hhmm(nextHour(gap, takenIn([dated(14, 19)], gap))));
-  ok('finished work frees its hour again',
-     takenIn([{ ...inside, completed: true }], gap).length === 0);
-  ok('and so does filed work', takenIn([{ ...inside, archivedAt: 'x' }], gap).length === 0);
-  ok('a task with a day but no hour claims nothing',
-     takenIn([{ id: 'd', title: 'd', dueDate: new Date(2026, 9, 6).toISOString() }], gap).length === 0);
-  ok('a broken list is survived', takenIn(null, gap).length === 0 && takenIn([null], gap).length === 0);
-  ok('and no gap means nothing is taken', takenIn([inside], null).length === 0);
-
-  // ── How much is left ──
-  ok('an untouched gap has every hour it holds', leftIn(gap, []) === 180, String(leftIn(gap, [])));
-  ok('one placed takes an hour off it',
-     leftIn(gap, [new Date(2026, 9, 6, 14, 19)]) === 120,
-     String(leftIn(gap, [new Date(2026, 9, 6, 14, 19)])));
-  ok('and a full gap has nothing left',
-     leftIn(gap, [new Date(2026, 9, 6, 14, 19), new Date(2026, 9, 6, 15, 19),
-       new Date(2026, 9, 6, 16, 19)]) === 0);
-
-  ok('nothing in is nothing out',
-     nextHour(null) === null && nextHour({}) === null && leftIn(null) === 0);
-}
 
 // ── Asking the strip what a block is ────────────────────────────────────────
 //

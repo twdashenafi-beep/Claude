@@ -9,8 +9,8 @@
 // Run with `npm test` under a fixed zone: half the assertions are about clock
 // times, and a test that passes in London and fails in Lagos is not a test.
 import {
-  tidyEvents, dayWindow, mergeBusy, committedMinutes, freeGaps, freeMinutes,
-  clashes, spanMinutes, clockOf, dayLoad, loadLine, gapsLine, LEAST_USEFUL_GAP,
+  tidyEvents, dayWindow, mergeBusy, committedMinutes, freeGaps,
+  clashes, spanMinutes, clockOf, dayLoad, loadLine, LEAST_USEFUL_GAP,
   momentOf, clashNote, spanWindow, spanLoad, eventsWithin,
   dayInFocus, showingTomorrow, barCaption, loadSentence,
 } from '../src/services/agenda.js';
@@ -141,8 +141,9 @@ const ev = (title, from, to, extra = {}) => ({
   ok('the last one runs to the end of the day',
      clockOf(gaps[2].start) === '17:45' && clockOf(gaps[2].end) === '18:00',
      `${clockOf(gaps[2].start)}–${clockOf(gaps[2].end)}`);
-  ok('and they add up', freeMinutes(events, window, DAY) === 90 + 210 + 15,
-     String(freeMinutes(events, window, DAY)));
+  ok('and they add up',
+     gaps.reduce((n, g) => n + Math.round((g.end - g.start) / 60000), 0) === 90 + 210 + 15,
+     String(gaps.reduce((n, g) => n + Math.round((g.end - g.start) / 60000), 0)));
 
   // Ten minutes between two meetings is the walk between them.
   const tight = tidyEvents([ev('A', on(10), on(11)), ev('B', on(11, 10), on(12))], DAY);
@@ -251,17 +252,13 @@ ok('and time cannot go backwards', spanMinutes(-30) === '0m');
      load.next && load.next.title === 'Board call', load.next && load.next.title);
   ok('and the line reads as one sentence',
      loadLine(load) === '2h booked  ·  7h free', loadLine(load));
-  ok('the gaps are named, the rest counted',
-     gapsLine(load) === 'Free 09:30–11:00, 12:30–18:00', gapsLine(load));
 
   const empty = dayLoad([], [], DAY);
   ok('a day with no calendar at all says nothing', loadLine(empty) === null);
-  ok('and offers no gaps to fill', gapsLine(empty) === null);
 
   const full = dayLoad([], [ev('All of it', on(8), on(18))], DAY);
   ok('a day with nothing left says that instead',
      loadLine(full) === '10h booked  ·  nothing free', loadLine(full));
-  ok('and names no gaps', gapsLine(full) === null);
 
   ok('a broken list is survived', dayLoad([], null, DAY).events.length === 0);
 }
@@ -345,7 +342,6 @@ ok('and time cannot go backwards', spanMinutes(-30) === '0m');
   ok('the day page sees today and nothing else', day.events.length === 2,
      day.events.map(e => e.title).join(', '));
   ok('and says what is left of it', /free/.test(loadLine(day)), loadLine(day));
-  ok('and where', gapsLine(day) !== null);
 
   const week = spanLoad([], diary, at, 'week');
   ok('the week page sees the week', week.events.length === 3,
@@ -353,8 +349,6 @@ ok('and time cannot go backwards', spanMinutes(-30) === '0m');
   ok('not the week after', !week.events.some(e => e.title === 'Five days on'));
   ok('counted rather than measured against an afternoon',
      loadLine(week) === '3 meetings  ·  3h booked', loadLine(week));
-  ok('and no gaps, because free hours spread over five days are not an afternoon',
-     gapsLine(week) === null);
 
   const month = spanLoad([], diary, at, 'month');
   ok('the month page sees the month', month.events.length === 5,
@@ -374,7 +368,12 @@ ok('and time cannot go backwards', spanMinutes(-30) === '0m');
   ok('a window with no shape holds nothing', eventsWithin(diary, null).length === 0);
 }
 
-// ── Three gaps, and the line that names two ─────────────────────────────────
+// ── Gaps are still counted, they are simply no longer listed ───────────────
+//
+// gapsLine named the first two free stretches and counted the rest. Nothing
+// read it: the page shows loadSentence, which says how much is free rather
+// than when, and the sheet that used the when is gone. The gaps themselves
+// stay — the sentence is measured from them.
 {
   const load = dayLoad([], [
     ev('A', on(10), on(11)),
@@ -382,8 +381,8 @@ ok('and time cannot go backwards', spanMinutes(-30) === '0m');
     ev('C', on(14), on(15)),
   ], new Date(2026, 9, 2, 8));
   ok('four gaps are found', load.gaps.length === 4, String(load.gaps.length));
-  ok('two are named and the rest counted',
-     gapsLine(load) === 'Free 08:00–10:00, 11:00–12:00, and 2 more', gapsLine(load));
+  ok('and they are what the free time is measured from',
+     load.free === 7 * 60, String(load.free));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
