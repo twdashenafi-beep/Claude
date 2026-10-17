@@ -182,17 +182,46 @@ export async function refreshFeed(key, now = new Date(), { force = false } = {})
   }
 }
 
+// Whether a kept calendar is there, and whether it opened: 'none', 'unreadable'
+// or 'ok'. Two of those look the same to everything downstream and are fixed in
+// different places, and nothing could tell them apart until the day's line
+// needed to say which.
+let kept = 'none';
+
+export function feedKept() {
+  return kept;
+}
+
 export async function readFeed(key) {
+  let stored;
   try {
-    const stored = await Store.getItem(FEED_KEY);
-    if (!stored) return null;
-    const plain = decrypt(stored, key);
-    if (!plain) return null;
-    const record = JSON.parse(plain);
-    return record && typeof record.text === 'string' ? record : null;
+    stored = await Store.getItem(FEED_KEY);
   } catch {
-    // A key that no longer opens it, or a half-written record. Either way there
-    // is no calendar, which is a state the rest of the app already handles.
+    kept = 'unreadable';
+    return null;
+  }
+  if (!stored) {
+    kept = 'none';
+    return null;
+  }
+  try {
+    const plain = decrypt(stored, key);
+    if (!plain) {
+      // There is a calendar; this key does not open it. A real state, and the
+      // one that used to leave the day with no line and no explanation.
+      kept = 'unreadable';
+      return null;
+    }
+    const record = JSON.parse(plain);
+    if (record && typeof record.text === 'string') {
+      kept = 'ok';
+      return record;
+    }
+    kept = 'unreadable';
+    return null;
+  } catch {
+    // A key that no longer opens it, or a half-written record.
+    kept = 'unreadable';
     return null;
   }
 }
@@ -216,6 +245,20 @@ let reading = '';
 
 export function calendarReading() {
   return reading;
+}
+
+// Why the last read produced no diary at all.
+//
+// A day with no line under it had one appearance and several causes: the
+// permission was changed in iPhone Settings, the kept calendar would not open
+// under this key, the file would not parse, or nobody ever linked one. Only
+// the last of those is not a fault, and it was the only one the app behaved as
+// though it were — the strip simply was not there, which is indistinguishable
+// from a feature that had been taken away. It was asked whether it had been.
+let absence = null;
+
+export function diaryAbsence() {
+  return absence;
 }
 
 
@@ -312,11 +355,26 @@ export async function eventsFor(day, key) {
   const fromDevice = await deviceEvents(from, to);
   const feed = key ? await refreshFeed(key) : null;
   let fromFeed = null;
+  let brokeOnRead = false;
   if (feed) {
     try { fromFeed = parseICS(feed.text, { from, to }); } catch { fromFeed = null; }
+    brokeOnRead = fromFeed === null;
   }
 
-  if (!fromDevice && !fromFeed) return null;
+  if (!fromDevice && !fromFeed) {
+    absence = {
+      // What the phone's own calendar said, which on iOS is sometimes a
+      // sentence about a setting this app cannot reach.
+      reading,
+      // Whether a calendar is kept here at all, and whether it opened.
+      kept: feedKept(),
+      // Kept, opened, and then would not parse.
+      broke: brokeOnRead,
+      web: Platform.OS === 'web',
+    };
+    return null;
+  }
+  absence = null;
   if (!fromFeed) return { events: fromDevice, source: 'device', at: new Date() };
 
   const events = mergeEvents(fromDevice || [], fromFeed);
