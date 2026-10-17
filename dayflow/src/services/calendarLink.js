@@ -118,9 +118,19 @@ export function shouldRefetch(feed, now = new Date(), opts = {}) {
 // and is the only one the old behaviour was right about. Asked whether the
 // strip had been removed on purpose, neither of us could tell from the screen.
 //
-// A line is not shown for the fourth. Somebody who has never linked a calendar
-// and does not want one should not be told about it every day: the offer lives
-// in Settings, where it is already made.
+// The fourth got no line, on the reasoning that somebody who has never linked
+// a calendar and does not want one should not be told about it every day, and
+// that the offer already lives in Settings.
+//
+// That was wrong, and the way it was wrong is worth keeping written down. A
+// reinstall wipes the link — it is kept on the device, it is not in the vault
+// and it is not in a copy — so after restoring a backup the app is in exactly
+// this state: a calendar was linked yesterday, the tasks all came back, the
+// link did not, and the page said nothing. Three days went on asking whether
+// the strip had been removed on purpose. The nag I was avoiding was
+// hypothetical; the silence cost real time.
+//
+// So it says this one too, as an offer rather than a complaint.
 export function absenceLine(absence) {
   if (!absence) return '';
 
@@ -145,6 +155,8 @@ export function absenceLine(absence) {
   // reason it is worth passing through rather than summarising.
   if (absence.reading) return `Nothing from the calendar — ${absence.reading}`;
 
-  // Nobody has linked one, which is not a fault.
-  return '';
+  // Nobody has linked one on this device, which is not a fault — but saying so
+  // is the difference between a page that is missing something and a page that
+  // never had it.
+  return 'No calendar linked on this device — add one in Settings';
 }

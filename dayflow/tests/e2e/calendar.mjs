@@ -141,12 +141,19 @@ await toDo('Approve the budget');
 
 ok('with no calendar, the page says nothing about one', (await diaryLine()) === null,
    String(await diaryLine()));
-// Nor the line that says why there is none. Somebody who has never linked a
-// calendar and does not want one must not be told about it every day: the
-// offer is in Settings, where it is already made.
-ok('and does not explain the absence either, because there is no fault in it',
-   (await page.locator('[data-diarygone]').count()) === 0,
-   await page.locator('[data-diarygone]').allInnerTexts().then(t => t.join(' | ')));
+// But it does say that there is none, and where one is added. This used to
+// assert the opposite — that a page with no calendar says nothing at all — on
+// the reasoning that somebody who does not want one should not be told daily.
+// A reinstall wipes the link, so that silence is also what a restored backup
+// looks like, and it cost three days of asking whether the strip had been
+// removed on purpose.
+{
+  const gone = page.locator('[data-diarygone]');
+  ok('and says there is no calendar on this device', (await gone.count()) === 1,
+     `${await gone.count()} — ${(await body()).slice(0, 200)}`);
+  const said = (await gone.count()) ? await gone.first().innerText() : '';
+  ok('as an offer rather than a complaint', /add one in Settings/i.test(said), said);
+}
 
 // ── Importing one ───────────────────────────────────────────────────────────
 await page.getByLabel('Account settings').click();
@@ -506,8 +513,8 @@ await page.getByLabel('Close account settings').click();
 await page.waitForTimeout(1300);
 ok('forgetting it puts the page back as it was', (await diaryLine()) === null,
    String(await diaryLine()));
-ok('and says nothing about why, because forgetting it was deliberate',
-   (await page.locator('[data-diarygone]').count()) === 0,
+ok('and says there is none again, the same as before one was ever read',
+   (await page.locator('[data-diarygone]').count()) === 1,
    await page.locator('[data-diarygone]').allInnerTexts().then(t => t.join(' | ')));
 
 // ── Coming back to the app re-reads the diary ──

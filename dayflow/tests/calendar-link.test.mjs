@@ -156,13 +156,23 @@ ok('a link alone is the link', mergeEvents([], feed).length === 2);
     }
   };
 
-  // ── The case that must stay silent ──
+  // ── The one case that stays silent ──
   ok('a diary that was read says nothing', line(null) === '');
-  ok('and nor does somebody who has never linked a calendar',
-     line({ kept: 'none', reading: '', broke: false, web: true }) === '',
-     line({ kept: 'none', reading: '', broke: false, web: true }));
-  ok('on a phone as much as on the web',
-     line({ kept: 'none', reading: '', broke: false, web: false }) === '');
+
+  // ── And the one that used to, and should not have ──
+  //
+  // A reinstall wipes the link: it is kept on the device, not in the vault and
+  // not in a copy. So after restoring a backup the app sits in exactly this
+  // state — a calendar was linked yesterday, every task came back, the link
+  // did not — and it said nothing, which is how three days went on asking
+  // whether the strip had been taken away deliberately.
+  const never = line({ kept: 'none', reading: '', broke: false, web: true });
+  ok('never having linked one is said too, now', never !== '', never);
+  ok('as an offer rather than a complaint', /add one in Settings/.test(never), never);
+  ok('and it names the device, because the link belongs to one',
+     /this device/.test(never), never);
+  ok('on a phone the same as on the web',
+     line({ kept: 'none', reading: '', broke: false, web: false }) === never);
 
   // ── The three that must not ──
   const unopened = line({ kept: 'unreadable', reading: '', broke: false });
@@ -203,9 +213,15 @@ ok('a link alone is the link', mergeEvents([], feed).length === 2);
      line({ threw: true, kept: 'unreadable', reading: IOS_PERMISSION }) === threw);
 
   // ── Junk ──
-  ok('junk says nothing rather than something half-written',
-     line({}) === '' && line({ kept: 'ok' }) === ''
-     && line(undefined) === '' && line(0) === '');
+  //
+  // Nothing absent is still nothing to say. An absence record that exists but
+  // holds nothing recognisable reads as the commonest case, which is the one
+  // the reader can act on.
+  ok('no absence at all says nothing',
+     line(undefined) === '' && line(0) === '' && line(null) === '');
+  ok('and a half-written one falls to the case anybody can act on',
+     line({}) === never && line({ kept: 'ok' }) === never,
+     `${line({})} / ${line({ kept: 'ok' })}`);
   // A line is a line, and a throw is not one: both are rendered straight into
   // a Text. The helper above turns either into a sentence that fails here.
   ok('nothing throws and nothing comes back that is not a line',
