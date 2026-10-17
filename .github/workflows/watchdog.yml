@@ -1,0 +1,115 @@
+# Is DayFlow still alive?
+#
+# An app nobody is watching does not stay working; it stops working quietly and
+# tells nobody. The ways it can go are known and few, so this checks them once a
+# week and opens an issue when one of them has happened.
+#
+# What it watches, and why each one matters:
+#
+#   The app itself      — the page people are sent to. If this 404s the product
+#                         is gone and nothing else here matters.
+#   privacy, terms,     — Apple requires the privacy and support URLs to stay
+#   support, about        reachable. A dead privacy URL is grounds for pulling
+#                         an app from sale, and it would be dead silently.
+#   Supabase            — a free project is paused after a stretch of no
+#                         traffic, and sync then fails on every device at once
+#                         with nothing said. This is the check most likely to
+#                         fire, and the one hardest to notice without it.
+#
+# It opens one issue and does not open a second while that one is open, because
+# a watchdog that files the same report every week is one nobody reads.
+#
+# Free to run: scheduled Actions on a public repository cost nothing.
+
+name: Watchdog
+
+on:
+  schedule:
+    # Monday morning, on a minute nobody else is using. Runs on the hour are
+    # the ones GitHub delays when it is busy.
+    - cron: '17 9 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  alive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: The pages that have to stay up
+        id: pages
+        run: |
+          set -u
+          base="https://twdashenafi-beep.github.io/Claude"
+          bad=""
+          for path in "" "about.html" "privacy.html" "terms.html" "support.html"; do
+            url="$base/$path"
+            code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 "$url" || echo "000")
+            echo "$code  $url"
+            [ "$code" = "200" ] || bad="$bad\n- \`$url\` answered $code"
+          done
+          # printf rather than echo -e, which is not portable across shells.
+          printf 'bad<<EOF\n%b\nEOF\n' "$bad" >> "$GITHUB_OUTPUT"
+
+      - name: The sync project, which pauses when it is left alone
+        id: sync
+        env:
+          URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+          KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          set -u
+          if [ -z "${URL:-}" ] || [ -z "${KEY:-}" ]; then
+            echo "no sync project configured for this repository — skipped"
+            echo "bad=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # The REST root answers 200 with a valid key on a live project. A
+          # paused one does not answer at all. The key is a publishable one and
+          # is never printed: only the status code is.
+          code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 \
+            -H "apikey: $KEY" "$URL/rest/v1/" || echo "000")
+          echo "sync answered $code"
+          if [ "$code" = "200" ]; then
+            echo "bad=" >> "$GITHUB_OUTPUT"
+          else
+            echo "bad=- the sync project answered $code, which a paused or deleted project does" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Say so, once
+        if: steps.pages.outputs.bad != '' || steps.sync.outputs.bad != ''
+        uses: actions/github-script@v7
+        env:
+          PAGES_BAD: ${{ steps.pages.outputs.bad }}
+          SYNC_BAD: ${{ steps.sync.outputs.bad }}
+        with:
+          script: |
+            const label = 'watchdog';
+            const open = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo,
+              state: 'open', labels: label,
+            });
+            if (open.data.length > 0) {
+              core.info(`already reported in #${open.data[0].number}`);
+              return;
+            }
+            const body = [
+              'The weekly check found something that is no longer answering.',
+              '',
+              process.env.PAGES_BAD,
+              process.env.SYNC_BAD,
+              '',
+              '---',
+              'If the sync project is the one that failed, it has most likely been',
+              'paused for inactivity — a free Supabase project is, after a stretch',
+              'with no traffic. Opening it in the Supabase dashboard resumes it.',
+              '',
+              'Close this issue once it is dealt with; nothing else is reported',
+              'while it is open.',
+            ].filter(Boolean).join('\n');
+            await github.rest.issues.create({
+              owner: context.repo.owner, repo: context.repo.repo,
+              title: 'Watchdog: DayFlow is not fully answering',
+              body, labels: [label],
+            });

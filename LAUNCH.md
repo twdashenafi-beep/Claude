@@ -130,7 +130,54 @@ Not paid advertising. You would be bidding against Todoist for the word
 
 ---
 
-## 5. Still open
+## 5. Keeping it alive without tending it
+
+**What it costs to exist: $99 a year.** The Apple Developer Program, and
+nothing else. GitHub Pages is free, Actions on a public repository is free, and
+sync costs nothing because each person brings their own database.
+
+**So it pays for itself at about ten sales a year.** At £9.99, Apple's 15%
+under the Small Business Program leaves roughly £8.49, and $99 is about £79.
+Ten copies. Not ten a month — ten.
+
+That is the whole bar, and it is worth holding on to: this does not have to
+become a business to stop costing you money. It has to sell ten copies.
+
+### What breaks if nobody touches it
+
+An unattended app does not stay working. It goes quietly, in known ways:
+
+| What | When | What happens |
+| --- | --- | --- |
+| Apple Developer Program | yearly, on the enrolment date | Not renewed, the app comes off sale and TestFlight stops |
+| The sync project | after a stretch with no traffic | A free Supabase project is paused. Sync fails on every device at once, saying nothing |
+| Apple's minimum SDK | roughly yearly | Existing apps stay up, but no new build is accepted until Expo is upgraded |
+| TestFlight builds | 90 days | Testers' copies expire. Only matters while testing |
+| The privacy and support URLs | whenever Pages breaks | Apple requires them reachable. A dead privacy URL is grounds for removal |
+
+`.github/workflows/watchdog.yml` checks the second and the last of those every
+Monday and opens an issue when one has happened — once, not weekly, because a
+watchdog that repeats itself is one nobody reads. The first two rows are dates
+in a diary and nothing can check them for you.
+
+### Put its own upkeep in the app
+
+The honest way to make this self-sustaining is to let DayFlow carry it. Three
+repeating tasks, in a project of its own:
+
+- **Renew the Apple Developer Program** — yearly, a fortnight before the
+  enrolment date, because a lapse takes the app off sale.
+- **Open the Supabase dashboard** — monthly. Loading it is enough to keep a
+  free project from pausing, and the watchdog tells you when it did not.
+- **Upgrade Expo to the current SDK** — twice a year. Not urgent until a build
+  is refused, at which point it is the only thing standing between a fix and
+  the people who need it.
+
+That is the entire maintenance burden. Everything else here is optional.
+
+---
+
+## 6. Still open
 
 - Neither `pages/privacy.html` nor `pages/terms.html` has had a legal read.
   They are accurate; accurate is not the same as enforceable.
