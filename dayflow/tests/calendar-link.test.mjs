@@ -1,6 +1,6 @@
 // Calendar links — what a pasted link becomes, and how two diaries become one.
 // Run with `npm test`.
-import { feedUrl, linkName, mergeEvents, feedSummary, shouldRefetch, LINK_SETTLE_MS }
+import { feedUrl, linkName, mergeEvents, feedSummary, shouldRefetch, LINK_SETTLE_MS, absenceLine }
   from '../src/services/calendarLink.js';
 
 let pass = 0, fail = 0;
@@ -128,6 +128,90 @@ ok('a link alone is the link', mergeEvents([], feed).length === 2);
   // A clock that moved backwards made the copy look fresh for hours.
   ok('a copy stamped in the future is fetched rather than trusted',
      shouldRefetch(ago(-6 * 60 * 60 * 1000), NOW) === true);
+}
+
+// ── Why there is no diary, said out loud ───────────────────────────────────
+//
+// The day's strip was simply absent when there was no calendar to draw, and
+// that reads exactly like a feature that has been taken away — it was taken
+// for one, and I was asked whether removing it had been deliberate. Four
+// causes, fixed in four different places, one of them in iPhone Settings and
+// not in this app at all. Three are faults. The fourth is somebody who has
+// never linked a calendar, and telling them about it every day is the one
+// thing the old behaviour got right.
+{
+  const IOS_PERMISSION =
+    'not allowed — denied. iPhone Settings › DayFlow › Calendars › Full Access';
+
+  // Every call goes through here. The first falsification of this block — make
+  // it answer '' for everything — threw on the way past instead, which took
+  // the whole run down and reported no failure at all. A throw is a failure
+  // standing next to its neighbours now.
+  const line = a => {
+    try {
+      const said = absenceLine(a);
+      return typeof said === 'string' ? said : `not a string: ${typeof said}`;
+    } catch (e) {
+      return `threw: ${(e && e.message) || e}`;
+    }
+  };
+
+  // ── The case that must stay silent ──
+  ok('a diary that was read says nothing', line(null) === '');
+  ok('and nor does somebody who has never linked a calendar',
+     line({ kept: 'none', reading: '', broke: false, web: true }) === '',
+     line({ kept: 'none', reading: '', broke: false, web: true }));
+  ok('on a phone as much as on the web',
+     line({ kept: 'none', reading: '', broke: false, web: false }) === '');
+
+  // ── The three that must not ──
+  const unopened = line({ kept: 'unreadable', reading: '', broke: false });
+  ok('a kept calendar this key will not open is said',
+     unopened !== '' && /could not be opened/.test(unopened), unopened);
+  ok('and names where it is fixed', /Settings/.test(unopened), unopened);
+
+  const unparsed = line({ kept: 'ok', reading: '', broke: true });
+  ok('a kept calendar that will not parse is said',
+     unparsed !== '' && /could not be read/.test(unparsed), unparsed);
+  ok('and the two are not the same sentence, because they are not the same fault',
+     unopened !== unparsed, `${unopened} / ${unparsed}`);
+
+  const refused = line({ kept: 'none', reading: IOS_PERMISSION, broke: false });
+  ok('a permission the phone changed is said', refused !== '', refused);
+  // Passed through rather than summarised. The sentence names the iPhone
+  // setting, which is the only thing in it anybody can act on, and a tidier
+  // line that dropped the path would be worth less than no line.
+  ok('and carries the setting it is fixed in, word for word',
+     refused.includes('iPhone Settings › DayFlow › Calendars › Full Access'), refused);
+
+  ok('a module that has moved under us is said',
+     line({ kept: 'none', reading: 'the calendar module is not the shape this app expects' })
+       .includes('not the shape'), '');
+
+  const threw = line({ threw: true });
+  ok('and the read that went wrong, which was a bare catch and said nothing at all',
+     threw !== '' && /went wrong/.test(threw), threw);
+
+  // ── Which fault wins when more than one is true ──
+  //
+  // A copy that will not open is the nearer fact: the phone's reading is about
+  // a different calendar entirely, and the way out of the first one is one tap.
+  ok('a copy that will not open is named ahead of what the phone said',
+     line({ kept: 'unreadable', reading: IOS_PERMISSION }) === unopened,
+     line({ kept: 'unreadable', reading: IOS_PERMISSION }));
+  ok('and a read that went wrong is named ahead of everything',
+     line({ threw: true, kept: 'unreadable', reading: IOS_PERMISSION }) === threw);
+
+  // ── Junk ──
+  ok('junk says nothing rather than something half-written',
+     line({}) === '' && line({ kept: 'ok' }) === ''
+     && line(undefined) === '' && line(0) === '');
+  // A line is a line, and a throw is not one: both are rendered straight into
+  // a Text. The helper above turns either into a sentence that fails here.
+  ok('nothing throws and nothing comes back that is not a line',
+     [null, undefined, 0, {}, { threw: true }, { kept: 'unreadable' },
+      { kept: 'ok', broke: true }, { reading: IOS_PERMISSION }]
+       .every(a => !/^(threw|not a string)/.test(line(a))));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

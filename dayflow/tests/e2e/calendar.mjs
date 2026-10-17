@@ -141,6 +141,12 @@ await toDo('Approve the budget');
 
 ok('with no calendar, the page says nothing about one', (await diaryLine()) === null,
    String(await diaryLine()));
+// Nor the line that says why there is none. Somebody who has never linked a
+// calendar and does not want one must not be told about it every day: the
+// offer is in Settings, where it is already made.
+ok('and does not explain the absence either, because there is no fault in it',
+   (await page.locator('[data-diarygone]').count()) === 0,
+   await page.locator('[data-diarygone]').allInnerTexts().then(t => t.join(' | ')));
 
 // ── Importing one ───────────────────────────────────────────────────────────
 await page.getByLabel('Account settings').click();
@@ -898,6 +904,9 @@ await page.getByLabel('Close account settings').click();
 await page.waitForTimeout(1300);
 ok('forgetting it puts the page back as it was', (await diaryLine()) === null,
    String(await diaryLine()));
+ok('and says nothing about why, because forgetting it was deliberate',
+   (await page.locator('[data-diarygone]').count()) === 0,
+   await page.locator('[data-diarygone]').allInnerTexts().then(t => t.join(' | ')));
 
 // ── Coming back to the app re-reads the diary ──
 //
@@ -1094,6 +1103,46 @@ ok('forgetting it puts the page back as it was', (await diaryLine()) === null,
      /booked/.test(await caption.innerText()), await caption.innerText());
 }
 
+
+// ── A calendar that is there and will not open ─────────────────────────────
+//
+// The fault this whole line exists for. The strip was simply absent whenever
+// there was no calendar to draw, which reads exactly like a feature that has
+// been taken away — and was taken for one: I was asked whether removing it had
+// been deliberate, and could not tell from the screen either.
+//
+// Written straight into storage rather than through the app, which is the
+// point: the app must not know it has changed, and this is what another
+// device's half-finished write, or a key that no longer opens it, looks like
+// from in here. No encryption key is needed to put junk in a drawer.
+{
+  await page.evaluate(() => {
+    localStorage.setItem('@dayflow_calendar_v1', 'not a cipher text at all');
+  });
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(1300);
+  await page.locator('input, textarea').nth(1).fill('a strong master password');
+  await page.getByText('UNLOCK', { exact: false }).first().click();
+  await page.getByLabel('Search').first()
+    .waitFor({ state: 'visible', timeout: 120000 }).catch(() => {});
+  await page.waitForTimeout(2000);
+
+  const gone = page.locator('[data-diarygone]');
+  ok('a kept calendar that will not open is said, not swallowed',
+     (await gone.count()) === 1, `${await gone.count()} — ${(await body()).slice(0, 300)}`);
+  if (await gone.count()) {
+    const said = await gone.first().innerText();
+    ok('and named as what it is, rather than as an empty day',
+       /could not be opened/i.test(said), said);
+    // A sentence nobody can act on is furniture. The way back is one tap away
+    // and the line has to say where.
+    ok('with where it is fixed', /Settings/.test(said), said);
+  }
+  // And it is the explanation rather than a drawing: there is nothing to draw.
+  ok('no strip is drawn for a calendar that could not be read',
+     (await page.locator('[data-daybar]').count()) === 0,
+     String(await page.locator('[data-daybar]').count()));
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();

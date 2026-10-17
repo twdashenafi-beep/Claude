@@ -108,3 +108,43 @@ export function shouldRefetch(feed, now = new Date(), opts = {}) {
   if (age < 0) return true;
   return age >= settle;
 }
+
+// Why there is no diary under today's date, in a sentence, or '' when there is
+// nothing worth saying.
+//
+// The day's strip simply was not there, and that has four causes fixed in four
+// different places — one of them in iPhone Settings and not in this app at
+// all. Three of them are faults and said nothing; the fourth is not a fault
+// and is the only one the old behaviour was right about. Asked whether the
+// strip had been removed on purpose, neither of us could tell from the screen.
+//
+// A line is not shown for the fourth. Somebody who has never linked a calendar
+// and does not want one should not be told about it every day: the offer lives
+// in Settings, where it is already made.
+export function absenceLine(absence) {
+  if (!absence) return '';
+
+  // Reading it failed outright. Named rather than swallowed: this is the path
+  // that was a bare `catch {}` and therefore invisible.
+  if (absence.threw) return 'Nothing from the calendar — reading it went wrong';
+
+  // A calendar is kept here and this key will not open it. The copy is intact
+  // and the way back is to link it again, which is in Settings.
+  if (absence.kept === 'unreadable') {
+    return 'The kept calendar could not be opened — link it again in Settings';
+  }
+
+  // Opened, and then would not parse: a file that is no longer a calendar, or
+  // a link that now answers with something else.
+  if (absence.broke) {
+    return 'The kept calendar could not be read — link it again in Settings';
+  }
+
+  // What the phone said about its own calendar. Already a sentence, and the
+  // one about permissions names the setting it is fixed in, which is the whole
+  // reason it is worth passing through rather than summarising.
+  if (absence.reading) return `Nothing from the calendar — ${absence.reading}`;
+
+  // Nobody has linked one, which is not a fault.
+  return '';
+}

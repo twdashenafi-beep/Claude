@@ -8,7 +8,8 @@ import { sortForDisplay, targetIndex, shiftFor, moveWithin } from '../services/o
 import { pendingAlerts, alertBody, alertSummary, pruneShown } from '../services/alerts';
 import { recordChase } from '../services/chase';
 import { isReckoningDay } from '../services/reckoning';
-import { eventsFor } from '../services/calendarFeed';
+import { eventsFor, diaryAbsence } from '../services/calendarFeed';
+import { absenceLine } from '../services/calendarLink';
 import { scopeNow, horizonStamp } from '../services/scope';
 import { spanLoad, tomorrowLine, planFor, tomorrowGaps, putOff, putOffTo } from '../services/agenda';
 import { whenPreview } from '../services/due';
@@ -301,6 +302,10 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
   // then missed until the next unlock. Nothing about that is obvious from the
   // outside: the day simply says the wrong thing.
   const [diary, setDiary] = useState(null);
+  // Why there is none, when there is none. Held beside the diary rather than
+  // derived from it: the reason is recorded by the read, and a read that
+  // produced nothing is the only thing that knows it.
+  const [absent, setAbsent] = useState(null);
   // Bumped when a calendar is imported or forgotten, so the day's line changes
   // as soon as you close the sheet rather than on the next launch.
   const [diaryAt, setDiaryAt] = useState(0);
@@ -308,8 +313,14 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
     if (!dataKey) return undefined;
     let dropped = false;
     eventsFor(new Date(), dataKey)
-      .then(read => { if (!dropped) setDiary(read); })
-      .catch(() => {});
+      .then(read => {
+        if (dropped) return;
+        setDiary(read);
+        setAbsent(read ? null : diaryAbsence());
+      })
+      // Was a bare catch, and therefore the one path that could leave the day
+      // blank with nothing recorded anywhere about why.
+      .catch(() => { if (!dropped) setAbsent({ threw: true }); });
     return () => { dropped = true; };
   }, [dataKey, diaryAt]);
 
@@ -671,6 +682,12 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
   // The arithmetic for both is in agenda.js; this only decides whether the
   // page is one the diary has anything to say about.
   const showDiary = !!load && !searching && project !== ARCHIVE;
+  // And when there is no diary to show, why — on the pages a diary belongs to,
+  // which is the same test. Empty for somebody who has simply never linked a
+  // calendar: that is not a fault and not worth saying every day.
+  const diaryGone = !load && !searching && project !== ARCHIVE
+    ? absenceLine(absent)
+    : '';
 
   // Between the end of a working day and nine in the evening, tomorrow is on
   // no page: today is spent, this week may be over, and the month counts
@@ -1006,6 +1023,12 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
               plans={inView}
               onPickGap={viewMode === 'day' ? openGap : undefined}
             />
+          ) : null}
+          {/* The strip's absence, said out loud. It used to be a gap in the
+              page, which reads exactly like a feature that was removed — and
+              was taken for one. */}
+          {diaryGone ? (
+            <Text style={s.diaryGone} dataSet={{ diarygone: 'true' }}>{diaryGone}</Text>
           ) : null}
           {tomorrow ? (
             <Text style={s.tomorrow} dataSet={{ tomorrowline: 'true' }}>{tomorrow}</Text>
@@ -1451,6 +1474,11 @@ const s = StyleSheet.create({
   // Quieter than the day it sits under, because it is about a day you are not
   // standing in yet.
   tomorrow: { fontFamily: SANS, fontSize: typeSize(11.5), color: COLORS.inkFaint, marginTop: 6 },
+
+  // Where the strip would have been. Same size and colour as the line the
+  // strip falls back to, because it is the same kind of thing: a sentence
+  // about the day rather than a warning about the app.
+  diaryGone: { fontFamily: SANS, fontSize: typeSize(11.5), color: COLORS.inkFaint, marginTop: 6 },
 
   // Headings sit above the rule, one per column.
   headings: { flexDirection: 'row', alignItems: 'flex-end' },
