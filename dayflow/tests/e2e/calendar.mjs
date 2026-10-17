@@ -1116,8 +1116,22 @@ ok('and says nothing about why, because forgetting it was deliberate',
 // device's half-finished write, or a key that no longer opens it, looks like
 // from in here. No encryption key is needed to put junk in a drawer.
 {
-  await page.evaluate(() => {
-    localStorage.setItem('@dayflow_calendar_v1', 'not a cipher text at all');
+  // The same drawer the app uses, which is IndexedDB rather than localStorage.
+  // Written to localStorage first, where it did nothing at all: that is only
+  // the legacy source the store migrates out of on first run, so the app went
+  // on reading the good copy and the test failed for want of a corruption.
+  await page.evaluate(async () => {
+    const db = await new Promise((resolve, reject) => {
+      const request = indexedDB.open('dayflow', 1);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction('kv', 'readwrite');
+      tx.objectStore('kv').put('not a cipher text at all', '@dayflow_calendar_v1');
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
   });
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(1300);
