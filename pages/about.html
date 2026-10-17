@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>DayFlow — Two lists, side by side</title>
+<meta name="description" content="A task list that also tracks what other people owe you. What you owe and what you are owed, on one page. Encrypted on your device." />
+<meta property="og:title" content="DayFlow — Two lists, side by side" />
+<meta property="og:description" content="What you owe, and what you are owed. The follow-up stops getting lost." />
+<meta property="og:type" content="website" />
+<link rel="stylesheet" href="./style.css" />
+<style>
+  /* Only what a page with something to sell needs beyond a document. */
+  .hero { font-family: Georgia, serif; font-size: 25px; line-height: 1.45; margin: 10px 0 18px; }
+  .pair { display: flex; gap: 0; border: 1px solid var(--rule); border-radius: 3px; margin: 22px 0 8px; }
+  .pair div { flex: 1; padding: 14px 16px; }
+  .pair div + div { border-left: 1px solid var(--pencil); }
+  .pair h3 {
+    font-size: 11px; letter-spacing: 1.6px; text-transform: uppercase;
+    color: var(--soft); margin: 0 0 8px; font-weight: 700;
+  }
+  .pair p { margin: 0 0 6px; font-size: 14.5px; line-height: 1.5; }
+  .pair .who { color: var(--faint); font-size: 12.5px; }
+  .go {
+    display: inline-block; margin: 6px 14px 0 0; padding: 11px 20px;
+    background: var(--pencil); color: #fff; text-decoration: none;
+    border-radius: 3px; font-size: 15px;
+  }
+  .go.quiet { background: transparent; color: var(--accent); border: 1px solid var(--rule); }
+  .note { color: var(--faint); font-size: 13px; }
+  @media (max-width: 520px) { .pair { flex-direction: column; } .pair div + div { border-left: 0; border-top: 1px solid var(--pencil); } }
+</style>
+</head>
+<body>
+<main>
+  <p class="wordmark">DayFlow</p>
+  <h1>Two lists, side by side</h1>
+  <hr />
+
+  <p class="hero">
+    The things you have to do and the things other people owe you are different
+    kinds of work. Most task apps only know about the first.
+  </p>
+
+  <div class="pair">
+    <div>
+      <h3>To Do</h3>
+      <p>Call the surveyor</p>
+      <p>Draft the agreement</p>
+      <p>Book the fitter</p>
+    </div>
+    <div>
+      <h3>Owe Me</h3>
+      <p>The signed lease <span class="who">· Marchetti · 9 days</span></p>
+      <p>Quote for the roof <span class="who">· Dan · 3 days</span></p>
+      <p>Deposit back <span class="who">· the agent · 21 days</span></p>
+    </div>
+  </div>
+  <p class="note">The right-hand column is the one nothing else has.</p>
+
+  <h2>What you are waiting on</h2>
+  <p>
+    The work that actually slips is rarely something you forgot to do. It is
+    something somebody else has, and you have lost track of how long they have
+    had it. Owe Me keeps the person's name against the thing, says how long it
+    has been sitting, and writes the message asking for it back — covering
+    everything that person owes you, not one item at a time.
+  </p>
+
+  <h2>Write it the way you would say it</h2>
+  <p>
+    “Call Mekdi tomorrow at 11” arrives dated, timed and filed. “Owe me the
+    signed lease” goes to the right-hand column with Mekdi's name on it. Hold
+    the button and say it instead, if your hands are full.
+  </p>
+
+  <h2>Your day, as it actually is</h2>
+  <p>
+    With your permission DayFlow reads your calendar and draws the shape of the
+    day above the list: what is booked, and what is left of it. On a Friday it
+    adds up the week by outcome — what moved, what slipped, who is still holding
+    something of yours.
+  </p>
+
+  <h2>Nobody can read it, including me</h2>
+  <p>
+    Tasks are encrypted on your device with a key derived from a password that
+    is never sent anywhere. There is no account needed to use the app at all; if
+    you want your tasks on two devices, sync runs through a database you own.
+    No analytics, no advertising, no profile, nothing collected.
+  </p>
+  <p>
+    That is a design rather than a promise: the password cannot be reset and the
+    data cannot be recovered without it, because there is nothing held anywhere
+    capable of it. <a href="./privacy.html">The privacy policy</a> says exactly
+    what is stored and what can be read.
+  </p>
+
+  <h2>Try it</h2>
+  <p>
+    <a class="go" href="./">Open DayFlow in your browser</a>
+    <a class="go quiet" href="./support.html">How to set it up</a>
+  </p>
+  <p class="note">
+    It runs in a browser and installs to a home screen. Nothing to sign up for.
+  </p>
+
+  <footer>
+    <a href="./">DayFlow</a>
+    <a href="./support.html">Support</a>
+    <a href="./privacy.html">Privacy</a>
+    <a href="./terms.html">Terms</a>
+  </footer>
+</main>
+</body>
+</html>
