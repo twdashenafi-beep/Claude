@@ -73,6 +73,8 @@ export function feedSummary(feed, age = '') {
     // draft, and it is arithmetic that cannot happen saying something that can.
     parts.push(`${held} ${held === 1 ? 'entry' : 'entries'}`);
     parts.push(ahead === 0 ? 'none coming up' : `${ahead} coming up`);
+    // Why none, when there are none.
+    if (ahead === 0) parts.push(whyNone(feed));
   }
   if (age) parts.push(age);
   return parts.join(' · ');
@@ -86,6 +88,33 @@ export function feedSummary(feed, age = '') {
 // look at it. Half an hour meant that lock, add a meeting, unlock showed
 // yesterday's diary and said nothing about why.
 //
+// The half of "none coming up" that says which kind of none it is.
+//
+// "375 entries · none coming up" is two quite different calendars wearing one
+// sentence: one whose entries have all been and gone — the wrong calendar, or
+// an archive — and one whose dates this app cannot read, which is a bug here.
+// Nothing told them apart, and the guessing between them took days.
+function whyNone(feed) {
+  const held = Math.max(0, Number(feed.events) || 0);
+  // A record written before this existed carries no count. Silence beats a
+  // confident nothing: "no dates this app can read" would be a lie about a
+  // calendar nobody has measured.
+  if (feed.readable === undefined || feed.readable === null) return 'read it again to say why';
+
+  const readable = Math.max(0, Number(feed.readable) || 0);
+  if (readable === 0) return 'no dates in it this app can read';
+
+  const latest = Date.parse(feed.latest);
+  if (!Number.isFinite(latest)) return 'no dates in it this app can read';
+  const when = new Date(latest).toLocaleDateString(undefined, {
+    day: 'numeric', month: 'short', year: 'numeric',
+  });
+  // Some read and some did not, which is its own answer and a different bug
+  // from none of them reading.
+  if (readable < held) return `only ${readable} dated, the last on ${when}`;
+  return `the last one was ${when}`;
+}
+
 // So: not a policy about staleness, a guard against a stampede. A phone can
 // fire several "came forward" events in a second or two, and the only thing
 // worth suppressing is the second and third fetch of the same breath.

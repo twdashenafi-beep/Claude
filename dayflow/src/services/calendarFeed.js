@@ -31,7 +31,7 @@
 import { Platform } from 'react-native';
 import Store from './store';
 import { encrypt, decrypt } from './encryption';
-import { parseICS, describeICS } from './ics';
+import { parseICS, describeICS, readableDates } from './ics';
 import { feedUrl, linkName, mergeEvents, shouldRefetch } from './calendarLink';
 
 export { feedUrl };
@@ -72,6 +72,13 @@ export async function saveFeed(text, key, now = new Date(), label = '', link = '
     ahead = 0;
   }
 
+  // When nothing is coming up, the next question is always the same and the
+  // row could not answer it: is this a calendar whose entries are all in the
+  // past, or one whose dates cannot be read? Two causes, one appearance, and
+  // completely different fixes.
+  let dates = { blocks: 0, readable: 0, latest: null };
+  try { dates = readableDates(text); } catch { /* reported as none readable */ }
+
   const record = {
     text: String(text),
     at: new Date(now).toISOString(),
@@ -82,6 +89,8 @@ export async function saveFeed(text, key, now = new Date(), label = '', link = '
     name: seen.name || String(label || '').replace(/\.ics$/i, ''),
     events: seen.events,
     ahead,
+    readable: dates.readable,
+    latest: dates.latest ? dates.latest.toISOString() : '',
     // Kept only when the calendar came from a link, so it can be read again.
     // It is a secret — Proton's carries the key that decrypts the calendar —
     // which is one more reason the whole record is encrypted.

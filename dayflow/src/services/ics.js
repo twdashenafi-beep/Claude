@@ -352,3 +352,40 @@ export function describeICS(text) {
     events: count,
   };
 }
+
+// What dates are in a calendar at all, without working out a single repeat.
+//
+// "375 entries · none coming up" has two causes that look identical and are
+// fixed in completely different places: a calendar whose entries are all in
+// the past — the wrong one, or an archive — and a calendar whose dates this
+// parser cannot read, which is a bug here. Nothing on the screen told them
+// apart, so three days went into guessing which one it was.
+//
+// Deliberately does not expand repeats. A weekly event with no UNTIL would
+// expand over the whole range of a Date, and this runs over every entry in the
+// file: the question is only whether the starts can be read and where the last
+// one falls.
+export function readableDates(text) {
+  let blocks = 0;
+  let readable = 0;
+  let latest = null;
+  let inEvent = false;
+
+  for (const line of unfold(text)) {
+    const trimmed = line.trim();
+    if (trimmed === 'BEGIN:VEVENT') { blocks += 1; inEvent = true; continue; }
+    if (trimmed === 'END:VEVENT') { inEvent = false; continue; }
+    if (!inEvent) continue;
+
+    const parsed = splitLine(line);
+    if (!parsed || parsed.name !== 'DTSTART') continue;
+    // parseStamp answers with { date, allDay } rather than a Date, which is
+    // the shape the rest of this file reads it as.
+    const at = parseStamp(parsed.value, parsed.params);
+    if (!at || !at.date || Number.isNaN(at.date.getTime())) continue;
+    readable += 1;
+    if (!latest || at.date > latest) latest = at.date;
+  }
+
+  return { blocks, readable, latest };
+}
