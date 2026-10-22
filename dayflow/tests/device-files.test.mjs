@@ -258,6 +258,57 @@ const BIG = JSON.stringify({ note: 'x'.repeat(700 * 1024) });
      SHARE_LIMIT === 512 * 1024 && MAX_PICK_BYTES === 25 * 1024 * 1024);
 }
 
+// ── The Mac app: a share sheet that says yes and never answers ──────────────
+//
+// Electron reports that it can share files, and the share then never settles.
+// The export sat on "Gathering…" for good. It must download instead, and must
+// not be waiting on the sheet to do it.
+{
+  const { Share } = sheet();
+  const { saveTextFile } = load({ 'react-native': rn('web', Share) });
+
+  const clicked = [];
+  const doc = {
+    body: { appendChild() {}, removeChild() {} },
+    createElement() {
+      const link = { click() { clicked.push(link.download); } };
+      return link;
+    },
+  };
+  let shared = 0;
+  const nav = {
+    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 '
+      + '(KHTML, like Gecko) DayFlow/1.0.0 Chrome/140.0.0.0 Electron/38.4.0 Safari/537.36',
+    canShare: () => true,
+    share: () => { shared++; return new Promise(() => {}); },
+  };
+  const keys = ['document', 'navigator', 'File', 'Blob', 'URL'];
+  const prior = keys.map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]);
+  const set = (key, value) =>
+    Object.defineProperty(globalThis, key, { value, configurable: true, writable: true });
+  set('document', doc);
+  set('navigator', nav);
+  set('File', function () {});
+  set('Blob', function () {});
+  set('URL', { createObjectURL: () => 'blob:1', revokeObjectURL() {} });
+  let result;
+  try {
+    // A hang here is the bug itself, so it is timed out rather than awaited.
+    result = await Promise.race([
+      saveTextFile('dayflow-2026-10-22.json', '{"a":1}'),
+      new Promise(resolve => setTimeout(() => resolve('hung'), 1000)),
+    ]);
+  } finally {
+    for (const [key, descriptor] of prior) {
+      if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+      else delete globalThis[key];
+    }
+  }
+  ok('in the Mac app an export downloads rather than waiting for ever', result === 'saved', String(result));
+  ok('and the share sheet that never answers is not asked', shared === 0, String(shared));
+  ok('the file keeps its name', clicked.length === 1 && clicked[0] === 'dayflow-2026-10-22.json', clicked.join(', '));
+}
+
 // ── Reading a file back in, on a phone ──────────────────────────────────────
 
 // A picked file, as expo-file-system hands one over.

@@ -97,6 +97,11 @@ async function shareAsFile(name, text, type) {
   const nav = typeof navigator === 'undefined' ? null : navigator;
   const FileCtor = globalThis.File;
   if (!nav || typeof nav.share !== 'function' || typeof FileCtor !== 'function') return null;
+  // The Mac app. Electron says yes to sharing files and has no share sheet
+  // behind the yes, so the promise never settles: the export sat on
+  // "Gathering…" for ever with no file and no error. A download is what a
+  // desktop should get anyway, and it lands in Downloads.
+  if (/\bElectron\//.test(String(nav.userAgent || ''))) return null;
 
   let file;
   try {
