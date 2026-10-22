@@ -12,7 +12,7 @@ Guidance for Claude working in this repository. Owner: Tewodros Ashenafi.
 | `index.html` | **World Monitor**, a separate single-file dashboard for the Horn of Africa and strategic commodities. No build step. Published at `/world-monitor/`. |
 | `LAUNCH.md` | The business and launch checklist: entity, payments, App Store. Things that can't be done from a session. |
 | `.claude/skills/support/` | Skill for triaging DayFlow support messages and drafting replies. |
-| `.github/workflows/` | `test.yml` runs the unit tests and web build on every pull request, `pages.yml` deploys the site, `ios.yml` builds and submits to TestFlight, `watchdog.yml` runs a weekly liveness check. |
+| `.github/workflows/` | `test.yml` runs the unit tests and web build on every pull request, `pages.yml` deploys the site, `ios.yml` builds and submits to TestFlight, `watchdog.yml` runs a weekly liveness check, `keepalive.yml` queries the sync database every three days so the free Supabase project is never paused. |
 
 ## Commands (run from `dayflow/`)
 
