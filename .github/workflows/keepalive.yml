@@ -12,6 +12,11 @@
 # counts. The REST root alone, which the watchdog uses, does not reach the
 # database.
 #
+# It reads its own pair of secrets, SUPABASE_KEEPALIVE_URL and
+# SUPABASE_KEEPALIVE_KEY (the project URL and its anon key), and not the
+# EXPO_PUBLIC_SUPABASE_* pair: pages.yml bakes that pair into the public web
+# build, so setting it would connect every user's app to the owner's project.
+#
 # What it cannot do:
 #   - wake a project that is already paused. That takes the Restore button in
 #     the Supabase dashboard; this run goes red so the failure is seen.
@@ -37,12 +42,12 @@ jobs:
     steps:
       - name: One query against the sync database
         env:
-          URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
-          KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+          URL: ${{ secrets.SUPABASE_KEEPALIVE_URL }}
+          KEY: ${{ secrets.SUPABASE_KEEPALIVE_KEY }}
         run: |
           set -u
           if [ -z "${URL:-}" ] || [ -z "${KEY:-}" ]; then
-            echo "::warning title=Nothing to keep awake::EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY are not set as repository secrets, so there is no project to ping."
+            echo "::warning title=Nothing to keep awake::SUPABASE_KEEPALIVE_URL and SUPABASE_KEEPALIVE_KEY are not set as repository secrets, so there is no project to ping."
             exit 0
           fi
           # The key is passed as headers and never printed; only the status
