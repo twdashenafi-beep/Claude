@@ -1,0 +1,57 @@
+# Keeps the sync project from being paused.
+#
+# A free Supabase project is paused after about a week without activity, and
+# then sync fails on every device at once with nothing said. It has happened to
+# this project twice. The watchdog only notices afterwards, on a Monday; this
+# makes sure there is never a quiet week to notice.
+#
+# Every three days it runs one real query against the tasks table with the
+# publishable key. Row Level Security scopes every row to a signed-in account,
+# so an anonymous read returns an empty list: nothing is read and nothing is
+# written, but the database has answered a query, which is the activity that
+# counts. The REST root alone, which the watchdog uses, does not reach the
+# database.
+#
+# What it cannot do:
+#   - wake a project that is already paused. That takes the Restore button in
+#     the Supabase dashboard; this run goes red so the failure is seen.
+#   - outlive a silent repository. GitHub turns off scheduled workflows in a
+#     public repository after 60 days with no commits, and these runs do not
+#     count. A push, or "Enable workflow" on the Actions tab, turns it back on.
+
+name: Keep sync awake
+
+on:
+  schedule:
+    # Every third day, early morning UTC, on a minute nothing else uses.
+    - cron: '23 5 */3 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: One query against the sync database
+        env:
+          URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+          KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          set -u
+          if [ -z "${URL:-}" ] || [ -z "${KEY:-}" ]; then
+            echo "::warning title=Nothing to keep awake::EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY are not set as repository secrets, so there is no project to ping."
+            exit 0
+          fi
+          # The key is passed as headers and never printed; only the status
+          # code is.
+          code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 \
+            -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
+            "$URL/rest/v1/tasks?select=id&limit=1" || echo "000")
+          echo "sync answered $code"
+          if [ "$code" != "200" ]; then
+            echo "::error title=Sync did not answer::The sync project answered $code. If it has been paused, open it in the Supabase dashboard and press Restore."
+            exit 1
+          fi
