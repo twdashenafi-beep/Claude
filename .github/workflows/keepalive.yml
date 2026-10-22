@@ -50,13 +50,20 @@ jobs:
             echo "::warning title=Nothing to keep awake::SUPABASE_KEEPALIVE_URL and SUPABASE_KEEPALIVE_KEY are not set as repository secrets, so there is no project to ping."
             exit 0
           fi
-          # The key is passed as headers and never printed; only the status
-          # code is.
+          # The key goes in the apikey header alone, which Supabase accepts for
+          # both the legacy anon JWT and the newer sb_publishable_ keys (a
+          # publishable key is not a JWT, so it cannot also be the bearer). It
+          # is never printed; only the status code is.
           code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 \
-            -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
+            -H "apikey: $KEY" \
             "$URL/rest/v1/tasks?select=id&limit=1" || echo "000")
           echo "sync answered $code"
-          if [ "$code" != "200" ]; then
-            echo "::error title=Sync did not answer::The sync project answered $code. If it has been paused, open it in the Supabase dashboard and press Restore."
-            exit 1
-          fi
+          case "$code" in
+            200) ;;
+            401|403)
+              echo "::error title=Key refused::The sync project is up but refused the key ($code). Check SUPABASE_KEEPALIVE_KEY is this project's anon or publishable key."
+              exit 1 ;;
+            *)
+              echo "::error title=Sync did not answer::The sync project answered $code. If it has been paused, open it in the Supabase dashboard and press Restore."
+              exit 1 ;;
+          esac
