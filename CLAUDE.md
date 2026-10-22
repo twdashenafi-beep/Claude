@@ -12,7 +12,7 @@ Guidance for Claude working in this repository. Owner: Tewodros Ashenafi.
 | `index.html` | **World Monitor**, a separate single-file dashboard for the Horn of Africa and strategic commodities. No build step. Published at `/world-monitor/`. |
 | `LAUNCH.md` | The business and launch checklist: entity, payments, App Store. Things that can't be done from a session. |
 | `.claude/skills/support/` | Skill for triaging DayFlow support messages and drafting replies. |
-| `.github/workflows/` | `pages.yml` deploys the site, `ios.yml` builds and submits to TestFlight, `watchdog.yml` runs a weekly liveness check. |
+| `.github/workflows/` | `test.yml` runs the unit tests and web build on every pull request, `pages.yml` deploys the site, `ios.yml` builds and submits to TestFlight, `watchdog.yml` runs a weekly liveness check. |
 
 ## Commands (run from `dayflow/`)
 
@@ -28,7 +28,7 @@ npx expo start         # dev server (w = browser, i = iOS simulator)
 - Date-sensitive suites run under `TZ=Europe/London` (see the `test` script). Use the same timezone when running one by hand.
 - **Add every new test file to the `test` or `test:e2e` script in `package.json`.** A file left out never runs, in CI or anywhere else.
 - E2e tests serve `web-build/` themselves on a local port and drive Chromium. In this cloud container, use the pre-installed Chromium; don't run `playwright install`.
-- `npm test` is the gate in `ios.yml` before every TestFlight build. `native-readiness.test.mjs` catches faults that compile fine but break on a phone (moved Expo APIs, missing iOS purpose strings). Never weaken it to get a build through.
+- `npm test` runs on every pull request (`test.yml`) and is the gate in `ios.yml` before every TestFlight build. `native-readiness.test.mjs` catches faults that compile fine but break on a phone (moved Expo APIs, missing iOS purpose strings). Never weaken it to get a build through.
 
 ## Architecture (DayFlow)
 
