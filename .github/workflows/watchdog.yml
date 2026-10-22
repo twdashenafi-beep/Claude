@@ -53,15 +53,19 @@ jobs:
           # printf rather than echo -e, which is not portable across shells.
           printf 'bad<<EOF\n%b\nEOF\n' "$bad" >> "$GITHUB_OUTPUT"
 
+      # Read from SUPABASE_KEEPALIVE_*, not EXPO_PUBLIC_SUPABASE_*: pages.yml
+      # bakes the EXPO_PUBLIC_ pair into the public web build, and setting them
+      # just so this check could run would point every user's app at the
+      # owner's own project.
       - name: The sync project, which pauses when it is left alone
         id: sync
         env:
-          URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
-          KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+          URL: ${{ secrets.SUPABASE_KEEPALIVE_URL }}
+          KEY: ${{ secrets.SUPABASE_KEEPALIVE_KEY }}
         run: |
           set -u
           if [ -z "${URL:-}" ] || [ -z "${KEY:-}" ]; then
-            echo "no sync project configured for this repository — skipped"
+            echo "::warning title=Sync not checked::SUPABASE_KEEPALIVE_URL and SUPABASE_KEEPALIVE_KEY are not set as repository secrets, so the sync project was not checked."
             echo "bad=" >> "$GITHUB_OUTPUT"
             exit 0
           fi
