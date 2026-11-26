@@ -39,9 +39,20 @@ function nativeModule() {
   return native;
 }
 
+// The Mac app is a browser window without a speech service behind it. The
+// engine object is there, so the button drew, and every press ended in a
+// 'network' error that the app reported as "Dictation needs a connection" on a
+// Mac that was online. Chrome reaches Google's recogniser with a key Chrome
+// ships with; a window built on the same engine has no such key and never will.
+// So here the engine is treated as absent, and the Mac's own dictation — which
+// works in any text box — is what the app points to instead.
+export function inMacApp() {
+  return Platform.OS === 'web' && typeof window !== 'undefined' && !!window.dayflowDesktop;
+}
+
 export function speechEngine() {
   if (Platform.OS === 'web') {
-    if (typeof window === 'undefined') return null;
+    if (typeof window === 'undefined' || inMacApp()) return null;
     return window.SpeechRecognition || window.webkitSpeechRecognition || null;
   }
   const mod = nativeModule();
@@ -80,6 +91,7 @@ export function withSpeechPermission(run, refuse) {
 // holding.
 export function speechSource() {
   if (Platform.OS === 'web') {
+    if (inMacApp()) return 'mac-app';
     return speechEngine() ? 'browser' : 'no-browser-engine';
   }
   const mod = nativeModule();

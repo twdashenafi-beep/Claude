@@ -142,6 +142,15 @@ let text = await body();
 ok('nothing proposed is on the page before a tap', !/refinery/i.test(text) && !/term sheet/i.test(text));
 ok('the Suggested tab shows three waiting', /Suggested 3/.test(text), text.slice(0, 300));
 
+// The Mac app's window has a speech engine object and no service behind it, so
+// the microphone used to fail with "Dictation needs a connection" on a Mac that
+// was online. It now says where the Mac's own dictation is.
+await page.getByLabel('How to dictate on this Mac').click();
+await page.waitForTimeout(300);
+text = await body();
+ok('the microphone in the Mac app points to the Mac\'s dictation', /microphone key \(F5\)/.test(text), text.slice(0, 300));
+ok('and never claims to need a connection', !/needs a connection/.test(text));
+
 await page.getByText(/^Suggested 3$/).click();
 await page.waitForTimeout(500);
 text = await body();
