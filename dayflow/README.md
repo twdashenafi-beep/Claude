@@ -23,6 +23,7 @@ AI-powered task manager with end-to-end encryption. Built with React Native (Exp
 - **Reminders** — Local notifications at the due time, with early-reminder options
 - **Persistent Storage** — Tasks survive restarts via encrypted AsyncStorage
 - **Encrypted Sync** — Sign in on each device and they share the same tasks. The server stores only ciphertext; the key is derived from your password and never leaves the device
+- **Agent inbox** (Mac app) — Other programs can propose tasks by dropping a file in a Google Drive folder. They wait in a Suggested list, labelled with the agent, the deal and a source link, until you accept or dismiss each one. Nothing an agent writes reaches your page without a tap. See [AGENT_INBOX.md](AGENT_INBOX.md)
 - **Export a copy** — Account → Export a copy writes every task, finished and archived ones included, to one plain file you keep. It is deliberately *not* encrypted: a backup you cannot open without the password you lost is not a backup
 - **Restore from a copy** — and Account → Restore from a copy reads one back. It tells you what it will do before it does it, and **nothing is ever removed**: it adds what is missing, brings a task forward when the file holds a newer version, leaves anything you have edited since alone, and brings back what you deleted
 - **Check the encryption yourself** — Account → Encryption pulls your own rows back from the server and reads them the way an intruder would, so the central claim is checked on the device rather than taken on trust

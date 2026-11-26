@@ -36,12 +36,14 @@ npx expo start         # dev server (w = browser, i = iOS simulator)
 - `src/services/` holds the logic, kept pure where possible so it can be tested in node: parsing (`nlParser`), ordering, repeats, due dates, the encrypted store and vault (`encryption`, `crypto`, `vault`, `localVault`, `keyParcel`), sync (`sync`, `merge`, `supabase`), backup and restore, and calendar (`ics`, `calendarFeed`, `calendarLink`).
 - Sync is optional Supabase (`supabase/schema.sql`, RLS). The server only ever holds ciphertext. The key is derived from the user's password on the device.
 - `modules/dayflow-kdf/` is a native Expo module (Swift/Kotlin) for key derivation.
+- The agent inbox (`src/services/agentInbox.js`, `src/context/AgentInboxContext.js`, `desktop/agentFolder.js`) is Mac-only. Agents propose tasks as JSON files in a Google Drive folder; suggestions are stored apart from the task list, encrypted and unsynced, and only become tasks through `addTask` when accepted. Format and rules: `dayflow/AGENT_INBOX.md`.
 
 ## Rules that matter
 
 - **Privacy is the product.** Never send task content anywhere, and never add analytics, a network model call or logging of plaintext. Everything that interprets tasks runs locally and works offline.
 - **No password recovery exists, and none may be added.** No backdoor, server-side reset or key escrow. The recovery code and an exported copy are the only ways back in.
 - Restore **never removes** data. Exports are deliberately unencrypted.
+- **Agent files are untrusted.** Validate every field, render it as plain text, and never let a file add, change, finish or delete a task without a tap. The Drive export is the one opt-in exception to the privacy rule above: it stays off by default.
 - `EXPO_PUBLIC_*` values are bundled into the app and are therefore public. Never commit `.env`, and never put a real secret in an `EXPO_PUBLIC_` variable.
 - Keep `pages/privacy.html` and `pages/terms.html` true to what the app actually does. Update them in the same change as any feature that touches data.
 - `index.html` (World Monitor) must stay a single self-contained file. Its market values are illustrative and labelled as such.

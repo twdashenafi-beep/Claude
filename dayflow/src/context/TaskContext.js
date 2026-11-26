@@ -447,6 +447,10 @@ export function TaskProvider({ children, encryptionKey, synced }) {
       createdAt: now,
       updatedAt: now,
       projectId: taskData.projectId || EVERYTHING,
+      // Only on a task accepted from the agent inbox: which agent proposed it,
+      // the deal, the source link and the proposal id. Absent on every other
+      // task, so tasks people make are stored exactly as they always were.
+      ...(taskData.agent ? { agent: taskData.agent } : null),
       // Top of its own column, in its own project: ordering is per column per
       // project, or a task made in one would be placed against another's.
       order: orderForNewTask(

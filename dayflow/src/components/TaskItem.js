@@ -13,6 +13,7 @@ import { chaseLabel } from '../services/chase';
 import { scopeNote } from '../services/scope';
 import { placedByTime } from '../services/ordering';
 import { meetingLabel } from '../services/meetings';
+import { agentLabel } from '../services/agentInbox';
 import { COLORS, SANS, SERIF, typeSize } from '../utils/theme';
 import { liftTick, dropTick } from '../services/haptics';
 
@@ -242,6 +243,7 @@ function TaskItem({
   const meta = [
     done ? null : chaseLabel(task),
     task.owePerson || null,
+    agentLabel(task),
     done ? null : meetingLabel(task),
     done ? null : scopeNote(task),
     done ? null : repeatPhrase(task),
@@ -291,6 +293,7 @@ function TaskItem({
           accessibilityLabel={[
             task.title,
             task.owePerson ? `waiting on ${task.owePerson}` : null,
+            agentLabel(task),
             dueSpoken(task),
             age ? age.text : null,
             done ? null : chaseLabel(task),
