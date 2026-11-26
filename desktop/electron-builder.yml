@@ -20,6 +20,10 @@ mac:
       arch: [arm64, x64]
   extendInfo:
     NSHumanReadableCopyright: © Tewodros Ashenafi
+    # Without this line macOS refuses the microphone outright, with no prompt:
+    # recording a voice note on a task failed in the Mac app while the same
+    # page recorded fine in a browser. Same wording as the iPhone app.
+    NSMicrophoneUsageDescription: DayFlow records a voice note when you attach one to a task.
 
   # No signing settings here on purpose. With a Developer ID in the keychain
   # electron-builder finds and uses it; without one it signs ad-hoc, which is
