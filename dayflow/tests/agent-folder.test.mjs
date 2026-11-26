@@ -63,6 +63,12 @@ ok('no Google Drive means no folder found', findDriveRoots(home).length === 0);
 fs.mkdirSync(path.join(home, 'Library', 'CloudStorage', 'GoogleDrive-me@example.com', 'My Drive'), { recursive: true });
 ok('one Google Drive account is found', findDriveRoots(home).length === 1);
 
+// Not the folder, but the same app: macOS gives the microphone only to an app
+// that says why it wants it, and says nothing when it refuses. Voice notes
+// failed in the Mac app for want of this one line.
+const builder = fs.readFileSync(new URL('../../desktop/electron-builder.yml', import.meta.url), 'utf8');
+ok('the Mac app says why it wants the microphone', /^\s+NSMicrophoneUsageDescription:\s*\S.{20,}$/m.test(builder));
+
 fs.rmSync(root, { recursive: true, force: true });
 fs.rmSync(home, { recursive: true, force: true });
 console.log(`\n${pass} passed, ${fail} failed`);
