@@ -10,7 +10,7 @@
 
 ## Prerequisites
 
-- Node.js 20+ (`brew install node`) — the API server uses `--env-file-if-exists`
+- Node.js 22.13+ (`brew install node`) — Expo SDK 58 will not run on Node 20
 - Xcode 15+ only if you want to build locally; EAS builds in the cloud instead
 - Apple Developer Program ($99/yr) only for the TestFlight path
 

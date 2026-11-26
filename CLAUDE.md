@@ -6,7 +6,7 @@ Guidance for Claude working in this repository. Owner: Tewodros Ashenafi.
 
 | Path | What it is |
 | --- | --- |
-| `dayflow/` | **DayFlow**, the main product: an end-to-end encrypted task manager. React Native + Expo SDK 57, shipping to iPhone/iPad (TestFlight), web (GitHub Pages PWA) and Mac (via `desktop/`). |
+| `dayflow/` | **DayFlow**, the main product: an end-to-end encrypted task manager. React Native + Expo SDK 58, shipping to iPhone/iPad (TestFlight), web (GitHub Pages PWA) and Mac (via `desktop/`). |
 | `desktop/` | Electron wrapper that loads the hosted web app. A `.dmg` can only be built on a Mac. |
 | `pages/` | Static privacy, terms, support and about pages. Apple requires the privacy and support URLs to stay reachable. |
 | `index.html` | **World Monitor**, a separate single-file dashboard for the Horn of Africa and strategic commodities. No build step. Published at `/world-monitor/`. |

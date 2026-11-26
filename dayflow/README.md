@@ -74,7 +74,7 @@ Full instructions, including the one-time GitHub Pages switch, are in
 
 ## Tech Stack
 
-- **Framework:** React Native + Expo SDK 57
+- **Framework:** React Native + Expo SDK 58
 - **Encryption:** CryptoJS (AES-256, PBKDF2 key derivation)
 - **Storage:** AsyncStorage (local), Supabase (optional encrypted sync)
 - **Notifications:** expo-notifications

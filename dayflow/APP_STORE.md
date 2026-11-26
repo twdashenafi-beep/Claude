@@ -210,7 +210,7 @@ reference to it, and nothing under `src/` imports it.
 → `xcode` → `uuid`. That is build tooling, run on the machine doing the
 building, not code shipped to a device.
 
-**Do not run `npm audit fix --force`.** It would try to move `expo` off SDK 57
+**Do not run `npm audit fix --force`.** It would try to move `expo` off SDK 58
 to satisfy a transitive dependency of a build tool. That is how the expo-audio
 mismatch happened earlier in this project: a version that looked fine on the web
 and would have failed on the first native build. The advisories are worth
@@ -220,7 +220,9 @@ Moving between SDKs is a deliberate act, not a fix for an advisory. The move
 from 55 to 57 was made for one reason — `expo-speech-recognition` publishes a
 release per SDK and skipped 55 entirely — and 56 was stepped over because
 Expo's own guidance says to, on account of a Hermes memory regression that
-SDK 55, SDK 56 and early SDK 57 share.
+SDK 55, SDK 56 and early SDK 57 share. The move from 57 to 58 was made
+because Expo Go on an iPhone only ever runs the newest SDK, and had stopped
+opening the project.
 
 To see the reasoning yourself rather than taking it on trust:
 
