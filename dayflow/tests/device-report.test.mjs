@@ -9,7 +9,7 @@
 
 import {
   bytesOf, sizeWords, notesIn, summarise, deviceLines, dictationLine, calendarLine,
-  buildLine, syncLine, listeningLine, speechTrouble,
+  buildLine, syncLine, listeningLine, speechTrouble, MAC_DICTATION_HINT,
 } from '../src/services/deviceReport.js';
 
 let pass = 0, fail = 0;
@@ -105,7 +105,7 @@ ok('a list that is not a list is empty', notesIn(null).count === 0);
 // problem. Two builds went by before anybody could tell which one was in front
 // of them, so each has to say something different.
 {
-  const said = ['browser', 'device', 'no-browser-engine', 'not-in-this-build', 'no-engine-in-module']
+  const said = ['browser', 'device', 'no-browser-engine', 'mac-app', 'not-in-this-build', 'no-engine-in-module']
     .map(dictationLine);
   ok('every case says something', said.every(line => line.length > 0), JSON.stringify(said));
   ok('and no two of them say the same thing', new Set(said).size === said.length, JSON.stringify(said));
@@ -116,6 +116,12 @@ ok('a list that is not a list is empty', notesIn(null).count === 0);
      /this device/.test(dictationLine('device')), dictationLine('device'));
   ok('and a browser is named as the browser',
      /this browser/.test(dictationLine('browser')), dictationLine('browser'));
+  // The Mac app said "Dictation needs a connection" on a Mac that was online:
+  // its window has a speech engine object and no service behind it.
+  ok('the Mac app says it has none and where the Mac\'s own is',
+     /Mac app/.test(dictationLine('mac-app')) && /microphone key/.test(dictationLine('mac-app')), dictationLine('mac-app'));
+  ok('and the hint under the line names the key to press',
+     /F5/.test(MAC_DICTATION_HINT) && !/connection/.test(MAC_DICTATION_HINT), MAC_DICTATION_HINT);
   ok('anything unrecognised says nothing rather than guessing',
      dictationLine('something-else') === '' && dictationLine() === '');
 }

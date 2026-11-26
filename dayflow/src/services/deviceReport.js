@@ -60,6 +60,7 @@ const DICTATION = {
   browser: 'Dictation comes from this browser',
   device: 'Dictation comes from this device',
   'no-browser-engine': 'This browser has no dictation',
+  'mac-app': 'The Mac app has no dictation of its own — use the Mac’s: press the microphone key in any text box',
   'not-in-this-build': 'Dictation is not in this build',
   'no-engine-in-module': 'Dictation is in this build but offers no engine',
 };
@@ -220,6 +221,10 @@ const SPEECH_TROUBLE = {
   network: 'Dictation needs a connection',
   'language-not-supported': 'Dictation is not available for this language',
 };
+
+// Said when the microphone is pressed in the Mac app, where there is nothing
+// of DayFlow's to listen with. See inMacApp in speech.js.
+export const MAC_DICTATION_HINT = 'Use the Mac’s dictation here: click in the line, then press the microphone key (F5) or Fn twice';
 
 const QUIET_CODES = new Set(['aborted', 'no-speech']);
 

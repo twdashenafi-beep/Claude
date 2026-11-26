@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Animated, Platform } from 'react-native';
-import { speechEngine, withSpeechPermission } from '../services/speech';
+import { speechEngine, withSpeechPermission, inMacApp } from '../services/speech';
 import { parseNaturalLanguage } from '../services/nlParser';
 import { whenPreview } from '../services/due';
 import { clashNote } from '../services/agenda';
-import { speechTrouble } from '../services/deviceReport';
+import { speechTrouble, MAC_DICTATION_HINT } from '../services/deviceReport';
 import { deviceZone } from '../services/zones';
 import { COLORS, SANS, SERIF, typeSize } from '../utils/theme';
 
@@ -490,6 +490,20 @@ export default function AIInput({ onAddTask, viewMode, activeTab = 'todo', diary
             <Animated.View style={listening ? { transform: [{ scale: pulseAnim }] } : undefined}>
               <Text style={st.micIcon}>{listening ? '■' : '🎙'}</Text>
             </Animated.View>
+          </TouchableOpacity>
+        ) : inMacApp() ? (
+          // The one place a button with no engine behind it is kept: somebody
+          // looking for the microphone on a Mac should be told where it is,
+          // and the Mac's own works in this very line.
+          <TouchableOpacity
+            style={st.mic}
+            onPress={() => setSpeechError(MAC_DICTATION_HINT)}
+            hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+            activeOpacity={0.5}
+            accessibilityRole="button"
+            accessibilityLabel="How to dictate on this Mac"
+          >
+            <Text style={st.micIcon}>🎙</Text>
           </TouchableOpacity>
         ) : null}
       </View>
