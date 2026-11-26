@@ -631,9 +631,8 @@ ok('two keys in a row differ', generateDataKey() !== generateDataKey());
 // anything. Restoring is the one that matters: it is the button somebody
 // presses after losing everything.
 //
-// It still cannot pick a file on a phone — that needs expo-document-picker,
-// which is a native module and a decision of its own. What it must never do
-// again is be silent about it.
+// It picks a file on a phone now, through expo-file-system's own picker. What
+// it must never do again is be silent when it cannot.
 //
 // Nothing in the browser suite can see any of this: on the web it works.
 {
@@ -652,19 +651,27 @@ ok('two keys in a row differ', generateDataKey() !== generateDataKey());
   ok('both features report it, not one', reported.length >= 2,
      `file.failed is handled ${reported.length} time(s)`);
 
-  // And the reason it is not simply implemented: the picker expo-file-system
-  // declares is not reachable from JavaScript in this version. If a later one
-  // connects it, this fails and the note above can be deleted.
-  let reachable = false;
+  // The picker itself. Up to SDK 57 this asserted the opposite — that the
+  // compiled package offered no picker — as a tripwire for the day it did.
+  // SDK 58 tripped it: build/File.js now carries pickFileAsync, which is the
+  // call saveFile.js already makes. So the check is turned round, and it holds
+  // the two things restoring a backup on a phone depends on: that the function
+  // is still there, and that called with no arguments it still answers with
+  // { result, canceled } rather than a bare File. saveFile.js reads `result`,
+  // and a bare File has none — it would be taken for a cancellation, and
+  // "restore from a copy" would go back to doing nothing and saying nothing.
+  let built = '';
   try {
-    const fsPkg = JSON.parse(fs.readFileSync(path.join(MODULES, 'expo-file-system', 'package.json'), 'utf8'));
-    const entries = Object.keys(fsPkg.exports || {});
-    const built = fs.readFileSync(path.join(MODULES, 'expo-file-system', 'build', 'File.js'), 'utf8');
-    reachable = /pickFileAsync/.test(built) || entries.some(e => /ExpoFileSystem/.test(e));
-  } catch { reachable = false; }
-  ok('expo-file-system still offers no picker JavaScript can call',
-     reachable === false,
-     'a picker is reachable now — saveFile.js can use it and the note can go');
+    built = fs.readFileSync(path.join(MODULES, 'expo-file-system', 'build', 'File.js'), 'utf8');
+  } catch { built = ''; }
+  ok('expo-file-system offers the picker saveFile.js calls',
+     /static async pickFileAsync\(/.test(built) && /File\.pickFileAsync\(\)/.test(picker),
+     'File.pickFileAsync is gone from the package, or saveFile.js no longer calls it');
+  ok('and called with no arguments it answers { result, canceled }',
+     /usingOldAPI: mimeType !== undefined \|\| typeof initialUriOrOptions === 'string'/.test(built)
+       && /result: new File\(file\.uri\),\s*canceled: false/.test(built)
+       && /picked\.canceled \|\| !picked\.result/.test(picker),
+     'the shape of what pickFileAsync returns has changed — check pickOnDevice in saveFile.js');
 }
 
 // ── Every expo name the app uses, against what is installed ──
