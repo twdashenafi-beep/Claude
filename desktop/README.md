@@ -48,6 +48,24 @@ uses it automatically, and neither step is needed. Notarising it — so it opens
 with no warning at all on any Mac — is a separate step with `notarytool` and an
 app-specific password.
 
+## The agent inbox
+
+The one thing this app does that a browser tab cannot. It reads proposed tasks
+from `DayFlow/agent-inbox/` in Google Drive for desktop and, if you switch it
+on, writes your tasks to `DayFlow/export/dayflow-export.json`. The window is
+given four calls for that folder and nothing else (`preload.js`,
+`agentFolder.js`); it cannot name a path.
+
+With one Google account the folder is found by itself. Otherwise:
+**File › Choose Agent Inbox Folder…** The file format and the rules are in
+[`dayflow/AGENT_INBOX.md`](../dayflow/AGENT_INBOX.md).
+
+To try it without Google Drive:
+
+```bash
+DAYFLOW_AGENT_DIR="$HOME/dayflow-agent-test" npm start
+```
+
 ## Pointing it somewhere else
 
 `DAYFLOW_URL` overrides the address, which is what to use when testing against

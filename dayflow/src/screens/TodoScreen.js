@@ -18,6 +18,9 @@ import { loadCopy } from '../services/copyStore';
 import { EVERYTHING, projectOf, projectName } from '../services/projects';
 import { moveTick } from '../services/haptics';
 import { ARCHIVE, deletionOf, readyToFile } from '../services/archive';
+import { SUGGESTED } from '../services/agentInbox';
+import { useAgentInbox } from '../context/AgentInboxContext';
+import SuggestedSheet from '../components/SuggestedSheet';
 import { loadShown, saveShown } from '../services/alertStore';
 import { alertPermission, requestAlertPermission, showSystemAlert, onAlertOpened } from '../services/notifications';
 import { playChime } from '../services/chime';
@@ -275,6 +278,7 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
     archived, archiveTask, archiveTasks, unarchiveTask, deleteTasks, restoreTasks,
     importTasks, tombstones,
   } = useTasks();
+  const inbox = useAgentInbox();
   const { width } = useWindowDimensions();
 
   const [viewMode, setViewMode] = useState(VIEW_MODES.DAY);
@@ -654,9 +658,14 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
     setAskAlerts(true);
   }, [tasks]);
 
+  // The two pages that are not a place to work: what is finished, and what
+  // agents have proposed. Neither carries a date, a diary or an input.
+  const aside = project === ARCHIVE || project === SUGGESTED;
+
   const tally = useMemo(() => {
     if (searching) return 'Search';
     if (project === ARCHIVE) return 'Finished';
+    if (project === SUGGESTED) return 'Suggested';
     const where = project !== EVERYTHING ? `${projectName(projects, project)}  ·  ` : '';
     const count = inView.length === 0
       ? 'Nothing on the page yet'
@@ -681,11 +690,11 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
   // The day's shape, or the day in a sentence when there is no shape to draw.
   // The arithmetic for both is in agenda.js; this only decides whether the
   // page is one the diary has anything to say about.
-  const showDiary = !!load && !searching && project !== ARCHIVE;
+  const showDiary = !!load && !searching && !aside;
   // And when there is no diary to show, why — on the pages a diary belongs to,
   // which is the same test. Empty for somebody who has simply never linked a
   // calendar: that is not a fault and not worth saying every day.
-  const diaryGone = !load && !searching && project !== ARCHIVE
+  const diaryGone = !load && !searching && !aside
     ? absenceLine(absent)
     : '';
 
@@ -983,10 +992,11 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
           {/* Shown on request, and kept open while you are inside a project —
               a sheet holding one project's tasks and no way to tell is worse
               than the row taking a little room. */}
-          {!searching && (showProjects || project !== EVERYTHING) ? (
+          {!searching && (showProjects || project !== EVERYTHING || inbox.pending.length > 0) ? (
             <ProjectBar
               projects={projects}
               active={project}
+              suggested={inbox.available ? { count: inbox.pending.length } : null}
               onSelect={setProject}
               onCreate={name => { const made = addProject(name); setProject(made.id); }}
               onRename={renameProject}
@@ -1006,7 +1016,7 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
 
           {/* The archive is not a day's page: today's date above a record of
               past work says nothing, and the archive carries its own dates. */}
-          {searching || project === ARCHIVE ? null : (
+          {searching || aside ? null : (
             <Text style={s.date} accessibilityRole="header">{dateLabel}</Text>
           )}
           <Text style={s.tally}>
@@ -1091,10 +1101,10 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
           {/* The archive answers a different question from the rest of the app —
               what got done, and when — so it does not carry scopes, columns or
               an input for adding to it. */}
-          {searching || project === ARCHIVE ? null : (
+          {searching || aside ? null : (
             <ViewToggle activeView={viewMode} onChangeView={setViewMode} />
           )}
-          {searching || project === ARCHIVE ? null : (
+          {searching || aside ? null : (
             <AIInput onAddTask={addHere} viewMode={viewMode} activeTab="todo" diary={diary} />
           )}
 
@@ -1107,6 +1117,8 @@ export default function TodoScreen({ account, dataKey, authHash, onLock, onDelet
               onOpen={openResult}
               onClose={() => { setSearching(false); setQuery(''); }}
             />
+          ) : project === SUGGESTED ? (
+            <SuggestedSheet inbox={inbox} tasks={tasks} />
           ) : project === ARCHIVE ? (
             <ArchiveSheet
               tasks={archived}

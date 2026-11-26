@@ -1,8 +1,9 @@
 'use strict';
 
-const { app, BrowserWindow, Menu, shell, screen } = require('electron');
+const { app, BrowserWindow, Menu, shell, screen, dialog, ipcMain } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
+const { createAgentFolder, findDriveRoots } = require('./agentFolder');
 
 // DayFlow as a Mac application.
 //
@@ -12,7 +13,8 @@ const fs = require('node:fs');
 //
 // Everything that makes DayFlow work — the encryption, the Supabase sync — is
 // the app's own. This process adds a Dock icon, a real window and a menu, and
-// otherwise stays out of the way.
+// one narrow thing a browser tab cannot do: the agent inbox, a folder in Google
+// Drive for desktop that agents drop proposed tasks into (see agentFolder.js).
 
 const APP_URL = process.env.DAYFLOW_URL || 'https://twdashenafi-beep.github.io/Claude/';
 const ORIGIN = new URL(APP_URL).origin;
@@ -61,6 +63,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      preload: path.join(__dirname, 'preload.js'),
     },
   });
 
@@ -113,11 +116,97 @@ function createWindow() {
 
 // Without a menu there are no keyboard shortcuts at all — no copy, no paste,
 // no quit — because those come from the menu on macOS.
+// ── The agent inbox ─────────────────────────────────────────────────────────
+//
+// Which DayFlow folder to use. Chosen once and remembered; until then, found by
+// itself when this Mac has exactly one Google Drive account, and otherwise left
+// unset rather than guessed. DAYFLOW_AGENT_DIR overrides both, for testing.
+
+const folderFile = () => path.join(app.getPath('userData'), 'agent-folder.json');
+
+function chosenRoot() {
+  if (process.env.DAYFLOW_AGENT_DIR) return process.env.DAYFLOW_AGENT_DIR;
+  try {
+    const saved = JSON.parse(fs.readFileSync(folderFile(), 'utf8'));
+    if (saved && typeof saved.root === 'string' && fs.statSync(saved.root).isDirectory()) return saved.root;
+  } catch {
+    // Not chosen yet, or the folder has gone: fall through.
+  }
+  const drives = findDriveRoots();
+  return drives.length === 1 ? path.join(drives[0], 'DayFlow') : null;
+}
+
+function agentFolder() {
+  const root = chosenRoot();
+  return root ? createAgentFolder(root) : null;
+}
+
+async function chooseAgentFolder() {
+  const drives = findDriveRoots();
+  const result = await dialog.showOpenDialog({
+    title: 'Choose the DayFlow folder in Google Drive',
+    message: 'Choose (or create) the folder called DayFlow in your Google Drive. Agents put proposed tasks in DayFlow/agent-inbox.',
+    defaultPath: drives[0] || app.getPath('home'),
+    properties: ['openDirectory', 'createDirectory'],
+  });
+  if (result.canceled || !result.filePaths[0]) return;
+  fs.writeFileSync(folderFile(), JSON.stringify({ root: result.filePaths[0] }));
+}
+
+// Only the page this window was opened on may ask. Anything else that ends up
+// in the window — a link followed by mistake, a frame — gets nothing.
+function trusted(event) {
+  try {
+    return new URL(event.senderFrame.url).origin === ORIGIN;
+  } catch {
+    return false;
+  }
+}
+
+function handle(channel, fn) {
+  ipcMain.handle(channel, async (event, ...args) => {
+    if (!trusted(event)) return { ok: false, error: 'not allowed' };
+    try {
+      return await fn(...args);
+    } catch (err) {
+      // Never thrown into the page: a full disk or a file Drive is still
+      // syncing is a reason to try again in fifteen minutes, not a crash.
+      return { ok: false, error: String(err && err.message ? err.message : err).slice(0, 300) };
+    }
+  });
+}
+
+function registerAgentInbox() {
+  handle('agent-inbox:status', () => {
+    const folder = agentFolder();
+    return folder ? { ok: true, available: true, folder: folder.dirs.root } : { ok: true, available: false };
+  });
+  handle('agent-inbox:list', () => {
+    const folder = agentFolder();
+    return folder ? { ok: true, files: folder.list() } : { ok: false, error: 'no DayFlow folder chosen' };
+  });
+  handle('agent-inbox:settle', (name, outcome, reason) => {
+    const folder = agentFolder();
+    return folder ? folder.settle(name, outcome, reason) : { ok: false, error: 'no DayFlow folder chosen' };
+  });
+  handle('agent-inbox:write-export', text => {
+    const folder = agentFolder();
+    return folder ? folder.writeExport(text) : { ok: false, error: 'no DayFlow folder chosen' };
+  });
+}
+
 function buildMenu() {
   const isMac = process.platform === 'darwin';
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     ...(isMac ? [{ role: 'appMenu' }] : []),
-    { role: 'fileMenu' },
+    {
+      label: 'File',
+      submenu: [
+        { label: 'Choose Agent Inbox Folder…', click: () => { chooseAgentFolder().catch(() => {}); } },
+        { type: 'separator' },
+        isMac ? { role: 'close' } : { role: 'quit' },
+      ],
+    },
     { role: 'editMenu' },
     {
       label: 'View',
@@ -140,6 +229,7 @@ function buildMenu() {
 app.setName('DayFlow');
 
 app.whenReady().then(() => {
+  registerAgentInbox();
   buildMenu();
   createWindow();
 

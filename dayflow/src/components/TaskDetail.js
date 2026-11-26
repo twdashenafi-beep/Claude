@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, ScrollView,
+  View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, ScrollView, Linking,
 } from 'react-native';
 import { PRIORITY, PRIORITY_COLORS } from '../utils/constants';
 import { EARLY_REMINDER_OPTIONS } from '../services/notifications';
@@ -15,6 +15,7 @@ import { clashNote, clockOf } from '../services/agenda';
 import { deviceZone } from '../services/zones';
 import { zoneNote } from '../services/due';
 import { placedByTime } from '../services/ordering';
+import { safeLink } from '../services/agentInbox';
 import { attachTo, detach, meetingOf, choices, keyOfEvent, keyOfTask } from '../services/meetings';
 
 export default function TaskDetail({
@@ -220,6 +221,28 @@ export default function TaskDetail({
               onSubmitEditing={handleSave}
             />
           </View>
+
+          {/* Where an agent task came from. Plain text throughout: none of it
+              was written by a person, so none of it is rendered as anything
+              but the characters it holds. The link only ever opens in the
+              browser, and only if it was an https link when it arrived. */}
+          {task && task.agent && typeof task.agent === 'object' ? (
+            <View style={styles.section}>
+              <Text style={styles.label}>Proposed by an agent</Text>
+              <Text style={styles.agentLine}>{`Agent: ${task.agent.name || ''}`}</Text>
+              {task.agent.deal ? <Text style={styles.agentLine}>{`Deal: ${task.agent.deal}`}</Text> : null}
+              {task.agent.owner ? <Text style={styles.agentLine}>{`Owner: ${task.agent.owner}`}</Text> : null}
+              {safeLink(task.agent.sourceUrl) ? (
+                <TouchableOpacity
+                  onPress={() => Linking.openURL(safeLink(task.agent.sourceUrl)).catch(() => {})}
+                  accessibilityRole="link"
+                  accessibilityLabel={`Open the source of ${task.title}`}
+                >
+                  <Text style={styles.agentLink} numberOfLines={1}>{safeLink(task.agent.sourceUrl)}</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          ) : null}
 
           {/* Priority */}
           <View style={styles.section}>
@@ -728,6 +751,8 @@ const styles = StyleSheet.create({
   scopeTextOff: { color: '#B5AFA1' },
   scopeText: { fontSize: typeSize(14), color: '#8E8E93' },
   scopeTextOn: { color: '#3A362C', fontWeight: '600' },
+  agentLine: { fontSize: typeSize(14), color: COLORS.inkSoft, marginTop: 2 },
+  agentLink: { fontSize: typeSize(13), color: COLORS.accent, marginTop: 6, textDecorationLine: 'underline' },
   label: {
     fontSize: typeSize(13),
     fontWeight: '600',
