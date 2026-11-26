@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { EVERYTHING, cleanProjectName } from '../services/projects';
 import { ARCHIVE } from '../services/archive';
+import { SUGGESTED } from '../services/agentInbox';
 import { targetIndex, shiftFor, moveWithin } from '../services/ordering';
 import { COLORS, SANS, SERIF, typeSize } from '../utils/theme';
 
@@ -81,7 +82,7 @@ function ProjectTab({
 // the main list, and the main list is the leftmost tab. One mental model, and
 // nowhere for a task to fall between the two.
 export default function ProjectBar({
-  projects, active, onSelect, onCreate, onRename, onDelete, onReorder,
+  projects, active, onSelect, onCreate, onRename, onDelete, onReorder, suggested = null,
 }) {
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
@@ -314,6 +315,21 @@ export default function ProjectBar({
               app that otherwise says Later and "what's next". Not Done, which
               already closes every sheet and counts the ticks in a column. */}
           <View style={s.spacer} />
+          {/* Only in the Mac app, where the agent inbox can be reached. The
+              count is what is waiting for a decision. */}
+          {suggested ? (
+            <TouchableOpacity
+              onPress={() => onSelect(SUGGESTED)}
+              style={[s.tab, s.archiveTab, active === SUGGESTED && s.tabOn]}
+              accessibilityRole="tab"
+              aria-selected={active === SUGGESTED}
+              accessibilityLabel={`Suggested, ${suggested.count} waiting`}
+            >
+              <Text style={[s.tabText, active === SUGGESTED && s.tabTextOn]}>
+                {suggested.count ? `Suggested ${suggested.count}` : 'Suggested'}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
           <TouchableOpacity
             onPress={() => onSelect(ARCHIVE)}
             style={[s.tab, s.archiveTab, active === ARCHIVE && s.tabOn]}

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { TaskProvider } from './src/context/TaskContext';
+import { AgentInboxProvider } from './src/context/AgentInboxContext';
 import TodoScreen from './src/screens/TodoScreen';
 import UnlockScreen from './src/components/UnlockScreen';
 import SyncSetup from './src/components/SyncSetup';
@@ -87,13 +88,15 @@ export default function App() {
       ) : (
         <TaskProvider encryptionKey={vault.dataKey} synced={vault.synced}>
           <StatusBar style="dark" />
-          <TodoScreen
-            account={vault.email}
-            dataKey={vault.dataKey}
-            authHash={vault.authHash}
-            onLock={() => setVault(null)}
-            onDeleted={() => setVault(null)}
-          />
+          <AgentInboxProvider encryptionKey={vault.dataKey}>
+            <TodoScreen
+              account={vault.email}
+              dataKey={vault.dataKey}
+              authHash={vault.authHash}
+              onLock={() => setVault(null)}
+              onDeleted={() => setVault(null)}
+            />
+          </AgentInboxProvider>
         </TaskProvider>
       )}
     </ErrorBoundary>
