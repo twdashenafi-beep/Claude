@@ -18,6 +18,21 @@ function when(iso) {
   });
 }
 
+// Whether what is on this page reaches this person's other devices, said in
+// the state it is actually in. The missing table is named because it is fixed
+// by one paste in the sync database and by nothing in this app.
+export function sharingLine(inbox) {
+  if (inbox.sharing === 'ok') {
+    return inbox.collector ? 'Shared with your other devices, encrypted.' : '';
+  }
+  if (inbox.sharing === 'no-table') {
+    return 'Not shared with your other devices: your sync database has no agent_suggestions table yet. Run supabase/schema.sql in it once.';
+  }
+  if (inbox.sharing === 'error') return `Sharing with your other devices failed: ${inbox.shareFault}`;
+  if (inbox.sharing === 'off' && inbox.collector) return 'Sync is off, so these stay on this Mac.';
+  return '';
+}
+
 function Source({ url, title }) {
   const link = safeLink(url);
   if (!link) return null;
@@ -101,22 +116,34 @@ export default function SuggestedSheet({ inbox, tasks }) {
         Proposed by agents through the DayFlow folder in Google Drive. Nothing here is on your page
         until you accept it. Agent names are whatever the file says — anyone who can write to that
         folder can use any name — so read before you accept.
+        {inbox.collector ? '' : ' The DayFlow Mac app collects them; this device shows what it has passed on.'}
       </Text>
 
       <View style={s.statusRow}>
-        <Text style={s.status} numberOfLines={2}>
-          {inbox.folder ? `Checking ${inbox.folder} every 15 minutes.` : 'No DayFlow folder yet.'}
-          {check ? `  Last check ${when(check.at)}: ${check.error || `${check.added} new, ${check.rejected} rejected`}.` : ''}
-        </Text>
+        {inbox.collector ? (
+          <Text style={s.status} numberOfLines={2}>
+            {inbox.folder ? `Checking ${inbox.folder} every 15 minutes.` : 'No DayFlow folder yet.'}
+            {check ? `  Last check ${when(check.at)}: ${check.error || `${check.added} new, ${check.rejected} rejected`}.` : ''}
+          </Text>
+        ) : (
+          <Text style={s.status} numberOfLines={2}>
+            {inbox.lastShared ? `Last heard from your other devices ${when(inbox.lastShared)}.` : 'Not heard from your other devices yet.'}
+          </Text>
+        )}
         <TouchableOpacity onPress={inbox.checkNow} accessibilityRole="button" accessibilityLabel="Check the inbox now">
           <Text style={s.check}>Check now</Text>
         </TouchableOpacity>
       </View>
+      {sharingLine(inbox) ? <Text style={s.status}>{sharingLine(inbox)}</Text> : null}
 
       <View style={s.rule} />
 
       {inbox.pending.length === 0 ? (
-        <Text style={s.empty}>Nothing waiting. New proposals appear here when an agent drops a file in DayFlow/agent-inbox.</Text>
+        <Text style={s.empty}>
+          {inbox.collector
+            ? 'Nothing waiting. New proposals appear here when an agent drops a file in DayFlow/agent-inbox.'
+            : 'Nothing waiting. New proposals appear here once the DayFlow Mac app has collected them.'}
+        </Text>
       ) : inbox.pending.map(item => (
         <Suggestion
           key={item.key}
@@ -143,6 +170,9 @@ export default function SuggestedSheet({ inbox, tasks }) {
         </View>
       )) : null}
 
+      {/* The export is written by the Mac, to a folder only the Mac can reach,
+          so the switch is offered only there. */}
+      {inbox.collector ? (
       <View style={s.exportBox}>
         <View style={s.statusRow}>
           <Text style={s.exportTitle}>Write my tasks to Google Drive</Text>
@@ -166,6 +196,7 @@ export default function SuggestedSheet({ inbox, tasks }) {
           </Text>
         ) : null}
       </View>
+      ) : null}
     </View>
   );
 }

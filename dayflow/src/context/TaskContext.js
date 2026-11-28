@@ -413,7 +413,9 @@ export function TaskProvider({ children, encryptionKey, synced }) {
   const addTask = useCallback(taskData => {
     const now = stamp();
     const newTask = {
-      id: newId(),
+      // Given only by an accepted agent suggestion, whose task must have the
+      // same id on every device that accepts it. See taskIdFor.
+      id: taskData.id || newId(),
       title: capitalizeTitle(taskData.title),
       date: taskData.date || now,
       dueDate: taskData.dueDate || taskData.date || now,

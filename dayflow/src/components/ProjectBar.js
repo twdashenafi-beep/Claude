@@ -315,8 +315,8 @@ export default function ProjectBar({
               app that otherwise says Later and "what's next". Not Done, which
               already closes every sheet and counts the ticks in a column. */}
           <View style={s.spacer} />
-          {/* Only in the Mac app, where the agent inbox can be reached. The
-              count is what is waiting for a decision. */}
+          {/* In the Mac app, which collects proposals, and on a device the Mac
+              shares them with. The count is what is waiting for a decision. */}
           {suggested ? (
             <TouchableOpacity
               onPress={() => onSelect(SUGGESTED)}

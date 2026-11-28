@@ -3,9 +3,13 @@
 Other programs can propose tasks to DayFlow. Nothing they propose reaches your
 task list until you accept it.
 
-It works in the **Mac app only**, through a folder in your own Google Drive that
-Google Drive for desktop keeps on the Mac. DayFlow does not sign in to Google,
-and there is no key or password anywhere in this.
+Proposals are collected by the **Mac app only**, through a folder in your own
+Google Drive that Google Drive for desktop keeps on the Mac. DayFlow does not
+sign in to Google, and there is no key or password anywhere in this.
+
+With sync on, the Mac passes what it collects to your other devices, so a
+phone shows the same **Suggested** list and can accept or dismiss from it. See
+[On your other devices](#on-your-other-devices).
 
 ```
 DayFlow/
@@ -93,6 +97,30 @@ folder can use any agent name. Your tap is the safeguard, so read before you
 accept — and share the folder only with what you trust to write to it.
 
 Dismissed proposals are kept (Suggested › decided) and are not offered again.
+
+## On your other devices
+
+The Mac is the only device that can read the folder, so it is the only one that
+learns of a proposal first-hand. With sync on, it shares each one with your
+other devices:
+
+- Each suggestion is one row in its own table, `agent_suggestions`, encrypted
+  with the same key as your tasks. The row's id is an HMAC under that key, so
+  the server cannot read the title, the agent's name, or anything else.
+- A decision on one device is the decision on all of them. If two devices
+  disagree, a decision beats waiting, and the earlier of two decisions stands.
+- Accepting on two devices at once makes one task, not two.
+- A device re-checks every suggestion it receives, field by field, as the Mac
+  checked the file.
+- The Mac has to run for a new proposal to be collected. A proposal written
+  while the Mac app is closed reaches a phone after the Mac next opens.
+
+**The table has to be added once.** A sync database set up before this feature
+does not have it. Run `supabase/schema.sql` again in the Supabase SQL editor;
+it is safe to re-run. Until then everything works as before, proposals stay on
+the Mac, and the Suggested page says so.
+
+The switch to write tasks to Google Drive is on the Mac only.
 
 ## The export
 

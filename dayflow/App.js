@@ -88,7 +88,7 @@ export default function App() {
       ) : (
         <TaskProvider encryptionKey={vault.dataKey} synced={vault.synced}>
           <StatusBar style="dark" />
-          <AgentInboxProvider encryptionKey={vault.dataKey}>
+          <AgentInboxProvider encryptionKey={vault.dataKey} synced={vault.synced}>
             <TodoScreen
               account={vault.email}
               dataKey={vault.dataKey}
