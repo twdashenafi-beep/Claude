@@ -201,6 +201,29 @@ export function listeningLine(permission) {
   return LISTENING[permission] || '';
 }
 
+// Whether agent suggestions reach this device, said where the rest of what
+// this device holds is said.
+//
+// On a phone the Suggested tab is shown only once sharing has worked, so a
+// phone on which it had not worked showed no tab and no reason: build 52 was
+// installed, the tab was not there, and nothing on the device could say why.
+// This is the line that says it.
+export function suggestionsLine({ sharing, shareFault, collector, count } = {}) {
+  const n = Number(count) || 0;
+  const held = `${n} agent ${n === 1 ? 'suggestion' : 'suggestions'}`;
+  if (sharing === 'ok') {
+    return collector ? `${held}, shared with your other devices` : `${held}, received from your other devices`;
+  }
+  if (sharing === 'no-table') {
+    return 'Agent suggestions are not shared — the sync database has no agent_suggestions table';
+  }
+  if (sharing === 'error') {
+    return `Agent suggestions could not be shared — the server said “${String(shareFault || 'nothing').slice(0, 160)}”`;
+  }
+  if (sharing === 'idle') return 'Agent suggestions have not been asked for yet';
+  return collector ? `${held}, kept on this Mac because sync is off` : '';
+}
+
 // What to say when dictation stops badly.
 //
 // The five codes below had sentences and every other code had nothing, so a

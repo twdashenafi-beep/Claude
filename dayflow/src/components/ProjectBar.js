@@ -256,6 +256,22 @@ export default function ProjectBar({
     );
   }
 
+  // In the Mac app, which collects proposals, and on a device the Mac
+  // shares them with. The count is what is waiting for a decision.
+  const suggestedTab = suggested ? (
+    <TouchableOpacity
+      onPress={() => onSelect(SUGGESTED)}
+      style={[s.tab, s.archiveTab, active === SUGGESTED && s.tabOn]}
+      accessibilityRole="tab"
+      aria-selected={active === SUGGESTED}
+      accessibilityLabel={`Suggested, ${suggested.count} waiting`}
+    >
+      <Text style={[s.tabText, active === SUGGESTED && s.tabTextOn]}>
+        {suggested.count ? `Suggested ${suggested.count}` : 'Suggested'}
+      </Text>
+    </TouchableOpacity>
+  ) : null;
+
   return (
     <View style={s.wrap}>
       <ScrollView
@@ -283,6 +299,13 @@ export default function ProjectBar({
             onRelease={() => {}}
             onMeasure={() => {}}
           />
+
+          {/* With something waiting it comes first, straight after Everything.
+              At the end, beside Finished, a phone with a handful of projects
+              has it off the edge of the screen: build 52 carried the tab and
+              the person it was built for could not find it. With nothing
+              waiting it goes back to the end, out of the way. */}
+          {suggested && suggested.count ? suggestedTab : null}
 
           {projects.map((p, i) => (
             <ProjectTab
@@ -315,21 +338,7 @@ export default function ProjectBar({
               app that otherwise says Later and "what's next". Not Done, which
               already closes every sheet and counts the ticks in a column. */}
           <View style={s.spacer} />
-          {/* In the Mac app, which collects proposals, and on a device the Mac
-              shares them with. The count is what is waiting for a decision. */}
-          {suggested ? (
-            <TouchableOpacity
-              onPress={() => onSelect(SUGGESTED)}
-              style={[s.tab, s.archiveTab, active === SUGGESTED && s.tabOn]}
-              accessibilityRole="tab"
-              aria-selected={active === SUGGESTED}
-              accessibilityLabel={`Suggested, ${suggested.count} waiting`}
-            >
-              <Text style={[s.tabText, active === SUGGESTED && s.tabTextOn]}>
-                {suggested.count ? `Suggested ${suggested.count}` : 'Suggested'}
-              </Text>
-            </TouchableOpacity>
-          ) : null}
+          {suggested && !suggested.count ? suggestedTab : null}
           <TouchableOpacity
             onPress={() => onSelect(ARCHIVE)}
             style={[s.tab, s.archiveTab, active === ARCHIVE && s.tabOn]}

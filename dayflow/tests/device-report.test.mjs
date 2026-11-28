@@ -9,7 +9,7 @@
 
 import {
   bytesOf, sizeWords, notesIn, summarise, deviceLines, dictationLine, calendarLine,
-  buildLine, syncLine, listeningLine, speechTrouble, MAC_DICTATION_HINT,
+  buildLine, syncLine, listeningLine, speechTrouble, MAC_DICTATION_HINT, suggestionsLine,
 } from '../src/services/deviceReport.js';
 
 let pass = 0, fail = 0;
@@ -281,6 +281,23 @@ ok('and whitespace is nothing too', calendarLine('   ') === '');
   ok('and a quiet room says nothing', speechTrouble('no-speech') === '');
   ok('nor does no code at all', speechTrouble('') === '' && speechTrouble(null) === '');
   ok('nor whitespace pretending to be one', speechTrouble('   ') === '');
+}
+
+// ── Whether agent suggestions reach this device ──
+//
+// A phone shows the Suggested tab only once sharing has worked, so one where it
+// had not showed nothing at all. Each state has to say which it is.
+{
+  const line = (sharing, extra = {}) => suggestionsLine({ sharing, count: 3, ...extra });
+  ok('a phone that is receiving them says how many', /3 agent suggestions, received/.test(line('ok')), line('ok'));
+  ok('a Mac that is sharing them says so', /shared with your other devices/.test(line('ok', { collector: true })));
+  ok('one suggestion is not "suggestions"', /^1 agent suggestion,/.test(suggestionsLine({ sharing: 'ok', count: 1 })));
+  ok('a missing table is named', /no agent_suggestions table/.test(line('no-table')));
+  ok('a failure quotes what the server said', line('error', { shareFault: '42501 permission denied' }).includes('“42501 permission denied”'));
+  ok('not yet asked is not the same as failed', /not been asked/.test(line('idle')) && line('idle') !== line('error'));
+  ok('a phone with sync off says nothing, as sync already has', line('off') === '');
+  ok('a Mac with sync off says they stay on it', /kept on this Mac/.test(line('off', { collector: true })));
+  ok('nothing at all is not an error', suggestionsLine() === '');
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
