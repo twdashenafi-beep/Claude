@@ -26,7 +26,8 @@ DayFlow/
 2. Open the DayFlow Mac app. With one Google account it finds
    `My Drive/DayFlow` by itself and creates the folders. With more than one, or
    to use a different folder: **File › Choose Agent Inbox Folder…**
-3. Open **Projects**. A **Suggested** tab appears beside Finished.
+3. Open **Projects**. A **Suggested** tab appears: first in the row when
+   something is waiting, and beside Finished when nothing is.
 
 DayFlow checks the inbox when it opens and every 15 minutes while it is open.
 **Check now** on the Suggested page checks at once.

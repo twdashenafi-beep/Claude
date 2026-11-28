@@ -24,8 +24,9 @@ import Store from '../services/store';
 import { STORAGE_KEY } from '../context/TaskContext';
 import { decryptTask } from '../services/encryption';
 import { isTask } from '../services/projects';
+import { useAgentInbox } from '../context/AgentInboxContext';
 import {
-  summarise, deviceLines, bytesOf, dictationLine, calendarLine, buildLine, syncLine, listeningLine,
+  summarise, deviceLines, bytesOf, dictationLine, calendarLine, buildLine, syncLine, listeningLine, suggestionsLine,
 } from '../services/deviceReport';
 import { buildInfo } from '../services/build';
 import { openingLine } from '../services/opening';
@@ -63,6 +64,7 @@ export default function AccountSheet({
   tombstones = [], syncState = 'off', syncFault = '',
   onImport, onCalendar, onClose, onLock, onDeleted,
 }) {
+  const inbox = useAgentInbox();
   const [view, setView] = useState('menu'); // menu | password | code | delete
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -225,11 +227,16 @@ export default function AccountSheet({
         .filter(Boolean).join(' ');
       const diary = calendarLine(calendarReading());
       const sync = syncLine(syncState, syncFault);
+      const proposed = suggestionsLine({
+        sharing: inbox.sharing, shareFault: inbox.shareFault,
+        collector: inbox.collector, count: inbox.suggestions.length,
+      });
       setHeld([
         ...deviceLines(summary),
         ...(dictation ? [dictation] : []),
         ...(diary ? [diary] : []),
         ...(sync ? [sync] : []),
+        ...(proposed ? [proposed] : []),
         ...(opened ? [opened] : []),
       ].join(' · '));
     } catch (e) {
