@@ -102,6 +102,11 @@ await page.route(u => u.hostname === 'stubproject.supabase.co', r => {
     for (const row of JSON.parse(req.postData() || '[]')) rows.set(row.id, row);
     return json([], 201);
   }
+  // This account's sync database has not been given the suggestions table, as
+  // any account older than the feature has not: the inbox must work the same.
+  if (p.startsWith('/rest/v1/agent_suggestions')) {
+    return json({ code: 'PGRST205', message: "Could not find the table 'public.agent_suggestions' in the schema cache" }, 404);
+  }
   return json({});
 });
 

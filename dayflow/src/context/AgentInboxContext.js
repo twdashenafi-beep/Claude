@@ -6,20 +6,24 @@ import { encrypt, decrypt } from '../services/encryption';
 import { useTasks } from './TaskContext';
 import {
   emptyState, normaliseState, parseInboxFile, applyProposals, pendingOf, findSuggestion,
-  taskDataFor, statusChangeFor, markAccepted, markDismissed, buildAgentExport,
+  taskDataFor, statusChangeFor, markAccepted, markDismissed, buildAgentExport, agentTask,
   NEW_TASK, STATUS_SUGGESTION, PENDING,
 } from '../services/agentInbox';
+import { mergeSuggestions, rowIdFor, taskIdFor } from '../services/suggestionSync';
+import { pullSuggestions, pushSuggestions, watchSuggestions } from '../services/sync';
 
 // The agent inbox, wired to the app.
 //
 // Only the Mac app can reach the folder — its window is given a small bridge
-// (desktop/preload.js) and nothing else is. Everywhere else this provider is
-// present and inert: no tab, no polling, no export.
+// (desktop/preload.js) and nothing else is. So the Mac collects, and a device
+// with sync on is shown what the Mac collected: each suggestion travels as an
+// encrypted row in a table of its own (services/suggestionSync.js). A device
+// with neither a bridge nor sync is inert: no tab, no polling.
 //
-// Suggestions are kept apart from the task list, under their own key, encrypted
-// with the same key as the tasks. Apart because the task list syncs, and a
-// phone running an older build would show any record it does not recognise as
-// an ordinary task — which is exactly what a suggestion must never become
+// Suggestions are kept apart from the task list, under their own key and in
+// their own table, encrypted with the same key as the tasks. Apart because a
+// phone running an older build would show any task row it does not recognise
+// as an ordinary task — which is exactly what a suggestion must never become
 // without a tap. Only what is accepted joins the list, through addTask, and
 // syncs from there like anything else.
 
@@ -27,6 +31,8 @@ const STATE_KEY = '@dayflow_agent_inbox';
 const EXPORT_KEY = '@dayflow_agent_export';
 const CHECK_EVERY_MS = 15 * 60 * 1000;
 const EXPORT_DELAY_MS = 4000;
+const SHARE_EVERY_MS = 60 * 1000;
+const SHARE_DEBOUNCE_MS = 1200;
 
 export function desktopInbox() {
   try {
@@ -41,14 +47,16 @@ export function desktopInbox() {
 const AgentInboxContext = createContext(null);
 
 const INERT = {
-  available: false, folder: null, suggestions: [], pending: [], lastCheck: null,
+  available: false, collector: false, folder: null, suggestions: [], pending: [], lastCheck: null,
+  sharing: 'off', shareFault: '', lastShared: null,
   exportOn: false, lastExport: null,
   accept: async () => ({ error: 'unavailable' }), dismiss: async () => {},
   checkNow: async () => {}, setExportOn: () => {},
 };
 
-export function AgentInboxProvider({ encryptionKey, children }) {
+export function AgentInboxProvider({ encryptionKey, synced = false, children }) {
   const bridge = useMemo(desktopInbox, []);
+  const active = !!bridge || synced;
   const { tasks, archived, projects, addTask, toggleTask } = useTasks();
 
   const [state, setState] = useState(emptyState);
@@ -58,13 +66,19 @@ export function AgentInboxProvider({ encryptionKey, children }) {
   const [lastCheck, setLastCheck] = useState(null);
   const [exportOn, setExportOnState] = useState(false);
   const [lastExport, setLastExport] = useState(null);
+  // 'off' no sync · 'idle' not tried yet · 'ok' · 'no-table' the sync database
+  // has not been given the suggestions table · 'error'
+  const [sharing, setSharing] = useState(synced ? 'idle' : 'off');
+  const [shareFault, setShareFault] = useState('');
+  const [lastShared, setLastShared] = useState(null);
+  const [localEdits, setLocalEdits] = useState(0);
 
   const tasksRef = useRef(tasks);
   tasksRef.current = tasks;
 
   // ── Storage ───────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!bridge || !encryptionKey) return undefined;
+    if (!active || !encryptionKey) return undefined;
     let alive = true;
     (async () => {
       let next = emptyState();
@@ -87,13 +101,90 @@ export function AgentInboxProvider({ encryptionKey, children }) {
       setLoaded(true);
     })();
     return () => { alive = false; };
-  }, [bridge, encryptionKey]);
+  }, [active, encryptionKey]);
 
-  const commit = useCallback(async next => {
+  const save = useCallback(async next => {
     stateRef.current = next;
     setState(next);
     await Store.setItem(STATE_KEY, encrypt(JSON.stringify(next), encryptionKey));
   }, [encryptionKey]);
+
+  // A change made here, as opposed to one that arrived: it is these that the
+  // other devices have not seen.
+  const commit = useCallback(async next => {
+    await save(next);
+    setLocalEdits(n => n + 1);
+  }, [save]);
+
+  // ── Sharing with this person's other devices ──────────────────────────────
+  //
+  // Pull, merge, push what the server lacks. The merge reads this device's
+  // list after the pull has returned, not before: a tap made while the request
+  // was in the air is then part of what is merged, rather than written over.
+  const sharingBusy = useRef(false);
+  const shareNow = useCallback(async () => {
+    if (!synced || !loaded || sharingBusy.current) return;
+    sharingBusy.current = true;
+    try {
+      const pulled = await pullSuggestions();
+      if (!pulled) { setSharing('off'); return; }
+      if (pulled.missing) { setSharing('no-table'); return; }
+
+      const rowId = key => rowIdFor(key, encryptionKey);
+      const result = mergeSuggestions({
+        local: stateRef.current.suggestions,
+        remoteRows: pulled.rows,
+        decryptRow: ciphertext => {
+          const text = decrypt(ciphertext, encryptionKey);
+          return text ? JSON.parse(text) : null;
+        },
+        rowId,
+      });
+      if (result.changed) await save({ ...stateRef.current, suggestions: result.suggestions });
+
+      const byKey = new Map(result.suggestions.map(s => [s.key, s]));
+      const rows = result.pushKeys.map(key => {
+        const s = byKey.get(key);
+        return {
+          id: rowId(key),
+          ciphertext: encrypt(JSON.stringify(s), encryptionKey),
+          updatedAt: s.decidedAt || s.receivedAt,
+        };
+      });
+      await pushSuggestions(rows);
+      setSharing('ok');
+      setShareFault('');
+      setLastShared(new Date().toISOString());
+    } catch (err) {
+      setShareFault([err && err.code, err && err.message].filter(Boolean).join(' ').slice(0, 200) || 'no reason given');
+      setSharing('error');
+    } finally {
+      sharingBusy.current = false;
+    }
+  }, [synced, loaded, encryptionKey, save]);
+
+  useEffect(() => {
+    if (!synced || !loaded) return undefined;
+    shareNow();
+    let debounce = null;
+    const nudge = () => {
+      clearTimeout(debounce);
+      debounce = setTimeout(shareNow, SHARE_DEBOUNCE_MS);
+    };
+    const unwatch = watchSuggestions(nudge);
+    const timer = setInterval(shareNow, SHARE_EVERY_MS);
+    return () => {
+      clearTimeout(debounce);
+      clearInterval(timer);
+      if (unwatch) unwatch();
+    };
+  }, [synced, loaded, shareNow]);
+
+  useEffect(() => {
+    if (!synced || !loaded || localEdits === 0) return undefined;
+    const handle = setTimeout(shareNow, SHARE_DEBOUNCE_MS);
+    return () => clearTimeout(handle);
+  }, [localEdits, synced, loaded, shareNow]);
 
   // ── Checking the folder ───────────────────────────────────────────────────
   //
@@ -101,7 +192,7 @@ export function AgentInboxProvider({ encryptionKey, children }) {
   // the file is moved: if the app stops between the two, the file is read again
   // next time and every proposal in it is recognised as a duplicate.
   const checking = useRef(false);
-  const checkNow = useCallback(async () => {
+  const checkFolder = useCallback(async () => {
     if (!bridge || !loaded || checking.current) return;
     checking.current = true;
     const summary = { at: new Date().toISOString(), files: 0, added: 0, duplicates: 0, rejected: 0, error: '' };
@@ -148,17 +239,29 @@ export function AgentInboxProvider({ encryptionKey, children }) {
 
   useEffect(() => {
     if (!bridge || !loaded) return undefined;
-    checkNow();
-    const timer = setInterval(checkNow, CHECK_EVERY_MS);
+    checkFolder();
+    const timer = setInterval(checkFolder, CHECK_EVERY_MS);
     return () => clearInterval(timer);
-  }, [bridge, loaded, checkNow]);
+  }, [bridge, loaded, checkFolder]);
+
+  // What the button does: on the Mac, look in the folder; everywhere, ask the
+  // other devices what they have.
+  const checkNow = useCallback(async () => {
+    await checkFolder();
+    await shareNow();
+  }, [checkFolder, shareNow]);
 
   // ── Deciding ──────────────────────────────────────────────────────────────
   const accept = useCallback(async key => {
     const s = findSuggestion(stateRef.current, key);
     if (!s || s.status !== PENDING) return { error: 'Already decided.' };
     if (s.type === NEW_TASK) {
-      const task = addTask(taskDataFor(s));
+      // Another device may have accepted this already, with its task here
+      // before word of the decision is: then that task is the one, and a
+      // second must not be made. Otherwise the id is fixed by the suggestion,
+      // so two devices accepting out of touch make one task between them.
+      const task = agentTask(tasksRef.current, s.agent, s.id)
+        || addTask({ ...taskDataFor(s), id: taskIdFor(key, encryptionKey) });
       await commit(markAccepted(stateRef.current, key, { taskId: task ? task.id : null }));
       return { ok: true };
     }
@@ -170,7 +273,7 @@ export function AgentInboxProvider({ encryptionKey, children }) {
       return { ok: true };
     }
     return { error: 'Unknown suggestion.' };
-  }, [addTask, toggleTask, commit]);
+  }, [addTask, toggleTask, commit, encryptionKey]);
 
   const dismiss = useCallback(async key => {
     const s = findSuggestion(stateRef.current, key);
@@ -199,10 +302,18 @@ export function AgentInboxProvider({ encryptionKey, children }) {
     return () => clearTimeout(timer);
   }, [bridge, loaded, exportOn, folder, tasks, archived, projects, state]);
 
-  const value = useMemo(() => (bridge ? {
-    available: true, folder, suggestions: state.suggestions, pending: pendingOf(state),
-    lastCheck, exportOn, lastExport, accept, dismiss, checkNow, setExportOn,
-  } : INERT), [bridge, folder, state, lastCheck, exportOn, lastExport, accept, dismiss, checkNow, setExportOn]);
+  // The tab is shown where there is something behind it: on the Mac always,
+  // and elsewhere once sharing has worked or there is something to show. A
+  // phone whose sync database has no suggestions table has no tab, and is told
+  // nothing it cannot act on.
+  const available = !!bridge || sharing === 'ok' || state.suggestions.length > 0;
+
+  const value = useMemo(() => (active ? {
+    available, collector: !!bridge, folder, suggestions: state.suggestions, pending: pendingOf(state),
+    lastCheck, sharing, shareFault, lastShared,
+    exportOn, lastExport, accept, dismiss, checkNow, setExportOn,
+  } : INERT), [active, available, bridge, folder, state, lastCheck, sharing, shareFault, lastShared,
+    exportOn, lastExport, accept, dismiss, checkNow, setExportOn]);
 
   return <AgentInboxContext.Provider value={value}>{children}</AgentInboxContext.Provider>;
 }

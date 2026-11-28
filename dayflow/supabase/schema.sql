@@ -85,6 +85,44 @@ create policy "update own vault" on vaults
   for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 -- ---------------------------------------------------------------------------
+-- Agent suggestions: tasks proposed by other programs, waiting for a yes or no.
+--
+-- The Mac app collects them from a folder; this table is how the person's
+-- other devices get to see and decide them. Ciphertext only, like tasks: the
+-- row id is an HMAC under the data key, so not even the proposing agent's name
+-- is legible here.
+--
+-- A table of its own on purpose. A device running an older build shows every
+-- task row it can decrypt as a task, and a suggestion must never become one
+-- without a tap.
+create table if not exists agent_suggestions (
+  id          text not null,
+  user_id     uuid not null references auth.users(id) on delete cascade,
+  ciphertext  text not null,
+  updated_at  timestamptz not null default now(),
+  created_at  timestamptz not null default now(),
+  primary key (user_id, id)
+);
+
+alter table agent_suggestions enable row level security;
+
+drop policy if exists "read own suggestions" on agent_suggestions;
+create policy "read own suggestions" on agent_suggestions
+  for select using (auth.uid() = user_id);
+
+drop policy if exists "insert own suggestions" on agent_suggestions;
+create policy "insert own suggestions" on agent_suggestions
+  for insert with check (auth.uid() = user_id);
+
+drop policy if exists "update own suggestions" on agent_suggestions;
+create policy "update own suggestions" on agent_suggestions
+  for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+drop policy if exists "delete own suggestions" on agent_suggestions;
+create policy "delete own suggestions" on agent_suggestions
+  for delete using (auth.uid() = user_id);
+
+-- ---------------------------------------------------------------------------
 -- Account deletion.
 --
 -- App Store Guideline 5.1.1(v) requires any app offering account creation to
@@ -110,6 +148,7 @@ begin
   -- Both cascade from auth.users, but deleting them explicitly keeps the
   -- function correct even if that constraint is ever changed.
   delete from public.tasks  where user_id = auth.uid();
+  delete from public.agent_suggestions where user_id = auth.uid();
   delete from public.vaults where user_id = auth.uid();
   delete from auth.users    where id = auth.uid();
 end;
@@ -140,6 +179,19 @@ begin
       and tablename = 'tasks'
   ) then
     alter publication supabase_realtime add table tasks;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'agent_suggestions'
+  ) then
+    alter publication supabase_realtime add table agent_suggestions;
   end if;
 end
 $$;

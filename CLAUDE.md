@@ -36,7 +36,7 @@ npx expo start         # dev server (w = browser, i = iOS simulator)
 - `src/services/` holds the logic, kept pure where possible so it can be tested in node: parsing (`nlParser`), ordering, repeats, due dates, the encrypted store and vault (`encryption`, `crypto`, `vault`, `localVault`, `keyParcel`), sync (`sync`, `merge`, `supabase`), backup and restore, and calendar (`ics`, `calendarFeed`, `calendarLink`).
 - Sync is optional Supabase (`supabase/schema.sql`, RLS). The server only ever holds ciphertext. The key is derived from the user's password on the device.
 - `modules/dayflow-kdf/` is a native Expo module (Swift/Kotlin) for key derivation.
-- The agent inbox (`src/services/agentInbox.js`, `src/context/AgentInboxContext.js`, `desktop/agentFolder.js`) is Mac-only. Agents propose tasks as JSON files in a Google Drive folder; suggestions are stored apart from the task list, encrypted and unsynced, and only become tasks through `addTask` when accepted. Format and rules: `dayflow/AGENT_INBOX.md`.
+- The agent inbox (`src/services/agentInbox.js`, `src/context/AgentInboxContext.js`, `desktop/agentFolder.js`) is collected on the Mac only. Agents propose tasks as JSON files in a Google Drive folder; suggestions are stored apart from the task list, encrypted, and only become tasks through `addTask` when accepted. With sync on they are shared with the person's other devices through their own table, `agent_suggestions` (`src/services/suggestionSync.js`), never the task table: an older build would show a suggestion there as a task. Format and rules: `dayflow/AGENT_INBOX.md`.
 
 ## Rules that matter
 
